@@ -16,7 +16,18 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from django.http import JsonResponse
+
+def simple_test_api(request):
+    return  JsonResponse(
+        {
+            'message':'hello from django rest framework backend',
+            'status':'success'
+        }
+    )
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/test/',simple_test_api,name='simple_test_api'),
 ]
