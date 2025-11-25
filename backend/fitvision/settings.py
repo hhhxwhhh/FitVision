@@ -90,10 +90,15 @@ CORS_ALLOWED_ORIGINS = [
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': env('DB_NAME', default='fitvision'),
+        'USER': env('DB_USER', default='fitvision_user'),
+        'PASSWORD': env('DB_PASSWORD', default='fitvision_password'),
+        'HOST': env('DB_HOST', default='localhost'),
+        'PORT': env('DB_PORT', default='5432'),
     }
 }
+
 
 
 # Password validation
