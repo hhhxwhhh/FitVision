@@ -15,19 +15,28 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from django.http import JsonResponse
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
-def simple_test_api(request):
-    return  JsonResponse(
-        {
-            'message':'hello from django rest framework backend',
-            'status':'success'
-        }
-    )
-
+def simple_api(request):
+    return JsonResponse({
+        'message': 'Hello from Django backend!',
+        'status': 'success'
+    })
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/test/',simple_test_api,name='simple_test_api'),
+    path('api/test/', simple_api, name='test_api'),
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api-auth/', include('rest_framework.urls')),
+    # API 文档
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('api/schema/swagger-ui/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('api/schema/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 ]
