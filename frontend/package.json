@@ -1,0 +1,33 @@
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "@mediapipe/camera_utils": "^0.3.1675466862",
+    "@mediapipe/drawing_utils": "^0.3.1675466124",
+    "@mediapipe/pose": "^0.5.1675469404",
+    "@vueuse/core": "^14.0.0",
+    "axios": "^1.13.2",
+    "echarts": "^6.0.0",
+    "element-plus": "^2.11.8",
+    "pinia": "^3.0.4",
+    "sass": "^1.94.2",
+    "vue": "^3.5.24",
+    "vue-router": "^4.6.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/tsconfig": "^0.8.1",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.4",
+    "vue-tsc": "^3.1.4"
+  }
+}
