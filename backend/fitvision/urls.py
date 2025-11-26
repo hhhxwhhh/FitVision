@@ -1,33 +1,25 @@
 """
 URL configuration for fitvision project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+# 1. 关键改动：这里必须导入 include 函数
+from django.urls import path, include 
 from django.http import JsonResponse
 
+# 这个测试接口可以留着，方便你验证服务器是不是活着
 def simple_test_api(request):
-    return  JsonResponse(
-        {
-            'message':'hello from django rest framework backend',
-            'status':'success'
-        }
-    )
-
+    return JsonResponse({
+        'message': 'hello from django rest framework backend',
+        'status': 'success'
+    })
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/test/',simple_test_api,name='simple_test_api'),
+    
+    # 保留测试接口
+    path('api/test/', simple_test_api, name='simple_test_api'),
+
+    # 2. 关键改动：添加这行！
+    # 意思：凡是访问 /api/auth/ 开头的，全部转交给 users/urls.py 去处理
+    path('api/auth/', include('users.urls')), 
 ]
