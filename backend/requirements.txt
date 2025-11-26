@@ -86,14 +86,3 @@ isort==7.0.0
 flake8==7.3.0
 pylint==4.0.2
 coverage==7.12.0
-psycopg2-binary==2.9.10
-opencv-python>=4.5.0
-mediapipe>=0.10.0
-torch>=1.9.0
-torchvision>=0.10.0
-channels>=4.0.0
-daphne>=4.0.0
-celery[redis]>=5.2.0
-django-cache-memoize>=0.2.0
-matplotlib>=3.5.0
-seaborn>=0.11.0
