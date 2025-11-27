@@ -234,18 +234,14 @@ LOGGING = {
             'class': 'logging.StreamHandler',
         },
     },
-    'root': {
-        'handlers': ['console'],
-        'level': 'DEBUG' if DEBUG else 'INFO',
-    },
     'loggers': {
-        'django': {
+        'django.db.backends': {
+            'level': 'INFO',  
             'handlers': ['console'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
+        }
     },
 }
+
 
 # 安全设置
 if not DEBUG:
