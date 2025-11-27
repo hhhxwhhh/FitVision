@@ -1,8 +1,3 @@
-<<<<<<< HEAD
-from django.shortcuts import render
-
-# Create your views here.
-=======
 from rest_framework.views import APIView
 from rest_framework import generics
 from rest_framework.response import Response
@@ -71,4 +66,3 @@ class TrainingLogView(generics.ListCreateAPIView):
         cal = weight * 0.05 * count
         
         serializer.save(user=self.request.user, calories=cal)
->>>>>>> refs/remotes/origin/main
