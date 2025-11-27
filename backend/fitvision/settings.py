@@ -45,7 +45,14 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'users',
+    'ai_models',
+    'analytics',
+    'exercises',
+    'training',
+    'drf_spectacular',
 ]
+
+
 
 
 MIDDLEWARE = [
@@ -170,8 +177,19 @@ REST_FRAMEWORK = {
     
     # 分页设置 (保持你原来的即可)
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20
+    'PAGE_SIZE': 20,
+    
+    # API文档配置
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'FitVision API',
+    'DESCRIPTION': 'FitVision - AI健身教练平台API文档',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}
+
 
 # 增加 JWT 的配置 (可选，控制 Token 有效期)
 from datetime import timedelta
@@ -229,3 +247,22 @@ LOGGING = {
     },
 }
 
+# 安全设置
+if not DEBUG:
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+# 内容安全策略头部
+SECURE_CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+
+# X-Frame-Options
+X_FRAME_OPTIONS = 'DENY'
+
+# Referrer Policy
+SECURE_REFERRER_POLICY = 'same-origin'
