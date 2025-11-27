@@ -1,68 +1,39 @@
-from rest_framework.views import APIView
-from rest_framework import generics
-from rest_framework.response import Response
-from rest_framework import status
-from django.contrib.auth import authenticate
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.permissions import AllowAny, IsAuthenticated # 导入权限控制
-from .models import UserProfile, TrainingLog
-from .serializers import UserRegisterSerializer, UserProfileSerializer, TrainingLogSerializer
+from django.db import models
+from django.contrib.auth.models import User
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
-# --- 1. 认证模块 (允许任何人访问) ---
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    nickname = models.CharField("昵称", max_length=50, blank=True)
+    gender = models.CharField("性别", max_length=10, choices=[('male', '男'), ('female', '女')], default='male')
+    age = models.IntegerField("年龄", default=20)
+    height = models.FloatField("身高 (cm)", default=170.0)
+    weight = models.FloatField("体重 (kg)", default=65.0)
+    injury_history = models.TextField("伤病史", blank=True, default="无")
+    fitness_level = models.CharField("运动基础", max_length=20, default="beginner", 
+                                     choices=[('beginner', '新手'), ('intermediate', '进阶'), ('advanced', '大神')])
 
-class RegisterView(APIView):
-    permission_classes = [AllowAny] # 允许任何人
+    def __str__(self):
+        return f"{self.user.username} 的档案"
 
-    def post(self, request):
-        serializer = UserRegisterSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'message': '注册成功'}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+@receiver(post_save, sender=User)
+def create_user_profile(sender, instance, created, **kwargs):
+    if created:
+        UserProfile.objects.create(user=instance)
 
-class LoginView(APIView):
-    permission_classes = [AllowAny] # 允许任何人
+@receiver(post_save, sender=User)
+def save_user_profile(sender, instance, **kwargs):
+    instance.profile.save()
 
-    def post(self, request):
-        username = request.data.get('username')
-        password = request.data.get('password')
-        user = authenticate(username=username, password=password)
-        
-        if user:
-            refresh = RefreshToken.for_user(user)
-            return Response({
-                'message': '登录成功',
-                'username': user.username,
-                'access': str(refresh.access_token),
-                'refresh': str(refresh),
-            }, status=status.HTTP_200_OK)
-        return Response({'error': '账号或密码错误'}, status=status.HTTP_401_UNAUTHORIZED)
+class TrainingLog(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='logs')
+    action_name = models.CharField("动作名称", max_length=50)
+    count = models.IntegerField("完成数量", default=0)
+    duration = models.IntegerField("耗时(秒)", default=0)
+    accuracy_score = models.FloatField("AI评分", default=0.0) 
+    calories = models.FloatField("消耗卡路里", default=0.0)
+    created_at = models.DateTimeField(auto_now_add=True)
 
-# --- 2. 业务模块 (必须带 Token 才能访问) ---
-
-# 个人档案接口：既能查(GET)，也能改(PUT)
-class ProfileView(generics.RetrieveUpdateAPIView):
-    permission_classes = [IsAuthenticated] # 必须登录
-    serializer_class = UserProfileSerializer
-
-    # 告诉 Django：我要操作的是"当前登录用户"的档案
-    def get_object(self):
-        return self.request.user.profile
-
-# 训练记录接口：既能看列表(GET)，也能上传新记录(POST)
-class TrainingLogView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated] # 必须登录
-    serializer_class = TrainingLogSerializer
-
-    # 查：只返回属于"我"的记录，按时间倒序排
-    def get_queryset(self):
-        return TrainingLog.objects.filter(user=self.request.user).order_by('-created_at')
-
-    # 存：自动把记录挂到"我"的名下，并简单算个卡路里
-    def perform_create(self, serializer):
-        # 简单卡路里公式：体重(kg) * 0.05 * 次数 (这里仅作演示)
-        weight = self.request.user.profile.weight
-        count = serializer.validated_data.get('count', 0)
-        cal = weight * 0.05 * count
-        
-        serializer.save(user=self.request.user, calories=cal)
+    def __str__(self):
+        return f"{self.user.username} - {self.action_name} ({self.created_at.date()})"
