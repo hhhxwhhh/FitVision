@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'exercises',
     'training',
     'drf_spectacular',
+    'django_filters',
 ]
 
 
