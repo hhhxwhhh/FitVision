@@ -6,6 +6,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from django.shortcuts import get_object_or_404
 from django.db.models import Sum
+from django.utils import timezone
 
 from .models import ExerciseCategory, Exercise, UserExerciseRecord
 from .serializers import (
@@ -95,14 +96,14 @@ class ExerciseRecordsByExercise(generics.ListAPIView):
     
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def user_exercise_progress(request,exercise_id):
+def user_exercise_progress(request, exercise_id):
     """获取用户特定动作的练习进度"""
-    user=request.user   
+    user = request.user   
 
     try:
-        profile=UserProfile.objects.get(user=user)
+        profile = UserProfile.objects.get(user=user)
     except UserProfile.DoesNotExist:
-        profile=None
+        profile = None
 
     # 统计用户的练习数据
     total_exercises = UserExerciseRecord.objects.filter(user=user).count()
@@ -110,11 +111,17 @@ def user_exercise_progress(request,exercise_id):
         Sum('duration')
     )['duration__sum'] or 0
 
-    total_calories=UserExerciseRecord.objects.filter(user=user).aggregate(
+    total_calories = UserExerciseRecord.objects.filter(user=user).aggregate(
         Sum('calories_burned')
     )['calories_burned__sum'] or 0
 
-    best_record=UserExerciseRecord.objects.filter(user=user).order_by('-accuracy_score').first()
+    best_record = UserExerciseRecord.objects.filter(user=user).order_by('-accuracy_score').first()
+    
+    # 获取最近一次记录
+    latest_record = UserExerciseRecord.objects.filter(
+        user=user, 
+        exercise__id=exercise_id
+    ).order_by('-created_at').first()
 
     stats = {
         'profile_info': {
@@ -130,5 +137,12 @@ def user_exercise_progress(request,exercise_id):
         'total_calories': round(total_calories, 2),
         'best_accuracy_score': best_record.accuracy_score if best_record else 0,
         'best_exercise': best_record.exercise.name if best_record else '',
+        'latest_record': {
+            'accuracy_score': latest_record.accuracy_score if latest_record else 0,
+            'count': latest_record.count if latest_record else 0,
+            'duration': latest_record.duration if latest_record else 0,
+            'created_at': latest_record.created_at if latest_record else None
+        } if latest_record else None,
     }
-    return Response(stats,status=status.HTTP_200_OK)
+    return Response(stats, status=status.HTTP_200_OK)
+
