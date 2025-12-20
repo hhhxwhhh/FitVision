@@ -18,6 +18,7 @@ urlpatterns = [
     path('api/test/', simple_test_api, name='simple_test_api'),
     path('api/auth/', include('users.urls')),
     path('api/exercises/', include('exercises.urls')),
+    path('api/training/', include('training.urls')),
     
     # API文档
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
