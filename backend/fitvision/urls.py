@@ -19,6 +19,8 @@ urlpatterns = [
     path('api/auth/', include('users.urls')),
     path('api/exercises/', include('exercises.urls')),
     path('api/training/', include('training.urls')),
+    path('api/ai/', include('ai_models.urls')),
+    path('api/analytics/', include('analytics.urls')),
     
     # API文档
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

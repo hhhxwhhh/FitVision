@@ -39,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { usePoseDetection } from '../../composables/usePoseDetection';
 
 const videoRef = ref<HTMLVideoElement | null>(null);
@@ -54,13 +54,12 @@ const {
     initPose,
     stopPose,
     resetCount
+} = usePoseDetection();
+
+const emit = defineEmits(['update:reps']);
 
 watch(repCount, (newVal) => {
     emit('update:reps', newVal);
-});
-
-defineExpose({
-    resetCount
 });
 
 const startDetection = async () => {
@@ -74,13 +73,14 @@ const stopDetection = () => {
 };
 
 onMounted(() => {
-    // 不默认启动，让用户手动点，或者根据需求自动启
+    // 不默认启动
 });
 
 defineExpose({
     startDetection,
-    stopDetection
-})
+    stopDetection,
+    resetCount
+});
 </script>
 
 <style scoped>

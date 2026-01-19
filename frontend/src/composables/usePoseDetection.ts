@@ -85,6 +85,7 @@ export function usePoseDetection() {
     canvasElement.value = canvas;
     repCount.value = 0; // 重置计数
     state = 'UP';
+    try {
       pose = new Pose({
         locateFile: (file) => {
           return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
