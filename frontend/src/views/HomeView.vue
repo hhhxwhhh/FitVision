@@ -12,6 +12,7 @@
             text-color="#fff" active-text-color="#ffd04b" class="nav-menu">
             <el-menu-item index="home">首页</el-menu-item>
             <el-menu-item index="training">训练</el-menu-item>
+            <el-menu-item index="exercises">动作库</el-menu-item>
             <el-menu-item index="analytics">进度分析</el-menu-item>
             <el-menu-item index="profile">个人中心</el-menu-item>
           </el-menu>
@@ -326,14 +327,15 @@ const handleMenuSelect = (index: string) => {
     case 'training':
       router.push('/training')
       break
+    case 'exercises':
+      router.push('/exercises')
+      break
     case 'analytics':
       router.push('/analytics')
       break
     case 'profile':
       router.push('/profile')
       break
-  }
-}
   }
 }
 

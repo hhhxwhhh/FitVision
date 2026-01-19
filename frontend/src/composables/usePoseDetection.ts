@@ -13,7 +13,19 @@ export function usePoseDetection() {
   const repCount = ref(0);
   const feedback = ref('请就位');
   const exerciseMode = ref<'squat' | 'pushup' | 'jumping_jack'>('squat');
+  const lastScore = ref(0);
   
+  // 语音合成
+  const speak = (text: string) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel(); // 取消之前的语音
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'zh-CN';
+      utterance.rate = 1.2;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
   // 运动状态机
   let state: 'UP' | 'DOWN' = 'UP';
   const SQUAT_THRESHOLD_DOWN = 100;
@@ -63,13 +75,18 @@ export function usePoseDetection() {
         const angle = calculateAngle(hip, knee, ankle);
         if (angle !== null) {
           if (angle < SQUAT_THRESHOLD_DOWN) {
-            if (state === 'UP') feedback.value = '蹲得好！';
+            if (state === 'UP') {
+              feedback.value = '蹲得好！';
+              // 评分：蹲得越深（角度越小）分数越高，假设80度是100分
+              lastScore.value = Math.min(100, Math.max(60, 100 - (angle - 80)));
+            }
             state = 'DOWN';
           }
           if (angle > SQUAT_THRESHOLD_UP && state === 'DOWN') {
             state = 'UP';
             repCount.value++;
             feedback.value = `完成 ${repCount.value} 个深蹲`;
+            speak(String(repCount.value));
           }
         } else {
           feedback.value = '请露出下半身';
@@ -82,13 +99,17 @@ export function usePoseDetection() {
         const angle = calculateAngle(shoulder, elbow, wrist);
         if (angle !== null) {
           if (angle < PUSHUP_THRESHOLD_DOWN) {
-            if (state === 'UP') feedback.value = '下沉到位！';
+            if (state === 'UP') {
+              feedback.value = '下沉到位！';
+              lastScore.value = Math.min(100, Math.max(60, 100 - (angle - 60)));
+            }
             state = 'DOWN';
           }
           if (angle > PUSHUP_THRESHOLD_UP && state === 'DOWN') {
             state = 'UP';
             repCount.value++;
             feedback.value = `完成 ${repCount.value} 个俯卧撑`;
+            speak(String(repCount.value));
           }
         } else {
           feedback.value = '请侧对镜头，露出手臂';
@@ -103,12 +124,14 @@ export function usePoseDetection() {
           if (handsHigh) {
             if (state === 'UP') {
               state = 'DOWN'; // 使用 DOWN 表示跳起击掌
+              lastScore.value = 100;
             }
           } else {
             if (state === 'DOWN') {
               state = 'UP';
               repCount.value++;
               feedback.value = `累计 ${repCount.value} 个开合跳`;
+              speak(String(repCount.value));
             }
           }
         }
@@ -185,6 +208,7 @@ export function usePoseDetection() {
     repCount,
     feedback,
     exerciseMode,
+    lastScore,
     initPose,
     stopPose,
     resetCount

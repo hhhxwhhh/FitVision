@@ -11,7 +11,7 @@
                         </div>
                     </template>
                     <PosePreview ref="posePreviewRef" :initial-exercise="recordForm.exercise"
-                        @update:reps="handleAiReps" />
+                        @update:reps="handleAiReps" @update:score="handleAiScore" />
                     <div class="ai-tips">
                         <p>💡 提示：请确保全身在画面内，光线充足可提升识别精度。</p>
                     </div>
@@ -147,10 +147,12 @@
 
 <script setup lang="ts">
 import { reactive, ref, watch, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import apiClient from '../api'
 import PosePreview from '../components/ai/PosePreview.vue'
 
+const route = useRoute()
 const activeSteps = ref(['plan', 'session', 'record'])
 const loading = reactive({
     start: false,
@@ -161,9 +163,14 @@ const loading = reactive({
 
 const lastResponse = ref('')
 const posePreviewRef = ref<any>(null)
+const selectedExerciseName = ref('')
 
 const handleAiReps = (count: number) => {
     recordForm.reps_completed = String(count);
+};
+
+const handleAiScore = (score: number) => {
+    recordForm.form_score = score;
 };
 
 const sessionId = ref<number | null>(Number(localStorage.getItem('active_training_session')) || null)

@@ -4,6 +4,7 @@ import HomeView from '../views/HomeView.vue'    // 新增
 import ProfileView from '../views/ProfileView.vue' // 新增
 import TrainingView from '../views/TrainingView.vue'
 import AnalyticsView from '../views/AnalyticsView.vue'
+import ExercisesView from '../views/ExercisesView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -32,6 +33,11 @@ const router = createRouter({
       path: '/analytics',
       name: 'analytics',
       component: AnalyticsView
+    },
+    {
+      path: '/exercises',
+      name: 'exercises',
+      component: ExercisesView
     }
   ]
 })

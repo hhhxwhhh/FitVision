@@ -65,6 +65,7 @@ const {
     repCount,
     feedback,
     exerciseMode,
+    lastScore,
     initPose,
     stopPose,
     resetCount
@@ -86,10 +87,14 @@ watch(() => props.initialExercise, (newVal) => {
     }
 }, { immediate: true });
 
-const emit = defineEmits(['update:reps']);
+const emit = defineEmits(['update:reps', 'update:score']);
 
 watch(repCount, (newVal) => {
     emit('update:reps', newVal);
+});
+
+watch(lastScore, (newVal) => {
+    emit('update:score', newVal);
 });
 
 const startDetection = async () => {
