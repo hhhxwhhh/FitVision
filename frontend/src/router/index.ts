@@ -1,7 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from '../views/LoginView.vue'
-import HomeView from '../views/HomeView.vue'    // 新增
-import ProfileView from '../views/ProfileView.vue' // 新增
+import MainLayout from '../layouts/MainLayout.vue'
+import HomeView from '../views/HomeView.vue'
+import ProfileView from '../views/ProfileView.vue'
 import TrainingView from '../views/TrainingView.vue'
 import AnalyticsView from '../views/AnalyticsView.vue'
 import ExercisesView from '../views/ExercisesView.vue'
@@ -16,28 +17,34 @@ const router = createRouter({
     },
     {
       path: '/',
-      name: 'home',
-      component: HomeView
-    },
-    {
-      path: '/profile',
-      name: 'profile',
-      component: ProfileView
-    },
-    {
-      path: '/training',
-      name: 'training',
-      component: TrainingView
-    },
-    {
-      path: '/analytics',
-      name: 'analytics',
-      component: AnalyticsView
-    },
-    {
-      path: '/exercises',
-      name: 'exercises',
-      component: ExercisesView
+      component: MainLayout,
+      children: [
+        {
+          path: '',
+          name: 'home',
+          component: HomeView
+        },
+        {
+          path: 'profile',
+          name: 'profile',
+          component: ProfileView
+        },
+        {
+          path: 'training',
+          name: 'training',
+          component: TrainingView
+        },
+        {
+          path: 'analytics',
+          name: 'analytics',
+          component: AnalyticsView
+        },
+        {
+          path: 'exercises',
+          name: 'exercises',
+          component: ExercisesView
+        }
+      ]
     }
   ]
 })

@@ -10,7 +10,7 @@
                             <el-tag type="info">MediaPipe Pose</el-tag>
                         </div>
                     </template>
-                    <PosePreview ref="posePreviewRef" :initial-exercise="recordForm.exercise"
+                    <PosePreview ref="posePreviewRef" :initial-exercise="selectedExerciseName"
                         @update:reps="handleAiReps" @update:score="handleAiScore" />
                     <div class="ai-tips">
                         <p>💡 提示：请确保全身在画面内，光线充足可提升识别精度。</p>
@@ -347,15 +347,32 @@ const handleResetSession = () => {
 
 const fillRecordFromPlanExercise = (item: any) => {
     recordForm.exercise = String(item.exercise)
+    selectedExerciseName.value = item.exercise_name || ''
     recordForm.sets_completed = item.sets || 0
     recordForm.reps_completed = item.reps ? String(item.reps) : ''
     recordForm.weights_used = item.weight ? String(item.weight) : ''
     recordForm.duration_seconds_actual = item.duration_seconds || 0
-    ElMessage.success('已填入动作记录表单')
+    ElMessage.success(`已填入: ${item.exercise_name || '动作'}`)
 }
 
 onMounted(async () => {
     await fetchPlans()
+
+    // 检查查询参数中是否有动作 ID
+    const exerciseId = route.query.exercise_id
+    if (exerciseId) {
+        recordForm.exercise = String(exerciseId)
+        // 尝试从本地或后端获取动作名称，以便 AI 组件切换模式
+        // 这里简单映射一下，实际项目中可以根据 ID 查数据库
+        const idMap: Record<string, string> = {
+            '1': '深蹲',
+            '2': '俯卧撑',
+            '3': '开合跳'
+        }
+        if (idMap[String(exerciseId)]) {
+            selectedExerciseName.value = idMap[String(exerciseId)]
+        }
+    }
 })
 </script>
 
