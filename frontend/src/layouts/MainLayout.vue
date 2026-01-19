@@ -1,32 +1,36 @@
 <template>
     <div class="main-layout">
-        <el-container>
+        <el-container class="layout-container">
             <!-- 顶部导航栏 -->
             <el-header class="header">
-                <div class="header-content">
-                    <div class="logo-section" @click="router.push('/')" style="cursor: pointer;">
-                        <h1 class="logo">🏋️‍♂️ FitVision</h1>
+                <div class="header-inner container">
+                    <div class="logo-section" @click="router.push('/')">
+                        <div class="logo-icon">⚡</div>
+                        <h1 class="logo-text">FitVision</h1>
                     </div>
 
                     <div class="nav-section">
                         <el-menu :default-active="activeMenu" mode="horizontal" @select="handleMenuSelect"
-                            background-color="#545c64" text-color="#fff" active-text-color="#ffd04b" class="nav-menu">
+                            :ellipsis="false" class="main-menu">
                             <el-menu-item index="home">首页</el-menu-item>
-                            <el-menu-item index="training">训练</el-menu-item>
-                            <el-menu-item index="exercises">动作库</el-menu-item>
-                            <el-menu-item index="analytics">进度分析</el-menu-item>
-                            <el-menu-item index="profile">个人中心</el-menu-item>
+                            <el-menu-item index="training">智能训练</el-menu-item>
+                            <el-menu-item index="exercises">动作百科</el-menu-item>
+                            <el-menu-item index="analytics">数据中心</el-menu-item>
                         </el-menu>
                     </div>
 
                     <div class="user-section">
-                        <el-dropdown @command="handleUserCommand">
-                            <div class="user-profile">
-                                <el-avatar :icon="UserFilled" size="small" />
+                        <el-dropdown @command="handleUserCommand" trigger="click">
+                            <div class="user-profile-badge">
+                                <el-avatar :size="32" :src="userAvatarUrl" :icon="UserFilled"
+                                    class="user-avatar" />
                                 <span class="username">{{ username }}</span>
+                                <el-icon class="el-icon--right">
+                                    <arrow-down />
+                                </el-icon>
                             </div>
                             <template #dropdown>
-                                <el-dropdown-menu>
+                                <el-dropdown-menu class="user-dropdown">
                                     <el-dropdown-item command="profile">
                                         <el-icon>
                                             <User />
@@ -48,32 +52,39 @@
 
             <!-- 内容区域 -->
             <el-main class="main-content">
-                <router-view v-slot="{ Component, route }">
-                    <component :is="Component" :key="route.path" />
-                </router-view>
+                <div class="content-wrapper container">
+                    <!-- Router View with Component Caching Strategy -->
+                    <router-view v-slot="{ Component, route }">
+                        <component :is="Component" :key="route.path" />
+                    </router-view>
+                </div>
             </el-main>
-
+            
             <el-footer class="footer">
-                <div class="footer-content">
-                    <p>© 2024 FitVision AI 智能健身系统 | 科技赋能运动</p>
+                <div class="footer-inner container">
+                     <p>© 2024 FitVision inc. All rights reserved.</p>
                 </div>
             </el-footer>
+
         </el-container>
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { UserFilled, User, SwitchButton } from '@element-plus/icons-vue'
+import { UserFilled, User, SwitchButton, ArrowDown } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 
 const router = useRouter()
 const route = useRoute()
-const username = ref(localStorage.getItem('username') || '健身达人')
+const username = ref(localStorage.getItem('username') || 'FitUser')
 const activeMenu = ref('home')
 
-// 根据当前路由更新激活的菜单项
+const userAvatarUrl = computed(() => {
+    return '' // 可以替换为真实头像 URL
+})
+
 watch(() => route.path, (path) => {
     if (path === '/') activeMenu.value = 'home'
     else if (path.startsWith('/training')) activeMenu.value = 'training'
@@ -94,7 +105,9 @@ const handleMenuSelect = (index: string) => {
 
 const handleUserCommand = (command: string) => {
     if (command === 'logout') {
-        ElMessageBox.confirm('确定要退出登录吗？', '提示', {
+        ElMessageBox.confirm('确定要退出登录吗？', '确认', {
+            confirmButtonText: '退出',
+            cancelButtonText: '取消',
             type: 'warning'
         }).then(() => {
             localStorage.removeItem('jwt_token')
@@ -109,79 +122,147 @@ const handleUserCommand = (command: string) => {
 </script>
 
 <style scoped>
-.main-layout {
+.layout-container {
     min-height: 100vh;
-    background-color: #f5f7fa;
+    background-color: var(--bg-color);
 }
 
 .header {
-    background-color: #545c64;
-    color: white;
-    padding: 0;
-    height: 60px !important;
-    line-height: 60px;
+    height: var(--header-height) !important;
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
     position: sticky;
     top: 0;
     z-index: 100;
+    padding: 0;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 
-.header-content {
-    max-width: 1200px;
-    margin: 0 auto;
+.header-inner {
+    height: 100%;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 0 20px;
+    justify-content: space-between;
 }
 
-.logo-section h1 {
-    margin: 0;
-    font-size: 22px;
-    font-weight: bold;
-    color: #ffd04b;
-}
-
-.nav-menu {
-    border-bottom: none;
-}
-
-.user-profile {
+/* Logo Styling */
+.logo-section {
     display: flex;
     align-items: center;
     gap: 8px;
     cursor: pointer;
-    color: #fff;
+    user-select: none;
 }
 
+.logo-icon {
+    font-size: 24px;
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    /* Emoji fallback */
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: #e0e7ff;
+    color: #4f46e5;
+    -webkit-text-fill-color: initial;
+}
+
+.logo-text {
+    font-size: 20px;
+    font-weight: 800;
+    color: #1e293b;
+    margin: 0;
+    letter-spacing: -0.5px;
+}
+
+/* Nav Menu Styling over Element Plus */
+.nav-section {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+}
+
+.main-menu {
+    border-bottom: none !important;
+    background: transparent !important;
+}
+
+:deep(.el-menu-item) {
+    font-size: 15px;
+    font-weight: 500;
+    color: #64748b !important; /* Text Secondary */
+    background: transparent !important;
+    height: var(--header-height);
+    line-height: var(--header-height);
+}
+
+:deep(.el-menu-item.is-active) {
+    color: #4f46e5 !important; /* Primary Dark */
+    font-weight: 600;
+    border-bottom: 2px solid #4f46e5 !important;
+}
+
+:deep(.el-menu-item:hover) {
+    color: #1e293b !important;
+    background: transparent !important;
+}
+
+/* User Profile */
+.user-profile-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.user-profile-badge:hover {
+    background-color: #f1f5f9;
+}
+
+.username {
+    font-size: 14px;
+    font-weight: 500;
+    color: #334155;
+}
+
+.user-avatar {
+    background: #6366f1;
+    color: white;
+}
+
+/* Main Content */
 .main-content {
-    max-width: 1200px;
-    margin: 0 auto;
-    width: 100%;
-    padding: 20px;
-    min-height: calc(100vh - 120px);
+    padding: 0;
+    flex: 1;
+    overflow-x: hidden;
 }
 
+.content-wrapper {
+    padding-top: 32px;
+    padding-bottom: 48px;
+}
+
+/* Footer */
 .footer {
-    text-align: center;
-    color: #909399;
-    padding: 20px 0;
-    border-top: 1px solid #e6e6e6;
-    background: white;
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+    padding: 0;
+    height: auto;
 }
 
-.fade-enter-active,
-.fade-leave-active {
-    transition: opacity 0.2s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-    opacity: 0;
-}
-
-@media (max-width: 768px) {
-    .nav-section {
-        display: none;
-    }
+.footer-inner {
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    font-size: 13px;
 }
 </style>
