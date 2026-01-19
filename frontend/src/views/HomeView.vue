@@ -371,7 +371,7 @@ const handleLogout = () => {
 // 功能按钮处理
 const startSquatTraining = () => {
   ElMessage.info('即将进入深蹲训练模式')
-  // TODO: 实现跳转到深蹲训练页面
+  router.push('/training')
 }
 
 const viewWorkoutPlan = () => {
