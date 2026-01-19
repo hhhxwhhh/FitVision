@@ -3,6 +3,31 @@
         <el-card class="panel">
             <template #header>
                 <div class="header">
+                    <span>训练计划选择</span>
+                </div>
+            </template>
+
+            <el-form label-width="120px" class="form">
+                <el-form-item label="计划">
+                    <el-select v-model="selectedPlanId" placeholder="可选" clearable filterable>
+                        <el-option v-for="plan in plans" :key="plan.id" :label="plan.name" :value="plan.id" />
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="计划日">
+                    <el-select v-model="selectedDayId" placeholder="可选" clearable filterable
+                        :disabled="!selectedPlanId">
+                        <el-option v-for="day in planDays" :key="day.id" :label="`第${day.day_number}天 ${day.title}`"
+                            :value="day.id" />
+                    </el-select>
+                </el-form-item>
+                <el-form-item>
+                    <el-button @click="reloadPlans" :loading="loading.plans">刷新计划</el-button>
+                </el-form-item>
+            </el-form>
+        </el-card>
+        <el-card class="panel">
+            <template #header>
+                <div class="header">
                     <span>训练会话</span>
                     <el-tag v-if="sessionId" type="success">进行中：#{{ sessionId }}</el-tag>
                     <el-tag v-else type="info">未开始</el-tag>
@@ -11,10 +36,10 @@
 
             <el-form :model="startForm" label-width="120px" class="form">
                 <el-form-item label="计划ID">
-                    <el-input v-model="startForm.plan_id" placeholder="可选" />
+                    <el-input v-model="startForm.plan_id" placeholder="可选" :disabled="true" />
                 </el-form-item>
                 <el-form-item label="计划日ID">
-                    <el-input v-model="startForm.plan_day_id" placeholder="可选" />
+                    <el-input v-model="startForm.plan_day_id" placeholder="可选" :disabled="true" />
                 </el-form-item>
                 <el-form-item>
                     <el-button type="primary" @click="handleStartSession" :loading="loading.start">
@@ -65,6 +90,26 @@
             </el-form>
         </el-card>
 
+        <el-card class="panel" v-if="currentDayExercises.length">
+            <template #header>
+                <div class="header">
+                    <span>当日动作列表</span>
+                </div>
+            </template>
+            <el-table :data="currentDayExercises" style="width: 100%">
+                <el-table-column prop="exercise_name" label="动作" min-width="160" />
+                <el-table-column prop="sets" label="组数" width="80" />
+                <el-table-column prop="reps" label="次数" width="80" />
+                <el-table-column prop="duration_seconds" label="时长(秒)" width="100" />
+                <el-table-column prop="weight" label="重量(kg)" width="100" />
+                <el-table-column label="操作" width="120">
+                    <template #default="scope">
+                        <el-button size="small" @click="fillRecordFromPlanExercise(scope.row)">填入</el-button>
+                    </template>
+                </el-table-column>
+            </el-table>
+        </el-card>
+
         <el-card class="panel">
             <template #header>
                 <div class="header">
@@ -103,14 +148,15 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { reactive, ref, watch, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import apiClient from '../api'
 
 const loading = reactive({
     start: false,
     record: false,
-    complete: false
+    complete: false,
+    plans: false
 })
 
 const lastResponse = ref('')
@@ -118,8 +164,21 @@ const lastResponse = ref('')
 const sessionId = ref<number | null>(Number(localStorage.getItem('active_training_session')) || null)
 
 const startForm = reactive({
-    plan_id: '',
-    plan_day_id: ''
+    plan_id: '' as number | '',
+    plan_day_id: '' as number | ''
+})
+
+const plans = ref<any[]>([])
+const planDays = ref<any[]>([])
+const selectedPlanId = ref<number | null>(null)
+const selectedDayId = ref<number | null>(null)
+
+const currentDay = computed(() => {
+    return planDays.value.find((day) => day.id === selectedDayId.value)
+})
+
+const currentDayExercises = computed(() => {
+    return currentDay.value?.exercises || []
 })
 
 const recordForm = reactive({
@@ -146,6 +205,43 @@ watch(sessionId, (val) => {
         localStorage.removeItem('active_training_session')
     }
 })
+
+watch(selectedPlanId, async (val) => {
+    startForm.plan_id = val ?? ''
+    selectedDayId.value = null
+    planDays.value = []
+    if (!val) return
+    await fetchPlanDays(val)
+})
+
+watch(selectedDayId, (val) => {
+    startForm.plan_day_id = val ?? ''
+})
+
+const reloadPlans = async () => {
+    await fetchPlans()
+}
+
+const fetchPlans = async () => {
+    loading.plans = true
+    try {
+        const res = await apiClient.get('training/plans/')
+        plans.value = res.data || []
+    } catch (err: any) {
+        ElMessage.error(err.response?.data?.error || '获取训练计划失败')
+    } finally {
+        loading.plans = false
+    }
+}
+
+const fetchPlanDays = async (planId: number) => {
+    try {
+        const res = await apiClient.get(`training/plans/${planId}/days/`)
+        planDays.value = res.data || []
+    } catch (err: any) {
+        ElMessage.error(err.response?.data?.error || '获取训练计划日程失败')
+    }
+}
 
 const parseNumberList = (value: string) => {
     if (!value) return []
@@ -231,6 +327,19 @@ const handleResetSession = () => {
     sessionId.value = null
     ElMessage.info('已清除本地会话')
 }
+
+const fillRecordFromPlanExercise = (item: any) => {
+    recordForm.exercise = String(item.exercise)
+    recordForm.sets_completed = item.sets || 0
+    recordForm.reps_completed = item.reps ? String(item.reps) : ''
+    recordForm.weights_used = item.weight ? String(item.weight) : ''
+    recordForm.duration_seconds_actual = item.duration_seconds || 0
+    ElMessage.success('已填入动作记录表单')
+}
+
+onMounted(async () => {
+    await fetchPlans()
+})
 </script>
 
 <style scoped>
