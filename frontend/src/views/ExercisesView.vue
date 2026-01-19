@@ -35,7 +35,7 @@
                             <div class="title-row">
                                 <span class="title">{{ ex.name }}</span>
                                 <el-tag size="small" :type="getDifficultyType(ex.difficulty)">{{ ex.difficulty_display
-                                    }}</el-tag>
+                                }}</el-tag>
                             </div>
                             <div class="info-row">
                                 <span class="muscle">🎯 {{ ex.target_muscle_display }}</span>
@@ -95,7 +95,7 @@ const currentEx = ref<any>({})
 const fetchExercises = async () => {
     loading.value = true
     try {
-        let url = 'exercises/exercises/'
+        let url = 'exercises/'
         if (filter.value.target_muscle) {
             url += `?target_muscle=${filter.value.target_muscle}`
         }
@@ -128,16 +128,25 @@ const viewDetail = (ex: any) => {
 }
 
 const startTraining = (ex: any) => {
-    // 跳转到训练页面并带上动作名称
+    // 跳转到训练页面并带上动作 ID 和名称
     router.push({
         path: '/training',
-        query: { exercise: ex.name }
+        query: {
+            exercise_id: ex.id,
+            exercise_name: ex.name
+        }
     })
 }
 
 onMounted(() => {
     fetchExercises()
 })
+</script>
+
+<script lang="ts">
+export default {
+    name: 'ExercisesView'
+}
 </script>
 
 <style scoped>

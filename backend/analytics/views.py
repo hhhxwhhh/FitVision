@@ -4,7 +4,8 @@ from rest_framework.response import Response
 from django.db.models import Sum, Avg, Max
 from .models import UserDailyStats, UserBodyMetric, ExerciseProgress
 from .serializers import UserDailyStatsSerializer, UserBodyMetricSerializer, ExerciseProgressSerializer
-from datetime import datetime, timedelta
+from django.utils import timezone
+from datetime import timedelta
 
 class UserDailyStatsViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = UserDailyStats.objects.all()
@@ -17,7 +18,7 @@ class UserDailyStatsViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'])
     def summary(self, request):
         days = int(request.query_params.get('days', 7))
-        start_date = datetime.now().date() - timedelta(days=days)
+        start_date = timezone.now().date() - timedelta(days=days)
         
         stats = self.get_queryset().filter(date__gte=start_date)
         
@@ -28,6 +29,13 @@ class UserDailyStatsViewSet(viewsets.ReadOnlyModelViewSet):
             "daily_breakdown": UserDailyStatsSerializer(stats, many=True).data
         }
         return Response(data)
+
+    @action(detail=False, methods=['get'])
+    def today(self, request):
+        """获取用户今日的统计概要"""
+        today = timezone.now().date()
+        stats, _ = UserDailyStats.objects.get_or_create(user=request.user, date=today)
+        return Response(UserDailyStatsSerializer(stats).data)
 
 class UserBodyMetricViewSet(viewsets.ModelViewSet):
     queryset = UserBodyMetric.objects.all()

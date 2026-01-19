@@ -53,24 +53,27 @@
         <el-col :xs="24" :sm="8">
           <el-card shadow="hover" class="status-card">
             <div class="status-header">已消耗热量</div>
-            <div class="status-value">{{ stats.total_calories || 0 }} <span>kcal</span></div>
-            <el-progress :percentage="Math.min(100, (stats.total_calories / 500) * 100)" :show-text="false" />
+            <div class="status-value">{{ stats.total_calories_burned || 0 }} <span>kcal</span></div>
+            <el-progress :percentage="Math.min(100, ((stats.total_calories_burned || 0) / 500) * 100)"
+              :show-text="false" />
             <div class="status-footer">目标: 500 kcal</div>
           </el-card>
         </el-col>
         <el-col :xs="24" :sm="8">
           <el-card shadow="hover" class="status-card">
             <div class="status-header">累计训练时长</div>
-            <div class="status-value">{{ Math.round((stats.total_duration || 0) / 60) }} <span>min</span></div>
-            <el-progress :percentage="Math.min(100, (stats.total_duration / 1800) * 100)" :show-text="false" status="success" />
+            <div class="status-value">{{ stats.total_duration_minutes || 0 }} <span>min</span></div>
+            <el-progress :percentage="Math.min(100, ((stats.total_duration_minutes || 0) / 30) * 100)"
+              :show-text="false" status="success" />
             <div class="status-footer">目标: 30 min</div>
           </el-card>
         </el-col>
         <el-col :xs="24" :sm="8">
           <el-card shadow="hover" class="status-card">
             <div class="status-header">完成动作数</div>
-            <div class="status-value">{{ stats.total_exercises || 0 }} <span>个</span></div>
-            <el-progress :percentage="Math.min(100, (stats.total_exercises / 10) * 100)" :show-text="false" status="warning" />
+            <div class="status-value">{{ stats.completed_exercises || 0 }} <span>个</span></div>
+            <el-progress :percentage="Math.min(100, ((stats.completed_exercises || 0) / 10) * 100)" :show-text="false"
+              status="warning" />
             <div class="status-footer">目标: 10 个</div>
           </el-card>
         </el-col>
@@ -117,7 +120,7 @@ onMounted(() => {
   padding: 40px;
   color: white;
   margin-bottom: 30px;
-  box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
 }
 
 .banner-content h1 {
@@ -152,7 +155,7 @@ onMounted(() => {
 
 .feature-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
   border-color: #409eff;
 }
 

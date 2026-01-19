@@ -238,7 +238,7 @@ const fetchPlans = async () => {
     loading.plans = true
     try {
         const res = await apiClient.get('training/plans/')
-        plans.value = res.data || []
+        plans.value = (res.data || []).filter(Boolean)
     } catch (err: any) {
         ElMessage.error(err.response?.data?.error || '获取训练计划失败')
     } finally {
@@ -249,7 +249,7 @@ const fetchPlans = async () => {
 const fetchPlanDays = async (planId: number) => {
     try {
         const res = await apiClient.get(`training/plans/${planId}/days/`)
-        planDays.value = res.data || []
+        planDays.value = (res.data || []).filter(Boolean)
     } catch (err: any) {
         ElMessage.error(err.response?.data?.error || '获取训练计划日程失败')
     }
@@ -358,12 +358,18 @@ const fillRecordFromPlanExercise = (item: any) => {
 onMounted(async () => {
     await fetchPlans()
 
-    // 检查查询参数中是否有动作 ID
+    // 检查查询参数中是否有动作 ID 或名称
     const exerciseId = route.query.exercise_id
+    const exerciseName = route.query.exercise_name
+
     if (exerciseId) {
         recordForm.exercise = String(exerciseId)
-        // 尝试从本地或后端获取动作名称，以便 AI 组件切换模式
-        // 这里简单映射一下，实际项目中可以根据 ID 查数据库
+    }
+
+    if (exerciseName) {
+        selectedExerciseName.value = String(exerciseName)
+    } else if (exerciseId) {
+        // 如果只有 ID 没给名称，做个回退映射
         const idMap: Record<string, string> = {
             '1': '深蹲',
             '2': '俯卧撑',
@@ -374,6 +380,12 @@ onMounted(async () => {
         }
     }
 })
+</script>
+
+<script lang="ts">
+export default {
+    name: 'TrainingView'
+}
 </script>
 
 <style scoped>

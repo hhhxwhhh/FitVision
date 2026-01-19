@@ -47,7 +47,8 @@ class ProfileView(generics.RetrieveUpdateAPIView):
     serializer_class = UserProfileSerializer
 
     def get_object(self):
-        return self.request.user.profile
+        profile, _ = UserProfile.objects.get_or_create(user=self.request.user)
+        return profile
 
 class TrainingLogView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
@@ -85,7 +86,8 @@ class UserStatsView(generics.RetrieveAPIView):
     serializer_class = UserStatsSerializer
 
     def get_object(self):
-        return self.request.user.stats
+        stats, _ = UserStats.objects.get_or_create(user=self.request.user)
+        return stats
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -93,8 +95,8 @@ def user_dashboard(request):
     """
     获取用户仪表板数据
     """
-    profile = request.user.profile
-    stats = request.user.stats
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    stats, _ = UserStats.objects.get_or_create(user=request.user)
     recent_logs = TrainingLog.objects.filter(user=request.user).order_by('-created_at')[:5]
     active_goals = UserGoal.objects.filter(user=request.user, is_active=True, achieved=False)
     
