@@ -12,17 +12,22 @@ export function usePoseDetection() {
   const error = ref<string | null>(null);
   const repCount = ref(0);
   const feedback = ref('请就位');
+  const exerciseMode = ref<'squat' | 'pushup' | 'jumping_jack'>('squat');
   
   // 运动状态机
   let state: 'UP' | 'DOWN' = 'UP';
-  const SQUAT_THRESHOLD_DOWN = 100; // 蹲下的角度阈值 (小于此值认为到位)
-  const SQUAT_THRESHOLD_UP = 150;   // 站起的角度阈值 (大于此值认为完成)
+  const SQUAT_THRESHOLD_DOWN = 100;
+  const SQUAT_THRESHOLD_UP = 150;
+  
+  const PUSHUP_THRESHOLD_DOWN = 90;
+  const PUSHUP_THRESHOLD_UP = 150;
 
   let pose: Pose | null = null;
   let camera: Camera | null = null;
 
   // 计算三点之间的角度
   const calculateAngle = (a: any, b: any, c: any) => {
+    if (!a || !b || !c || a.visibility < 0.5 || b.visibility < 0.5 || c.visibility < 0.5) return null;
     const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
     let angle = Math.abs(radians * 180.0 / Math.PI);
     if (angle > 180.0) angle = 360 - angle;
@@ -50,26 +55,62 @@ export function usePoseDetection() {
       drawLandmarks(canvasCtx, results.poseLandmarks,
         { color: '#FF0000', lineWidth: 2 });
 
-      // 深蹲逻辑处理 (使用右侧作为示例：24-26-28)
-      const hip = results.poseLandmarks[24];
-      const knee = results.poseLandmarks[26];
-      const ankle = results.poseLandmarks[28];
+      if (exerciseMode.value === 'squat') {
+        const hip = results.poseLandmarks[24];
+        const knee = results.poseLandmarks[26];
+        const ankle = results.poseLandmarks[28];
 
-      if (hip && knee && ankle) {
         const angle = calculateAngle(hip, knee, ankle);
-
-        // 简单的逻辑判断
-        if (angle < SQUAT_THRESHOLD_DOWN) {
-          if (state === 'UP') {
-            feedback.value = '蹲得好！继续保持';
+        if (angle !== null) {
+          if (angle < SQUAT_THRESHOLD_DOWN) {
+            if (state === 'UP') feedback.value = '蹲得好！';
+            state = 'DOWN';
           }
-          state = 'DOWN';
+          if (angle > SQUAT_THRESHOLD_UP && state === 'DOWN') {
+            state = 'UP';
+            repCount.value++;
+            feedback.value = `完成 ${repCount.value} 个深蹲`;
+          }
+        } else {
+          feedback.value = '请露出下半身';
         }
+      } else if (exerciseMode.value === 'pushup') {
+        const shoulder = results.poseLandmarks[12];
+        const elbow = results.poseLandmarks[14];
+        const wrist = results.poseLandmarks[16];
 
-        if (angle > SQUAT_THRESHOLD_UP && state === 'DOWN') {
-          state = 'UP';
-          repCount.value++;
-          feedback.value = `完成共 ${repCount.value} 个！站直`;
+        const angle = calculateAngle(shoulder, elbow, wrist);
+        if (angle !== null) {
+          if (angle < PUSHUP_THRESHOLD_DOWN) {
+            if (state === 'UP') feedback.value = '下沉到位！';
+            state = 'DOWN';
+          }
+          if (angle > PUSHUP_THRESHOLD_UP && state === 'DOWN') {
+            state = 'UP';
+            repCount.value++;
+            feedback.value = `完成 ${repCount.value} 个俯卧撑`;
+          }
+        } else {
+          feedback.value = '请侧对镜头，露出手臂';
+        }
+      } else if (exerciseMode.value === 'jumping_jack') {
+        const leftHand = results.poseLandmarks[15];
+        const rightHand = results.poseLandmarks[16];
+        const head = results.poseLandmarks[0];
+
+        if (leftHand && rightHand && head) {
+          const handsHigh = leftHand.y < head.y && rightHand.y < head.y;
+          if (handsHigh) {
+            if (state === 'UP') {
+              state = 'DOWN'; // 使用 DOWN 表示跳起击掌
+            }
+          } else {
+            if (state === 'DOWN') {
+              state = 'UP';
+              repCount.value++;
+              feedback.value = `累计 ${repCount.value} 个开合跳`;
+            }
+          }
         }
       }
     }
@@ -143,6 +184,7 @@ export function usePoseDetection() {
     error,
     repCount,
     feedback,
+    exerciseMode,
     initPose,
     stopPose,
     resetCount

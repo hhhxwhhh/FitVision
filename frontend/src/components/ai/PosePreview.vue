@@ -29,7 +29,16 @@
         </div>
 
         <div class="controls">
-            <el-button v-if="!isUpdating" type="primary" @click="startDetection">开启摄像头 AI</el-button>
+            <div class="mode-selector" v-if="!isUpdating">
+                <el-radio-group v-model="exerciseMode" size="small">
+                    <el-radio-button label="squat">深蹲</el-radio-button>
+                    <el-radio-button label="pushup">俯卧撑</el-radio-button>
+                    <el-radio-button label="jumping_jack">开合跳</el-radio-button>
+                </el-radio-group>
+            </div>
+            <el-button v-if="!isUpdating" type="primary" @click="startDetection" style="margin-top: 10px">
+                开启摄像头 AI
+            </el-button>
             <template v-else>
                 <el-button type="danger" @click="stopDetection">关闭摄像头</el-button>
                 <el-button type="warning" @click="resetCount">重新计数</el-button>
@@ -45,16 +54,37 @@ import { usePoseDetection } from '../../composables/usePoseDetection';
 const videoRef = ref<HTMLVideoElement | null>(null);
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 
+const props = defineProps<{
+    initialExercise?: string
+}>();
+
 const {
     isLoaded,
     isUpdating,
     error,
     repCount,
     feedback,
+    exerciseMode,
     initPose,
     stopPose,
     resetCount
 } = usePoseDetection();
+
+// 简单的关键词映射
+const mapExerciseToMode = (name: string) => {
+    if (!name) return 'squat'
+    if (name.includes('深蹲')) return 'squat'
+    if (name.includes('俯卧撑')) return 'pushup'
+    if (name.includes('开合跳')) return 'jumping_jack'
+    return 'squat'
+}
+
+watch(() => props.initialExercise, (newVal) => {
+    if (newVal) {
+        exerciseMode.value = mapExerciseToMode(newVal)
+        resetCount()
+    }
+}, { immediate: true });
 
 const emit = defineEmits(['update:reps']);
 

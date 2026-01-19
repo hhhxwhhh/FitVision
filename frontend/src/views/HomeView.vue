@@ -12,10 +12,8 @@
             text-color="#fff" active-text-color="#ffd04b" class="nav-menu">
             <el-menu-item index="home">首页</el-menu-item>
             <el-menu-item index="training">训练</el-menu-item>
-            <el-menu-item index="exercises">动作库</el-menu-item>
-            <el-menu-item index="progress">进度</el-menu-item>
-            <el-menu-item index="community">社区</el-menu-item>
-            <el-menu-item index="ai">AI助手</el-menu-item>
+            <el-menu-item index="analytics">进度分析</el-menu-item>
+            <el-menu-item index="profile">个人中心</el-menu-item>
           </el-menu>
         </div>
 
@@ -323,23 +321,19 @@ const handleMenuSelect = (index: string) => {
   activeMenu.value = index
   switch (index) {
     case 'home':
-      // 当前页面，无需跳转
+      router.push('/')
       break
     case 'training':
       router.push('/training')
       break
-    case 'exercises':
-      router.push('/exercises')
+    case 'analytics':
+      router.push('/analytics')
       break
-    case 'progress':
-      router.push('/progress')
+    case 'profile':
+      router.push('/profile')
       break
-    case 'community':
-      router.push('/community')
-      break
-    case 'ai':
-      router.push('/ai-assistant')
-      break
+  }
+}
   }
 }
 

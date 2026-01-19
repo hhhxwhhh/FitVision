@@ -11,9 +11,18 @@
       </template>
 
       <el-form label-width="100px" :model="form" ref="formRef">
-        <el-form-item label="昵称">
-          <el-input v-model="form.nickname" placeholder="给自己起个名字" maxlength="50" />
-        </el-form-item>
+        <el-row :gutter="20">
+          <el-col :span="16">
+            <el-form-item label="昵称">
+              <el-input v-model="form.nickname" placeholder="给自己起个名字" maxlength="50" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="年龄">
+              <el-input-number v-model="form.age" :min="1" :max="120" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
 
         <el-form-item label="性别">
           <el-radio-group v-model="form.gender">
@@ -34,6 +43,24 @@
               <el-input-number v-model="form.weight" :min="30" :max="200" controls-position="right"
                 style="width: 100%" />
             </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-divider content-position="left">身体指标 (系统自动计算)</el-divider>
+        <el-row :gutter="20" style="margin-bottom: 20px;">
+          <el-col :span="12">
+            <el-statistic title="BMI (体质指数)" :value="computedBMI || 0" :precision="1">
+              <template #suffix>
+                <el-tag :type="getBMIType(computedBMI)" size="small" style="margin-left: 5px">
+                  {{ getBMIText(computedBMI) }}
+                </el-tag>
+              </template>
+            </el-statistic>
+          </el-col>
+          <el-col :span="12">
+            <el-statistic title="BMR (基础代谢率)" :value="computedBMR || 0">
+              <template #suffix> kcal/day</template>
+            </el-statistic>
           </el-col>
         </el-row>
 
@@ -59,99 +86,83 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
-import axios from 'axios'
+import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
+import apiClient from '../api'
 
 const loading = ref(false)
 const formRef = ref<FormInstance>()
 const isFormChanged = ref(false)
 
-const originalForm = reactive({
-  nickname: '',
-  gender: 'male',
-  height: 170,
-  weight: 65,
-  fitness_level: 'beginner',
-  injury_history: ''
-})
-
 const form = reactive({
   nickname: '',
-  gender: 'male',
+  gender: 'male' as 'male' | 'female',
+  age: 25,
   height: 170,
   weight: 65,
   fitness_level: 'beginner',
   injury_history: ''
 })
 
-const API_URL = 'http://127.0.0.1:8000/api/auth/profile/'
+let originalFormStr = ''
+
+const computedBMI = computed(() => {
+  if (!form.height || !form.weight) return 0
+  return form.weight / ((form.height / 100) * (form.height / 100))
+})
+
+const computedBMR = computed(() => {
+  if (!form.weight || !form.height || !form.age) return 0
+  if (form.gender === 'male') {
+    return 10 * form.weight + 6.25 * form.height - 5 * form.age + 5
+  } else {
+    return 10 * form.weight + 6.25 * form.height - 5 * form.age - 161
+  }
+})
+
+const getBMIType = (bmi: number) => {
+  if (bmi < 18.5) return 'warning'
+  if (bmi < 24) return 'success'
+  if (bmi < 28) return 'warning'
+  return 'danger'
+}
+
+const getBMIText = (bmi: number) => {
+  if (bmi < 18.5) return '偏瘦'
+  if (bmi < 24) return '正常'
+  if (bmi < 28) return '超重'
+  return '肥胖'
+}
 
 watch(form, () => {
-  isFormChanged.value = JSON.stringify(form) !== JSON.stringify(originalForm)
+  isFormChanged.value = JSON.stringify(form) !== originalFormStr
 }, { deep: true })
 
 onMounted(async () => {
+  loading.value = true
   try {
-    const token = localStorage.getItem('jwt_token')
-    if (!token) {
-      ElMessage.error('未检测到登录信息，请重新登录')
-      return
-    }
-
-    const res = await axios.get(API_URL, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-
+    const res = await apiClient.get('auth/profile/')
     Object.assign(form, res.data)
-    Object.assign(originalForm, res.data)
+    originalFormStr = JSON.stringify(form)
     isFormChanged.value = false
   } catch (err: any) {
-    const errorMsg = err.response?.status === 401
-      ? '登录已过期，请重新登录'
-      : '获取档案失败'
-    ElMessage.error(errorMsg)
-
-    if (err.response?.status === 401) {
-      localStorage.removeItem('jwt_token')
-      setTimeout(() => {
-        window.location.href = '/login'
-      }, 1500)
-    }
+    ElMessage.error(err.response?.data?.error || '无法获取个人资料')
+  } finally {
+    loading.value = false
   }
 })
 
 const handleSave = async () => {
-  if (!formRef.value) return
-
   loading.value = true
   try {
-    const token = localStorage.getItem('jwt_token')
-    if (!token) {
-      ElMessage.error('未检测到登录信息，请重新登录')
-      return
-    }
-
-    await axios.put(API_URL, form, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-
-    Object.assign(originalForm, form)
+    const res = await apiClient.put('auth/profile/', form)
+    Object.assign(form, res.data)
+    originalFormStr = JSON.stringify(form)
     isFormChanged.value = false
     ElMessage.success('保存成功！AI 已更新你的身体参数')
   } catch (err: any) {
-    const errorMsg = err.response?.status === 401
-      ? '登录已过期，请重新登录'
-      : '保存失败'
-    ElMessage.error(errorMsg)
-
-    if (err.response?.status === 401) {
-      localStorage.removeItem('jwt_token')
-      setTimeout(() => {
-        window.location.href = '/login'
-      }, 1500)
-    }
+    ElMessage.error('保存失败，请重试')
   } finally {
     loading.value = false
   }

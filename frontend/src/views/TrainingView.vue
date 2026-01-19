@@ -10,7 +10,8 @@
                             <el-tag type="info">MediaPipe Pose</el-tag>
                         </div>
                     </template>
-                    <PosePreview ref="posePreviewRef" @update:reps="handleAiReps" />
+                    <PosePreview ref="posePreviewRef" :initial-exercise="recordForm.exercise"
+                        @update:reps="handleAiReps" />
                     <div class="ai-tips">
                         <p>💡 提示：请确保全身在画面内，光线充足可提升识别精度。</p>
                     </div>
@@ -298,7 +299,7 @@ const handleRecordExercise = async () => {
         const res = await apiClient.post('training/exercise-records/', payload)
         lastResponse.value = JSON.stringify(res.data, null, 2)
         ElMessage.success('动作记录已提交')
-        
+
         // 记录成功后重置 AI 计数
         if (posePreviewRef.value) {
             posePreviewRef.value.resetCount();
