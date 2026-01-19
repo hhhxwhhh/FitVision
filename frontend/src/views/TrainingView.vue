@@ -1,35 +1,72 @@
 <template>
-    <div class="training-container">
-        <el-row :gutter="20">
-            <!-- 左侧：AI 视图与动作列表 -->
-            <el-col :xs="24" :md="14">
-                <el-card class="panel ai-card">
-                    <template #header>
-                        <div class="header">
-                            <span>AI 姿态检测预览</span>
-                            <el-tag type="info">MediaPipe Pose</el-tag>
+    <div class="page-container">
+        <!-- Header Section -->
+        <div class="page-header-row">
+            <h1 class="page-title">智能训练中心</h1>
+            <div class="header-tags">
+                <el-tag v-if="sessionId" type="success" effect="dark" round class="status-tag">
+                    <span class="dot accepted"></span> 会话进行中 #{{ sessionId }}
+                </el-tag>
+                <el-tag v-else type="info" round class="status-tag">
+                    <span class="dot"></span> 未开始训练
+                </el-tag>
+            </div>
+        </div>
+
+        <el-row :gutter="24">
+            <!-- Left Column: AI Vision & Plan -->
+            <el-col :xs="24" :lg="15">
+                <!-- AI Camera Card -->
+                <el-card class="ai-display-card" :body-style="{ padding: 0 }">
+                    <div class="ai-header">
+                        <div class="ai-title">
+                            <div class="pulse-indicator"></div>
+                            AI 姿态识别
                         </div>
-                    </template>
-                    <PosePreview ref="posePreviewRef" :initial-exercise="selectedExerciseName"
-                        @update:reps="handleAiReps" @update:score="handleAiScore" />
-                    <div class="ai-tips">
-                        <p>💡 提示：请确保全身在画面内，光线充足可提升识别精度。</p>
+                        <el-tag size="small" effect="plain" class="tech-tag">MediaPipe Engine</el-tag>
+                    </div>
+                    
+                    <div class="camera-wrapper">
+                        <PosePreview ref="posePreviewRef" :initial-exercise="selectedExerciseName"
+                            @update:reps="handleAiReps" @update:score="handleAiScore" />
+                        
+                        <div class="camera-overlay" v-if="!sessionId">
+                             <div class="overlay-content">
+                                 <el-icon :size="64" class="camera-icon"><VideoCamera /></el-icon>
+                                 <h3>准备开始</h3>
+                                 <p>启动训练会话以激活 AI 实时动作分析</p>
+                             </div>
+                        </div>
+                    </div>
+
+                    <div class="ai-footer">
+                        <div class="ai-tip">
+                            <el-icon><InfoFilled /></el-icon>
+                            <span>请保持全身在画面中，距离摄像头约 2-3 米，侧身或正对根据动作要求调整。</span>
+                        </div>
                     </div>
                 </el-card>
 
-                <el-card class="panel" v-if="currentDayExercises.length">
-                    <template #header>
-                        <div class="header">
-                            <span>当日动作安排</span>
-                        </div>
-                    </template>
-                    <el-table :data="currentDayExercises" style="width: 100%">
-                        <el-table-column prop="exercise_name" label="动作" min-width="140" />
-                        <el-table-column prop="sets" label="组数" width="70" />
-                        <el-table-column prop="reps" label="次数" width="70" />
-                        <el-table-column label="操作" width="80">
+                <!-- Today's Plan Card -->
+                 <el-card class="plan-card" v-if="currentDayExercises.length">
+                    <div class="card-header-styled">
+                        <h3>📋 今日课表</h3>
+                    </div>
+                    <el-table :data="currentDayExercises" style="width: 100%" :header-cell-style="{background:'#f8fafc', color:'#475569'}">
+                        <el-table-column prop="exercise_name" label="动作名称" min-width="140">
+                             <template #default="scope">
+                                <span class="exercise-name-cell">{{ scope.row.exercise_name }}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="sets" label="组数" width="80" align="center">
+                             <template #default="scope">
+                                <el-tag size="small" type="info" effect="plain">{{ scope.row.sets }}组</el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="reps" label="每组次数" width="100" align="center" />
+                        <el-table-column label="操作" width="100" align="center">
                             <template #default="scope">
-                                <el-button size="small" type="primary" plain
+                                <el-button size="small" type="primary" bg text icon="Edit"
                                     @click="fillRecordFromPlanExercise(scope.row)">
                                     填入
                                 </el-button>
@@ -39,107 +76,139 @@
                 </el-card>
             </el-col>
 
-            <!-- 右侧：流程控制与表单 -->
-            <el-col :xs="24" :md="10">
-                <el-card class="panel control-panel">
-                    <template #header>
-                        <div class="header">
-                            <span>训练控制台</span>
-                            <el-tag v-if="sessionId" type="success">会话 ID: #{{ sessionId }}</el-tag>
-                            <el-tag v-else type="info">未开始</el-tag>
-                        </div>
-                    </template>
-
-                    <el-collapse v-model="activeSteps">
-                        <el-collapse-item title="1. 选择计划" name="plan">
-                            <el-form label-width="70px" size="small">
-                                <el-form-item label="计划">
-                                    <el-select v-model="selectedPlanId" placeholder="选择计划" clearable filterable
-                                        style="width: 100%">
-                                        <el-option v-for="plan in plans" :key="plan.id" :label="plan.name"
-                                            :value="plan.id" />
-                                    </el-select>
-                                </el-form-item>
-                                <el-form-item label="日程">
-                                    <el-select v-model="selectedDayId" placeholder="选择日程" clearable filterable
-                                        :disabled="!selectedPlanId" style="width: 100%">
-                                        <el-option v-for="day in planDays" :key="day.id"
-                                            :label="`第${day.day_number}天 ${day.title}`" :value="day.id" />
-                                    </el-select>
-                                </el-form-item>
-                                <el-button @click="reloadPlans" :loading="loading.plans" icon="Refresh">刷新</el-button>
-                            </el-form>
-                        </el-collapse-item>
-
-                        <el-collapse-item title="2. 会话状态" name="session">
-                            <div class="session-actions">
-                                <div v-if="!sessionId">
-                                    <p class="hint">准备好了吗？点击开始进入正式训练。</p>
-                                    <el-button type="primary" @click="handleStartSession" :loading="loading.start"
-                                        block>
-                                        开始本次训练
-                                    </el-button>
-                                </div>
-                                <div v-else>
-                                    <p class="success-hint">训练进行中，请根据下方列表进行运动。</p>
-                                    <el-button @click="handleResetSession" size="small" type="info"
-                                        plain>清除本地缓存</el-button>
-                                </div>
+            <!-- Right Column: Control Panel -->
+            <el-col :xs="24" :lg="9">
+                <div class="control-column">
+                    <el-card class="control-card shadow-sm">
+                        <template #header>
+                            <div class="panel-header">
+                                <span>控制台</span>
                             </div>
-                        </el-collapse-item>
-
-                        <el-collapse-item title="3. 动作记录" name="record">
-                            <el-form :model="recordForm" label-position="top" size="small">
-                                <el-form-item label="当前动作" required>
-                                    <el-input v-model="recordForm.exercise" placeholder="请从左侧列表填入动作 ID" />
-                                </el-form-item>
-                                <el-row :gutter="10">
-                                    <el-col :span="12">
-                                        <el-form-item label="完成组数">
-                                            <el-input-number v-model="recordForm.sets_completed" :min="0"
-                                                style="width: 100%" />
+                        </template>
+                        
+                        <el-collapse v-model="activeSteps" accordion class="styled-collapse">
+                            <!-- Step 1: Select Plan -->
+                            <el-collapse-item name="plan">
+                                <template #title>
+                                    <div class="step-title">
+                                        <div class="step-icon">1</div>
+                                        <span>选择计划</span>
+                                    </div>
+                                </template>
+                                <div class="step-content">
+                                    <el-form label-position="top" class="compact-form">
+                                        <el-form-item label="训练计划">
+                                            <el-select v-model="selectedPlanId" placeholder="选择您的训练计划" style="width: 100%" size="large">
+                                                <el-option v-for="plan in plans" :key="plan.id" :label="plan.name" :value="plan.id" />
+                                            </el-select>
                                         </el-form-item>
-                                    </el-col>
-                                    <el-col :span="12">
-                                        <el-form-item label="时长(秒)">
-                                            <el-input-number v-model="recordForm.duration_seconds_actual" :min="0"
-                                                style="width: 100%" />
+                                        
+                                        <el-form-item label="训练日程">
+                                             <el-select v-model="selectedDayId" placeholder="选择今日课程" :disabled="!selectedPlanId" style="width: 100%" size="large">
+                                                <el-option v-for="day in planDays" :key="day.id" :label="`第${day.day_number}天 - ${day.title}`" :value="day.id" />
+                                            </el-select>
                                         </el-form-item>
-                                    </el-col>
-                                </el-row>
-                                <el-form-item label="动作质量评分 (AI 建议)">
-                                    <el-slider v-model="recordForm.form_score" :min="0" :max="100" show-input />
-                                </el-form-item>
-                                <el-button type="primary" @click="handleRecordExercise" :loading="loading.record"
-                                    :disabled="!sessionId" block>
-                                    提交记录
-                                </el-button>
-                            </el-form>
-                        </el-collapse-item>
+                                    </el-form>
+                                </div>
+                            </el-collapse-item>
 
-                        <el-collapse-item title="4. 结束训练" name="finish">
-                            <el-form label-position="top" size="small">
-                                <el-form-item label="本次表现评分">
-                                    <el-rate v-model="completeForm.performance_score" :max="100"
-                                        :colors="['#99A9BF', '#F7BA2A', '#FF9900']" />
-                                    <el-input-number v-model="completeForm.performance_score" :min="0" :max="100"
-                                        style="margin-top: 10px" />
-                                </el-form-item>
-                                <el-button type="success" @click="handleCompleteSession" :loading="loading.complete"
-                                    :disabled="!sessionId" block>
-                                    训练完成，点此保存
-                                </el-button>
-                            </el-form>
-                        </el-collapse-item>
-                    </el-collapse>
-                </el-card>
+                            <!-- Step 2: Session Control -->
+                            <el-collapse-item name="session">
+                                <template #title>
+                                    <div class="step-title">
+                                        <div class="step-icon" :class="{ 'active': sessionId }">2</div>
+                                        <span>会话控制</span>
+                                        <el-tag v-if="sessionId" size="small" type="success" style="margin-left: auto">进行中</el-tag>
+                                    </div>
+                                </template>
+                                <div class="step-content">
+                                    <div v-if="!sessionId" class="start-state">
+                                        <div class="empty-placeholder">
+                                            <img src="https://img.icons8.com/color/96/dumbbell.png" alt="Training" width="64" />
+                                            <p>准备好流汗了吗？</p>
+                                        </div>
+                                        <el-button type="primary" size="large" class="action-btn glow-effect" @click="handleStartSession" :loading="loading.start" block>
+                                            🚀 开始训练
+                                        </el-button>
+                                    </div>
+                                    <div v-else class="active-state">
+                                        <div class="session-timer">
+                                            <span>训练进行中</span>
+                                        </div>
+                                        <el-button @click="handleResetSession" type="danger" plain size="small" style="width: 100%; margin-top: 12px;">
+                                            结束当前会话
+                                        </el-button>
+                                    </div>
+                                </div>
+                            </el-collapse-item>
 
-                <el-card v-if="lastResponse" class="panel debug-panel">
-                    <template #header>
-                        <div class="header">Debug 日志</div>
-                    </template>
-                    <pre class="response">{{ lastResponse }}</pre>
-                </el-card>
+                            <!-- Step 3: Record Action -->
+                            <el-collapse-item name="record">
+                                <template #title>
+                                    <div class="step-title">
+                                        <div class="step-icon">3</div>
+                                        <span>动作打卡</span>
+                                    </div>
+                                </template>
+                                <div class="step-content">
+                                    <el-form :model="recordForm" label-position="top">
+                                        <el-form-item label="当前动作">
+                                            <el-input v-model="recordForm.exercise" placeholder="动作ID 或 从左侧填入">
+                                                 <template #prefix>
+                                                    <el-icon><Trophy /></el-icon>
+                                                </template>
+                                            </el-input>
+                                            <div class="exercise-badge" v-if="selectedExerciseName">
+                                                {{ selectedExerciseName }}
+                                            </div>
+                                        </el-form-item>
+                                        
+                                        <div class="form-grid">
+                                            <el-form-item label="组数">
+                                                <el-input-number v-model="recordForm.sets_completed" :min="1" controls-position="right" style="width: 100%" />
+                                            </el-form-item>
+                                            <el-form-item label="时长 (秒)">
+                                                <el-input-number v-model="recordForm.duration_seconds_actual" :min="0" controls-position="right" style="width: 100%" />
+                                            </el-form-item>
+                                        </div>
+                                        
+                                        <el-form-item label="AI 动作评分">
+                                            <div class="score-input-wrapper">
+                                                <el-slider v-model="recordForm.form_score" :min="0" :max="100" show-input :show-input-controls="false" />
+                                            </div>
+                                        </el-form-item>
+
+                                        <el-button type="primary" @click="handleRecordExercise" :loading="loading.record" :disabled="!sessionId" block class="action-btn">
+                                            ✅ 提交记录
+                                        </el-button>
+                                    </el-form>
+                                </div>
+                            </el-collapse-item>
+
+                            <!-- Step 4: Finish -->
+                            <el-collapse-item name="finish">
+                                <template #title>
+                                    <div class="step-title">
+                                        <div class="step-icon">4</div>
+                                        <span>完成总结</span>
+                                    </div>
+                                </template>
+                                <div class="step-content">
+                                    <el-form label-position="top">
+                                        <el-form-item label="自我评分">
+                                            <div class="rate-wrapper">
+                                                <el-rate v-model="completeForm.performance_score" :max="5" size="large" allow-half show-text :texts="['状态不佳', '一般', '还可以', '很棒', '超神']" />
+                                            </div>
+                                        </el-form-item>
+                                        <el-button type="success" @click="handleCompleteSession" :loading="loading.complete" :disabled="!sessionId" block class="action-btn success-glow">
+                                            🎉甚至完成训练
+                                        </el-button>
+                                    </el-form>
+                                </div>
+                            </el-collapse-item>
+                        </el-collapse>
+                    </el-card>
+                </div>
             </el-col>
         </el-row>
     </div>
@@ -149,11 +218,12 @@
 import { reactive, ref, watch, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { VideoCamera, InfoFilled, Trophy, Edit } from '@element-plus/icons-vue'
 import apiClient from '../api'
 import PosePreview from '../components/ai/PosePreview.vue'
 
 const route = useRoute()
-const activeSteps = ref(['plan', 'session', 'record'])
+const activeSteps = ref(['plan']) 
 const loading = reactive({
     start: false,
     record: false,
@@ -213,6 +283,7 @@ watch(sessionId, (val) => {
     recordForm.session_id = val ? String(val) : ''
     if (val) {
         localStorage.setItem('active_training_session', String(val))
+        activeSteps.value = ['session', 'record'] // Auto expand relevant steps
     } else {
         localStorage.removeItem('active_training_session')
     }
@@ -229,10 +300,6 @@ watch(selectedPlanId, async (val) => {
 watch(selectedDayId, (val) => {
     startForm.plan_day_id = val ?? ''
 })
-
-const reloadPlans = async () => {
-    await fetchPlans()
-}
 
 const fetchPlans = async () => {
     loading.plans = true
@@ -274,6 +341,7 @@ const handleStartSession = async () => {
         sessionId.value = res.data.id
         lastResponse.value = JSON.stringify(res.data, null, 2)
         ElMessage.success('训练会话已开始')
+        activeSteps.value = ['record']
     } catch (err: any) {
         ElMessage.error(err.response?.data?.error || '开始会话失败')
     } finally {
@@ -333,6 +401,7 @@ const handleCompleteSession = async () => {
         lastResponse.value = JSON.stringify(res.data, null, 2)
         ElMessage.success('训练会话已完成')
         sessionId.value = null
+        activeSteps.value = ['plan']
     } catch (err: any) {
         ElMessage.error(err.response?.data?.error || '完成会话失败')
     } finally {
@@ -352,13 +421,13 @@ const fillRecordFromPlanExercise = (item: any) => {
     recordForm.reps_completed = item.reps ? String(item.reps) : ''
     recordForm.weights_used = item.weight ? String(item.weight) : ''
     recordForm.duration_seconds_actual = item.duration_seconds || 0
+    // Switch to step 3
+    activeSteps.value = ['record']
     ElMessage.success(`已填入: ${item.exercise_name || '动作'}`)
 }
 
 onMounted(async () => {
     await fetchPlans()
-
-    // 检查查询参数中是否有动作 ID 或名称
     const exerciseId = route.query.exercise_id
     const exerciseName = route.query.exercise_name
 
@@ -369,7 +438,6 @@ onMounted(async () => {
     if (exerciseName) {
         selectedExerciseName.value = String(exerciseName)
     } else if (exerciseId) {
-        // 如果只有 ID 没给名称，做个回退映射
         const idMap: Record<string, string> = {
             '1': '深蹲',
             '2': '俯卧撑',
@@ -378,6 +446,11 @@ onMounted(async () => {
         if (idMap[String(exerciseId)]) {
             selectedExerciseName.value = idMap[String(exerciseId)]
         }
+    }
+    
+    // Auto open session/record if active
+    if (sessionId.value) {
+        activeSteps.value = ['session', 'record']
     }
 })
 </script>
@@ -389,65 +462,294 @@ export default {
 </script>
 
 <style scoped>
-.training-container {
-    max-width: 960px;
-    margin: 24px auto 60px;
+.page-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding-bottom: 60px;
+}
+
+.page-header-row {
     display: flex;
-    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.status-tag {
+    height: 32px;
+    padding: 0 16px;
+    font-weight: 600;
+}
+
+.dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #94a3b8;
+    margin-right: 6px;
+    margin-bottom: 2px;
+}
+
+.dot.accepted {
+    background-color: #22c55e;
+}
+
+/* AI Card */
+.ai-display-card {
+    background: #0f172a !important; 
+    border: 1px solid #1e293b;
+    color: white;
+    overflow: hidden;
+    margin-bottom: 24px;
+    border-radius: 16px;
+}
+
+.ai-header {
+    background: rgba(255, 255, 255, 0.03);
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ai-title {
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #e2e8f0;
+}
+
+.pulse-indicator {
+    width: 8px;
+    height: 8px;
+    background: #10b981;
+    border-radius: 50%;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+    70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.camera-wrapper {
+    position: relative;
+    min-height: 520px;
+    background: #020617;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.camera-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    backdrop-filter: blur(2px);
+}
+
+.overlay-content {
+    text-align: center;
+    color: #cbd5e1;
+}
+
+.camera-icon {
+    margin-bottom: 16px;
+    opacity: 0.8;
+}
+
+.overlay-content h3 {
+    font-size: 20px;
+    font-weight: 600;
+    color: white;
+    margin: 0 0 8px 0;
+}
+
+.ai-footer {
+    padding: 12px 24px;
+    background: rgba(255, 255, 255, 0.03);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ai-tip {
+    font-size: 13px;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Plan Card */
+.plan-card {
+    border-radius: 16px;
+    border: none;
+    box-shadow: var(--card-shadow);
+}
+
+.card-header-styled {
+    padding: 12px 0;
+    border-bottom: 2px solid var(--border-color);
+    margin-bottom: 16px;
+}
+
+.card-header-styled h3 {
+    margin: 0;
+    font-size: 18px;
+    color: var(--text-main);
+}
+
+.exercise-name-cell {
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+/* Control Panel */
+.control-column {
+    position: sticky;
+    top: 90px;
+}
+
+.control-card {
+    border-radius: 16px;
+    border: none;
+    overflow: hidden;
+}
+
+.panel-header {
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--text-main);
+}
+
+.styled-collapse {
+    border-top: none;
+    border-bottom: none;
+}
+
+:deep(.el-collapse-item__header) {
+    height: 60px;
+    font-size: 15px;
+    border-bottom-color: var(--border-color);
+}
+
+.step-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 600;
+    color: var(--text-main);
+    width: 100%;
+}
+
+.step-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: #f1f5f9;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    transition: all 0.3s;
+}
+
+.step-icon.active {
+    background: var(--el-color-primary);
+    color: white;
+}
+
+.step-content {
+    padding: 24px 8px;
+}
+
+/* Form Styling */
+.compact-form :deep(.el-form-item) {
+    margin-bottom: 16px;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 16px;
 }
 
-.panel {
-    border-radius: 12px;
+.exercise-badge {
+    margin-top: 8px;
+    background: #eff6ff;
+    color: var(--el-color-primary);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-block;
 }
 
-.header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+.score-input-wrapper {
+    padding: 0 8px;
 }
 
-.ai-card {
+.start-state {
+    text-align: center;
+    padding: 10px 0;
+}
+
+.empty-placeholder {
     margin-bottom: 20px;
 }
 
-.ai-tips {
-    margin-top: 10px;
-    color: #909399;
-    font-size: 13px;
-    text-align: center;
-}
-
-.control-panel :deep(.el-collapse-item__header) {
-    font-weight: bold;
-}
-
-.session-actions {
-    padding: 10px 0;
-    text-align: center;
-}
-
-.hint {
-    color: #909399;
-    font-size: 13px;
-    margin-bottom: 10px;
-}
-
-.success-hint {
-    color: #67C23A;
+.empty-placeholder p {
+    color: var(--text-secondary);
     font-size: 14px;
-    margin-bottom: 10px;
+    margin-top: 8px;
 }
 
-.debug-panel {
-    margin-top: 20px;
-    background-color: #f8f9fa;
+.active-state {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
 }
 
-.response {
-    font-size: 12px;
-    white-space: pre-wrap;
-    max-height: 200px;
-    overflow-y: auto;
+.session-timer {
+    font-weight: 600;
+    color: #15803d;
+    margin-bottom: 4px;
+}
+
+.action-btn {
+    height: 48px;
+    font-weight: 600;
+    font-size: 16px;
+    border-radius: 10px;
+}
+
+.glow-effect {
+    box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.39);
+}
+
+.success-glow {
+    box-shadow: 0 4px 14px 0 rgba(74, 222, 128, 0.4);
+}
+
+.rate-wrapper {
+    display: flex;
+    justify-content: center;
+    padding: 8px 0;
 }
 </style>
