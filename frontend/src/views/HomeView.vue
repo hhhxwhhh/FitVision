@@ -106,40 +106,40 @@
       </div>
 
       <!-- 统计信息区 -->
-      <div class="stats-section">
+      <div class="stats-section" v-loading="loading">
         <el-card class="stats-card">
           <template #header>
             <div class="card-header">
-              <span>本周数据</span>
+              <span>健身数据统计</span>
             </div>
           </template>
 
           <el-row :gutter="20">
             <el-col :span="6">
               <div class="stat-item">
-                <div class="stat-value">{{ weeklyStats.trainings }}</div>
-                <div class="stat-label">训练次数</div>
+                <div class="stat-value">{{ dashboardData.stats.trainings }}</div>
+                <div class="stat-label">总训练次数</div>
               </div>
             </el-col>
 
             <el-col :span="6">
               <div class="stat-item">
-                <div class="stat-value">{{ weeklyStats.calories }}</div>
-                <div class="stat-label">消耗卡路里</div>
+                <div class="stat-value">{{ dashboardData.stats.calories }}</div>
+                <div class="stat-label">总消耗卡路里</div>
               </div>
             </el-col>
 
             <el-col :span="6">
               <div class="stat-item">
-                <div class="stat-value">{{ weeklyStats.duration }}</div>
-                <div class="stat-label">训练时长</div>
+                <div class="stat-value">{{ dashboardData.stats.duration }}</div>
+                <div class="stat-label">总训练时长</div>
               </div>
             </el-col>
 
             <el-col :span="6">
               <div class="stat-item">
-                <div class="stat-value">{{ weeklyStats.streak }}</div>
-                <div class="stat-label">连续打卡</div>
+                <div class="stat-value">{{ dashboardData.stats.streak }}</div>
+                <div class="stat-label">历史最长连胜</div>
               </div>
             </el-col>
           </el-row>
@@ -150,18 +150,23 @@
       <div class="content-section">
         <el-row :gutter="20">
           <el-col :xs="24" :md="16">
-            <el-card class="recent-activity">
+            <el-card class="recent-activity" v-loading="loading">
               <template #header>
                 <div class="card-header">
                   <span>最近训练记录</span>
                 </div>
               </template>
 
-              <el-table :data="recentActivities" style="width: 100%">
+              <el-table :data="dashboardData.recentActivities" style="width: 100%">
                 <el-table-column prop="date" label="日期" />
                 <el-table-column prop="type" label="类型" />
                 <el-table-column prop="duration" label="时长" />
                 <el-table-column prop="calories" label="消耗(卡)" />
+                <el-table-column label="评分">
+                  <template #default="scope">
+                    <el-tag :type="scope.row.score > 80 ? 'success' : 'warning'">{{ scope.row.score || '-' }}</el-tag>
+                  </template>
+                </el-table-column>
                 <el-table-column label="操作">
                   <template #default="scope">
                     <el-button size="small" @click="viewDetail(scope.row)">详情</el-button>
@@ -221,7 +226,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   UserFilled,
@@ -234,50 +239,57 @@ import {
   ElMessageBox,
   ElNotification
 } from 'element-plus'
+import apiClient from '../api'
 
 const router = useRouter()
 const username = ref(localStorage.getItem('username') || '用户')
 const activeMenu = ref('home')
+const loading = ref(false)
 
-// 模拟统计数据
-const weeklyStats = ref({
-  trainings: 5,
-  calories: 1200,
-  duration: '3小时25分钟',
-  streak: 3
+// 仪表盘数据
+const dashboardData = reactive({
+  stats: {
+    trainings: 0,
+    calories: 0,
+    duration: '0分钟',
+    streak: 0
+  },
+  recentActivities: [] as any[],
+  activeGoals: [] as any[]
 })
 
-// 最近活动数据
-const recentActivities = ref([
-  {
-    id: 1,
-    date: '2025-12-19',
-    type: '深蹲训练',
-    duration: '30分钟',
-    calories: 220
-  },
-  {
-    id: 2,
-    date: '2025-12-18',
-    type: '俯卧撑训练',
-    duration: '25分钟',
-    calories: 180
-  },
-  {
-    id: 3,
-    date: '2025-12-17',
-    type: '卷腹训练',
-    duration: '20分钟',
-    calories: 150
-  },
-  {
-    id: 4,
-    date: '2025-12-16',
-    type: '有氧跑步',
-    duration: '45分钟',
-    calories: 420
+// 获取仪表盘数据
+const fetchDashboardData = async () => {
+  loading.value = true
+  try {
+    const res = await apiClient.get('auth/dashboard/')
+    const data = res.data
+
+    // 映射后端数据 (对应 backend/users/views.py 中的 user_dashboard)
+    dashboardData.stats = {
+      trainings: data.stats.total_trainings,
+      calories: Math.round(data.stats.total_calories_burned),
+      duration: `${data.stats.total_training_time}分钟`,
+      streak: data.stats.longest_training_streak || 0
+    }
+
+    dashboardData.recentActivities = data.recent_logs.map((log: any) => ({
+      id: log.id,
+      date: new Date(log.created_at).toLocaleDateString(),
+      type: log.action_name,
+      duration: `${Math.floor(log.duration / 60)}分钟`,
+      calories: log.calories,
+      score: log.accuracy_score
+    }))
+
+    dashboardData.activeGoals = data.active_goals
+  } catch (err: any) {
+    console.error('获取仪表盘数据失败', err)
+    ElMessage.error('无法同步最新的健身数据')
+  } finally {
+    loading.value = false
   }
-])
+}
 
 // AI推荐内容
 const recommendations = ref([
@@ -296,6 +308,7 @@ const recommendations = ref([
 ])
 
 onMounted(() => {
+  fetchDashboardData()
   // 显示欢迎通知
   ElNotification({
     title: '欢迎回来',
