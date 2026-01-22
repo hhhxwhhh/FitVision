@@ -152,11 +152,11 @@ def record_training_exercise(request):
     
     # 创建训练动作记录
     record_data = request.data.copy()
-    record_data['session'] = session.id
+    record_data.pop('session', None)
     
     serializer = UserTrainingExerciseRecordSerializer(data=record_data)
     if serializer.is_valid():
-        record = serializer.save()
+        record = serializer.save(session=session)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

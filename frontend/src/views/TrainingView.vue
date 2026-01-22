@@ -25,41 +25,46 @@
                         </div>
                         <el-tag size="small" effect="plain" class="tech-tag">MediaPipe Engine</el-tag>
                     </div>
-                    
+
                     <div class="camera-wrapper">
                         <PosePreview ref="posePreviewRef" :initial-exercise="selectedExerciseName"
                             @update:reps="handleAiReps" @update:score="handleAiScore" />
-                        
+
                         <div class="camera-overlay" v-if="!sessionId">
-                             <div class="overlay-content">
-                                 <el-icon :size="64" class="camera-icon"><VideoCamera /></el-icon>
-                                 <h3>准备开始</h3>
-                                 <p>启动训练会话以激活 AI 实时动作分析</p>
-                             </div>
+                            <div class="overlay-content">
+                                <el-icon :size="64" class="camera-icon">
+                                    <VideoCamera />
+                                </el-icon>
+                                <h3>准备开始</h3>
+                                <p>启动训练会话以激活 AI 实时动作分析</p>
+                            </div>
                         </div>
                     </div>
 
                     <div class="ai-footer">
                         <div class="ai-tip">
-                            <el-icon><InfoFilled /></el-icon>
+                            <el-icon>
+                                <InfoFilled />
+                            </el-icon>
                             <span>请保持全身在画面中，距离摄像头约 2-3 米，侧身或正对根据动作要求调整。</span>
                         </div>
                     </div>
                 </el-card>
 
                 <!-- Today's Plan Card -->
-                 <el-card class="plan-card" v-if="currentDayExercises.length">
+                <el-card class="plan-card" v-if="currentDayExercises.length">
                     <div class="card-header-styled">
                         <h3>📋 今日课表</h3>
                     </div>
-                    <el-table :data="currentDayExercises" style="width: 100%" :header-cell-style="{background:'#f8fafc', color:'#475569'}">
+                    <el-table :data="currentDayExercises" style="width: 100%"
+                        :header-cell-style="{ background: '#f8fafc', color: '#475569' }">
                         <el-table-column prop="exercise_name" label="动作名称" min-width="140">
-                             <template #default="scope">
+                            <template #default="scope">
                                 <span class="exercise-name-cell">{{ scope.row.exercise_name }}</span>
                             </template>
                         </el-table-column>
                         <el-table-column prop="sets" label="组数" width="80" align="center">
-                             <template #default="scope">
+                            <template #default="scope">
                                 <el-tag size="small" type="info" effect="plain">{{ scope.row.sets }}组</el-tag>
                             </template>
                         </el-table-column>
@@ -85,7 +90,7 @@
                                 <span>控制台</span>
                             </div>
                         </template>
-                        
+
                         <el-collapse v-model="activeSteps" accordion class="styled-collapse">
                             <!-- Step 1: Select Plan -->
                             <el-collapse-item name="plan">
@@ -98,14 +103,18 @@
                                 <div class="step-content">
                                     <el-form label-position="top" class="compact-form">
                                         <el-form-item label="训练计划">
-                                            <el-select v-model="selectedPlanId" placeholder="选择您的训练计划" style="width: 100%" size="large">
-                                                <el-option v-for="plan in plans" :key="plan.id" :label="plan.name" :value="plan.id" />
+                                            <el-select v-model="selectedPlanId" placeholder="选择您的训练计划"
+                                                style="width: 100%" size="large">
+                                                <el-option v-for="plan in plans" :key="plan.id" :label="plan.name"
+                                                    :value="plan.id" />
                                             </el-select>
                                         </el-form-item>
-                                        
+
                                         <el-form-item label="训练日程">
-                                             <el-select v-model="selectedDayId" placeholder="选择今日课程" :disabled="!selectedPlanId" style="width: 100%" size="large">
-                                                <el-option v-for="day in planDays" :key="day.id" :label="`第${day.day_number}天 - ${day.title}`" :value="day.id" />
+                                            <el-select v-model="selectedDayId" placeholder="选择今日课程"
+                                                :disabled="!selectedPlanId" style="width: 100%" size="large">
+                                                <el-option v-for="day in planDays" :key="day.id"
+                                                    :label="`第${day.day_number}天 - ${day.title}`" :value="day.id" />
                                             </el-select>
                                         </el-form-item>
                                     </el-form>
@@ -118,16 +127,19 @@
                                     <div class="step-title">
                                         <div class="step-icon" :class="{ 'active': sessionId }">2</div>
                                         <span>会话控制</span>
-                                        <el-tag v-if="sessionId" size="small" type="success" style="margin-left: auto">进行中</el-tag>
+                                        <el-tag v-if="sessionId" size="small" type="success"
+                                            style="margin-left: auto">进行中</el-tag>
                                     </div>
                                 </template>
                                 <div class="step-content">
                                     <div v-if="!sessionId" class="start-state">
                                         <div class="empty-placeholder">
-                                            <img src="https://img.icons8.com/color/96/dumbbell.png" alt="Training" width="64" />
+                                            <img src="https://img.icons8.com/color/96/dumbbell.png" alt="Training"
+                                                width="64" />
                                             <p>准备好流汗了吗？</p>
                                         </div>
-                                        <el-button type="primary" size="large" class="action-btn glow-effect" @click="handleStartSession" :loading="loading.start" block>
+                                        <el-button type="primary" size="large" class="action-btn glow-effect"
+                                            @click="handleStartSession" :loading="loading.start" block>
                                             🚀 开始训练
                                         </el-button>
                                     </div>
@@ -135,7 +147,8 @@
                                         <div class="session-timer">
                                             <span>训练进行中</span>
                                         </div>
-                                        <el-button @click="handleResetSession" type="danger" plain size="small" style="width: 100%; margin-top: 12px;">
+                                        <el-button @click="handleResetSession" type="danger" plain size="small"
+                                            style="width: 100%; margin-top: 12px;">
                                             结束当前会话
                                         </el-button>
                                     </div>
@@ -154,31 +167,37 @@
                                     <el-form :model="recordForm" label-position="top">
                                         <el-form-item label="当前动作">
                                             <el-input v-model="recordForm.exercise" placeholder="动作ID 或 从左侧填入">
-                                                 <template #prefix>
-                                                    <el-icon><Trophy /></el-icon>
+                                                <template #prefix>
+                                                    <el-icon>
+                                                        <Trophy />
+                                                    </el-icon>
                                                 </template>
                                             </el-input>
                                             <div class="exercise-badge" v-if="selectedExerciseName">
                                                 {{ selectedExerciseName }}
                                             </div>
                                         </el-form-item>
-                                        
+
                                         <div class="form-grid">
                                             <el-form-item label="组数">
-                                                <el-input-number v-model="recordForm.sets_completed" :min="1" controls-position="right" style="width: 100%" />
+                                                <el-input-number v-model="recordForm.sets_completed" :min="1"
+                                                    controls-position="right" style="width: 100%" />
                                             </el-form-item>
                                             <el-form-item label="时长 (秒)">
-                                                <el-input-number v-model="recordForm.duration_seconds_actual" :min="0" controls-position="right" style="width: 100%" />
+                                                <el-input-number v-model="recordForm.duration_seconds_actual" :min="0"
+                                                    controls-position="right" style="width: 100%" />
                                             </el-form-item>
                                         </div>
-                                        
+
                                         <el-form-item label="AI 动作评分">
                                             <div class="score-input-wrapper">
-                                                <el-slider v-model="recordForm.form_score" :min="0" :max="100" show-input :show-input-controls="false" />
+                                                <el-slider v-model="recordForm.form_score" :min="0" :max="100"
+                                                    show-input :show-input-controls="false" />
                                             </div>
                                         </el-form-item>
 
-                                        <el-button type="primary" @click="handleRecordExercise" :loading="loading.record" :disabled="!sessionId" block class="action-btn">
+                                        <el-button type="primary" @click="handleRecordExercise"
+                                            :loading="loading.record" :disabled="!sessionId" block class="action-btn">
                                             ✅ 提交记录
                                         </el-button>
                                     </el-form>
@@ -197,10 +216,13 @@
                                     <el-form label-position="top">
                                         <el-form-item label="自我评分">
                                             <div class="rate-wrapper">
-                                                <el-rate v-model="completeForm.performance_score" :max="5" size="large" allow-half show-text :texts="['状态不佳', '一般', '还可以', '很棒', '超神']" />
+                                                <el-rate v-model="completeForm.performance_score" :max="5" size="large"
+                                                    allow-half show-text :texts="['状态不佳', '一般', '还可以', '很棒', '超神']" />
                                             </div>
                                         </el-form-item>
-                                        <el-button type="success" @click="handleCompleteSession" :loading="loading.complete" :disabled="!sessionId" block class="action-btn success-glow">
+                                        <el-button type="success" @click="handleCompleteSession"
+                                            :loading="loading.complete" :disabled="!sessionId" block
+                                            class="action-btn success-glow">
                                             🎉甚至完成训练
                                         </el-button>
                                     </el-form>
@@ -223,7 +245,7 @@ import apiClient from '../api'
 import PosePreview from '../components/ai/PosePreview.vue'
 
 const route = useRoute()
-const activeSteps = ref(['plan']) 
+const activeSteps = ref(['plan'])
 const loading = reactive({
     start: false,
     record: false,
@@ -305,7 +327,9 @@ const fetchPlans = async () => {
     loading.plans = true
     try {
         const res = await apiClient.get('training/plans/')
-        plans.value = (res.data || []).filter(Boolean)
+        const payload = res.data
+        const planList = Array.isArray(payload) ? payload : (payload?.results || [])
+        plans.value = planList.filter(Boolean)
     } catch (err: any) {
         ElMessage.error(err.response?.data?.error || '获取训练计划失败')
     } finally {
@@ -316,7 +340,9 @@ const fetchPlans = async () => {
 const fetchPlanDays = async (planId: number) => {
     try {
         const res = await apiClient.get(`training/plans/${planId}/days/`)
-        planDays.value = (res.data || []).filter(Boolean)
+        const payload = res.data
+        const dayList = Array.isArray(payload) ? payload : (payload?.results || [])
+        planDays.value = dayList.filter(Boolean)
     } catch (err: any) {
         ElMessage.error(err.response?.data?.error || '获取训练计划日程失败')
     }
@@ -447,7 +473,7 @@ onMounted(async () => {
             selectedExerciseName.value = idMap[String(exerciseId)]
         }
     }
-    
+
     // Auto open session/record if active
     if (sessionId.value) {
         activeSteps.value = ['session', 'record']
@@ -497,7 +523,7 @@ export default {
 
 /* AI Card */
 .ai-display-card {
-    background: #0f172a !important; 
+    background: #0f172a !important;
     border: 1px solid #1e293b;
     color: white;
     overflow: hidden;
@@ -533,9 +559,17 @@ export default {
 }
 
 @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-    70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    0% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    }
 }
 
 .camera-wrapper {

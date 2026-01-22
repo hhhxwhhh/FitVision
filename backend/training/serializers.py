@@ -33,12 +33,12 @@ class TrainingPlanSerializer(serializers.ModelSerializer):
         read_only_fields = ('created_by', 'created_at', 'updated_at')
         
     def get_days_count(self, obj):
-        return obj.days.count()
+        return obj.trainingplanday_set.count()
 
 
 class TrainingPlanDetailSerializer(serializers.ModelSerializer):
     """训练计划详情序列化器"""
-    days = TrainingPlanDaySerializer(many=True, read_only=True)
+    days = TrainingPlanDaySerializer(many=True, read_only=True, source='trainingplanday_set')
     creator_name = serializers.CharField(source='created_by.username', read_only=True)
     
     class Meta:

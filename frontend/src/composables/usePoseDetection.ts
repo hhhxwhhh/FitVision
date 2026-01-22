@@ -1,10 +1,14 @@
 import { ref, onUnmounted } from 'vue';
-import { Pose, type PoseConfig, type Results } from '@mediapipe/pose';
+import { Pose, type Results } from '@mediapipe/pose';
 import { Camera } from '@mediapipe/camera_utils';
 import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
 import { POSE_CONNECTIONS } from '@mediapipe/pose';
 
 export function usePoseDetection() {
+  const MEDIAPIPE_POSE_VERSION = '0.5.1675469404';
+  const MEDIAPIPE_BASE_URL =
+    (import.meta as any).env?.VITE_MEDIAPIPE_BASE ||
+    `https://unpkg.com/@mediapipe/pose@${MEDIAPIPE_POSE_VERSION}`;
   const videoElement = ref<HTMLVideoElement | null>(null);
   const canvasElement = ref<HTMLCanvasElement | null>(null);
   const isUpdating = ref(false);
@@ -37,6 +41,46 @@ export function usePoseDetection() {
   let pose: Pose | null = null;
   let camera: Camera | null = null;
 
+  const ensureMediaSupport = () => {
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      throw new Error('当前浏览器不支持摄像头访问');
+    }
+    if (!window.isSecureContext && location.hostname !== 'localhost') {
+      throw new Error('请在 HTTPS 或 localhost 环境下使用摄像头');
+    }
+  };
+
+  const waitForVideoReady = (video: HTMLVideoElement, timeoutMs = 5000) => {
+    return new Promise<void>((resolve, reject) => {
+      if (video.readyState >= 2) {
+        resolve();
+        return;
+      }
+
+      let timeoutId: number | undefined;
+      const onReady = () => {
+        cleanup();
+        resolve();
+      };
+      const onError = () => {
+        cleanup();
+        reject(new Error('摄像头视频流不可用'));
+      };
+      const cleanup = () => {
+        video.removeEventListener('loadeddata', onReady);
+        video.removeEventListener('error', onError);
+        if (timeoutId) window.clearTimeout(timeoutId);
+      };
+
+      video.addEventListener('loadeddata', onReady, { once: true });
+      video.addEventListener('error', onError, { once: true });
+      timeoutId = window.setTimeout(() => {
+        cleanup();
+        reject(new Error('摄像头初始化超时'));
+      }, timeoutMs);
+    });
+  };
+
   // 计算三点之间的角度
   const calculateAngle = (a: any, b: any, c: any) => {
     if (!a || !b || !c || a.visibility < 0.5 || b.visibility < 0.5 || c.visibility < 0.5) return null;
@@ -53,6 +97,15 @@ export function usePoseDetection() {
     if (!canvasCtx) return;
 
     canvasCtx.save();
+    if (results.image) {
+      const imageWidth = (results.image as HTMLVideoElement).videoWidth || canvasElement.value.width;
+      const imageHeight = (results.image as HTMLVideoElement).videoHeight || canvasElement.value.height;
+      if (canvasElement.value.width !== imageWidth || canvasElement.value.height !== imageHeight) {
+        canvasElement.value.width = imageWidth;
+        canvasElement.value.height = imageHeight;
+      }
+    }
+
     canvasCtx.clearRect(0, 0, canvasElement.value.width, canvasElement.value.height);
     
     // Draw the video frame
@@ -150,9 +203,17 @@ export function usePoseDetection() {
     repCount.value = 0; // 重置计数
     state = 'UP';
     try {
+      error.value = null;
+      isLoaded.value = false;
+      ensureMediaSupport();
+
+      if (isUpdating.value) {
+        stopPose();
+      }
+
       pose = new Pose({
         locateFile: (file) => {
-          return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+          return `${MEDIAPIPE_BASE_URL}/${file}`;
         }
       });
 
@@ -178,9 +239,14 @@ export function usePoseDetection() {
       });
 
       await camera.start();
+      await waitForVideoReady(videoElement.value);
       isUpdating.value = true;
+      if (!isLoaded.value) {
+        isLoaded.value = true;
+      }
     } catch (err: any) {
-      error.value = `MediaPipe 启动失败: ${err.message}`;
+      isUpdating.value = false;
+      error.value = `MediaPipe 启动失败: ${err?.message || '未知错误'}`;
       console.error(err);
     }
   };
@@ -189,6 +255,15 @@ export function usePoseDetection() {
     isUpdating.value = false;
     camera?.stop();
     pose?.close();
+
+    if (videoElement.value?.srcObject) {
+      const stream = videoElement.value.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+      videoElement.value.srcObject = null;
+    }
+
+    camera = null;
+    pose = null;
   };
 
   const resetCount = () => {

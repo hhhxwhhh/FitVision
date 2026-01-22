@@ -14,7 +14,7 @@
         </div>
 
         <div class="canvas-wrapper">
-            <video ref="videoRef" class="hidden-video" playsinline></video>
+            <video ref="videoRef" class="hidden-video" autoplay muted playsinline></video>
             <canvas ref="canvasRef" width="640" height="480" class="pose-canvas"></canvas>
 
             <div v-if="isUpdating" class="pose-overlay">
@@ -136,7 +136,13 @@ defineExpose({
 }
 
 .hidden-video {
-    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    pointer-events: none;
 }
 
 .pose-canvas {

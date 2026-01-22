@@ -1,0 +1,79 @@
+[
+  {
+    "model": "training.trainingplan",
+    "pk": 1,
+    "fields": {
+      "name": "AI 动作入门计划",
+      "description": "适配前端 MediaPipe 的入门训练计划（深蹲/俯卧撑/开合跳）",
+      "goal": "general_fitness",
+      "difficulty": "beginner",
+      "duration_weeks": 1,
+      "category": null,
+      "is_public": true,
+      "created_by": 1,
+      "estimated_calories_burned": 120,
+      "estimated_duration_minutes": 20,
+      "is_active": true,
+      "created_at": "2026-01-22T06:00:00Z",
+      "updated_at": "2026-01-22T06:00:00Z"
+    }
+  },
+  {
+    "model": "training.trainingplanday",
+    "pk": 1,
+    "fields": {
+      "plan": 1,
+      "day_number": 1,
+      "title": "基础 AI 训练",
+      "description": "使用 AI 识别深蹲/俯卧撑/开合跳",
+      "is_rest_day": false,
+      "warmup_duration": 5,
+      "cooldown_duration": 5
+    }
+  },
+  {
+    "model": "training.trainingplanexercise",
+    "pk": 1,
+    "fields": {
+      "training_day": 1,
+      "exercise": 1,
+      "sets": 3,
+      "reps": 12,
+      "duration_seconds": 60,
+      "weight": 0.0,
+      "rest_between_sets": 45,
+      "order": 1,
+      "notes": "深蹲：保持膝盖方向与脚尖一致"
+    }
+  },
+  {
+    "model": "training.trainingplanexercise",
+    "pk": 2,
+    "fields": {
+      "training_day": 1,
+      "exercise": 2,
+      "sets": 3,
+      "reps": 10,
+      "duration_seconds": 60,
+      "weight": 0.0,
+      "rest_between_sets": 45,
+      "order": 2,
+      "notes": "俯卧撑：保持身体成一直线"
+    }
+  },
+  {
+    "model": "training.trainingplanexercise",
+    "pk": 3,
+    "fields": {
+      "training_day": 1,
+      "exercise": 3,
+      "sets": 2,
+      "reps": 20,
+      "duration_seconds": 60,
+      "weight": 0.0,
+      "rest_between_sets": 30,
+      "order": 3,
+      "notes": "开合跳：落地轻盈"
+    }
+  }
+]
