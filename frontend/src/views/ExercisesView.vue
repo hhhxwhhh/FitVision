@@ -1,6 +1,5 @@
 <template>
     <div class="page-container">
-        <!-- Page Header -->
         <div class="page-header-row">
             <h1 class="page-title">动作百科</h1>
             <div class="header-actions">
@@ -12,7 +11,6 @@
             </div>
         </div>
 
-        <!-- Filter Bar -->
         <el-card class="filter-card mb-4" :body-style="{ padding: '12px 20px' }">
             <div class="filter-row">
                 <span class="filter-label">部位筛选:</span>
@@ -28,7 +26,6 @@
             </div>
         </el-card>
 
-        <!-- Exercise Grid -->
         <el-row :gutter="24" v-loading="loading">
             <el-col v-for="ex in filteredExercises" :key="ex.id" :xs="24" :sm="12" :md="8" :lg="6">
                 <el-card class="exercise-card hover-lift" :body-style="{ padding: 0 }">
@@ -39,7 +36,7 @@
                              {{ ex.difficulty_display }}
                          </div>
                     </div>
-                   
+                    
                     <div class="card-content">
                         <div class="title-row">
                             <h3 class="title" :title="ex.name">{{ ex.name }}</h3>
@@ -63,7 +60,22 @@
             </el-col>
         </el-row>
 
-        <!-- Detail Dialog -->
+        <div class="pagination-container" v-if="nextUrl">
+            <el-button 
+                type="primary" 
+                plain 
+                round 
+                size="large"
+                :loading="loadingMore" 
+                @click="loadMore"
+            >
+                加载更多动作 ({{ exercises.length }} / {{ totalCount }})
+            </el-button>
+        </div>
+        <div class="no-more-data" v-else-if="exercises.length > 0 && !loading">
+            <small>没有更多动作了</small>
+        </div>
+
         <el-dialog v-model="detailVisible" :title="currentEx.name" width="600px" align-center class="exercise-dialog">
             <div class="detail-content" v-if="currentEx.id">
                 <div class="dialog-image-wrapper">
@@ -73,7 +85,7 @@
                 <div class="dialog-body">
                     <div class="dialog-section">
                         <h4>💡 动作要领</h4>
-                        <p>{{ currentEx.instructions }}</p>
+                        <p class="instructions-text">{{ currentEx.instructions }}</p>
                     </div>
                     
                     <div class="dialog-section">
@@ -112,7 +124,10 @@ import apiClient from '../api'
 const router = useRouter()
 const exercises = ref<any[]>([])
 const loading = ref(false)
+const loadingMore = ref(false) // 加载更多时的loading
 const search = ref('')
+const nextUrl = ref<string | null>(null) // 下一页的URL
+const totalCount = ref(0) // 总数
 const filter = ref({
     target_muscle: ''
 })
@@ -120,15 +135,32 @@ const filter = ref({
 const detailVisible = ref(false)
 const currentEx = ref<any>({})
 
+// 初始加载或筛选改变时调用
 const fetchExercises = async () => {
     loading.value = true
+    // 重置列表
+    exercises.value = []
+    nextUrl.value = null
+    
     try {
         let url = 'exercises/'
         if (filter.value.target_muscle) {
             url += `?target_muscle=${filter.value.target_muscle}`
         }
+        
         const res = await apiClient.get(url)
-        exercises.value = res.data
+
+        // 处理分页数据
+        if (res.data.results) {
+            exercises.value = res.data.results
+            nextUrl.value = res.data.next // 记录下一页
+            totalCount.value = res.data.count // 记录总数
+        } else {
+            // 如果后端没开启分页（兼容处理）
+            exercises.value = res.data
+            nextUrl.value = null
+        }
+
     } catch (err) {
         console.error(err)
     } finally {
@@ -136,9 +168,33 @@ const fetchExercises = async () => {
     }
 }
 
+// 加载更多按钮点击时调用
+const loadMore = async () => {
+    if (!nextUrl.value) return
+    
+    loadingMore.value = true
+    try {
+        // 直接请求 nextUrl
+        // 注意：nextUrl 是完整链接 (http://...), apiClient.get 会处理
+        const res = await apiClient.get(nextUrl.value)
+        
+        if (res.data.results) {
+            // 关键：将新数据追加到现有数组后面
+            exercises.value.push(...res.data.results)
+            // 更新下一页地址
+            nextUrl.value = res.data.next
+        }
+    } catch (err) {
+        console.error("加载更多失败", err)
+    } finally {
+        loadingMore.value = false
+    }
+}
+
 const filteredExercises = computed(() => {
     if (!search.value) return exercises.value
-    return exercises.value.filter(ex =>
+    // 注意：这里的搜索只针对“已加载”的数据进行过滤
+    return exercises.value.filter(ex => 
         ex.name.toLowerCase().includes(search.value.toLowerCase()) ||
         ex.english_name?.toLowerCase().includes(search.value.toLowerCase())
     )
@@ -251,17 +307,22 @@ export default {
     position: relative;
     height: 180px;
     overflow: hidden;
+    background: #1f2937; 
+    display: flex;      
+    align-items: center;
+    justify-content: center;
 }
 
 .image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+    width: 60%;         
+    height: 60%;
+    object-fit: contain; 
     transition: transform 0.5s ease;
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3)); 
 }
 
 .exercise-card:hover .image {
-    transform: scale(1.05);
+    transform: scale(1.1);
 }
 
 .difficulty-badge {
@@ -326,21 +387,45 @@ export default {
     align-items: center;
 }
 
+/* Pagination / Load More */
+.pagination-container {
+    margin-top: 10px;
+    margin-bottom: 40px;
+    display: flex;
+    justify-content: center;
+}
+
+.no-more-data {
+    text-align: center;
+    color: var(--text-secondary);
+    margin-top: 20px;
+    padding-bottom: 20px;
+}
+
 /* Dialog */
 .dialog-image-wrapper {
     margin: -20px -20px 20px -20px;
     height: 240px;
     overflow: hidden;
+    background: #f5f7fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .dialog-image {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain; /* 修复详情弹窗图片变形问题 */
+    max-width: 300px;
 }
 
 .dialog-section {
     margin-bottom: 20px;
+}
+
+.instructions-text {
+    white-space: pre-line; /* 让换行符生效 */
 }
 
 .dialog-section h4 {
