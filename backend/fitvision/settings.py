@@ -265,3 +265,7 @@ X_FRAME_OPTIONS = 'DENY'
 
 # Referrer Policy
 SECURE_REFERRER_POLICY = 'same-origin'
+
+# 媒体文件配置
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

@@ -6,6 +6,8 @@ from users.models import UserProfile
 class TrainingPlanExerciseSerializer(serializers.ModelSerializer):
     """训练计划动作序列化器"""
     exercise_name = serializers.CharField(source='exercise.name', read_only=True)
+
+    demo_gif = serializers.FileField(source='exercise.demo_gif', read_only=True)
     
     class Meta:
         model = TrainingPlanExercise

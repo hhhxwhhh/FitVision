@@ -10,6 +10,7 @@ class ExerciseCategory(models.Model):
     is_active = models.BooleanField("是否启用", default=True)
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
     updated_at = models.DateTimeField("更新时间", auto_now=True)
+    
 
     class Meta:
         verbose_name = "动作分类"
@@ -87,12 +88,22 @@ class Exercise(models.Model):
                                       help_text="建议的单次训练次数")
     calories_burned = models.FloatField("每分钟消耗(卡路里)", default=5.0,
                                        help_text="每分钟平均消耗的卡路里")
+
+    demo_gif = models.FileField(
+        "动作演示", 
+        upload_to='exercises/demos/', 
+        blank=True, 
+        null=True, 
+        help_text="上传标准动作的 GIF 动图或短视频"
+    )
     
     # 状态和排序
     is_active = models.BooleanField("是否启用", default=True)
     order = models.IntegerField("排序", default=0, help_text="显示顺序")
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
     updated_at = models.DateTimeField("更新时间", auto_now=True)
+
+
 
     class Meta:
         verbose_name = "健身动作"
