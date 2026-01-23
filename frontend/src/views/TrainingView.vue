@@ -32,10 +32,18 @@
 
                         <div class="camera-overlay" v-if="!sessionId">
                             <div class="overlay-content">
-                                <el-icon :size="64" class="camera-icon">
-                                    <VideoCamera />
-                                </el-icon>
-                                <h3>准备开始</h3>
+
+                                <div v-if="currentGifUrl" class="gif-preview-box">
+                                    <img :src="currentGifUrl" alt="动作演示" class="demo-gif" />
+                                    <div class="gif-tag">标准动作示范</div>
+                                </div>
+
+                                <div v-else>
+                                    <el-icon :size="64" class="camera-icon">
+                                        <VideoCamera />
+                                    </el-icon>
+                                </div>
+                                <h3>{{ selectedExerciseName || '准备开始' }}</h3>
                                 <p>启动训练会话以激活 AI 实时动作分析</p>
                             </div>
                         </div>
@@ -71,9 +79,9 @@
                         <el-table-column prop="reps" label="每组次数" width="100" align="center" />
                         <el-table-column label="操作" width="100" align="center">
                             <template #default="scope">
-                                <el-button size="small" type="primary" bg text icon="Edit"
-                                    @click="fillRecordFromPlanExercise(scope.row)">
-                                    填入
+                                <el-button size="small" :type="sessionId ? 'primary' : 'info'" bg text
+                                    :icon="sessionId ? 'Edit' : 'View'" @click="fillRecordFromPlanExercise(scope.row)">
+                                    {{ sessionId ? '填入' : '预览' }}
                                 </el-button>
                             </template>
                         </el-table-column>
@@ -165,29 +173,43 @@
                                 </template>
                                 <div class="step-content">
                                     <el-form :model="recordForm" label-position="top">
+
                                         <el-form-item label="当前动作">
-                                            <el-input v-model="recordForm.exercise" placeholder="动作ID 或 从左侧填入">
+                                            <el-input :model-value="selectedExerciseName || '请先从左侧课表选择'" readonly
+                                                disabled size="large">
                                                 <template #prefix>
                                                     <el-icon>
                                                         <Trophy />
                                                     </el-icon>
                                                 </template>
                                             </el-input>
-                                            <div class="exercise-badge" v-if="selectedExerciseName">
-                                                {{ selectedExerciseName }}
-                                            </div>
                                         </el-form-item>
 
                                         <div class="form-grid">
-                                            <el-form-item label="组数">
-                                                <el-input-number v-model="recordForm.sets_completed" :min="1"
+                                            <el-form-item label="实际完成组数">
+                                                <el-input-number v-model="recordForm.sets_completed" :min="0"
                                                     controls-position="right" style="width: 100%" />
+                                                <div class="target-hint" v-if="currentTarget">
+                                                    目标: {{ currentTarget.sets || '-' }} 组
+                                                </div>
                                             </el-form-item>
-                                            <el-form-item label="时长 (秒)">
+
+                                            <el-form-item label="实际坚持时长 (秒)">
                                                 <el-input-number v-model="recordForm.duration_seconds_actual" :min="0"
                                                     controls-position="right" style="width: 100%" />
+                                                <div class="target-hint" v-if="currentTarget">
+                                                    目标: {{ currentTarget.duration_seconds || '-' }} 秒
+                                                </div>
                                             </el-form-item>
                                         </div>
+
+                                        <el-form-item label="每组次数 (AI 自动计数)">
+                                            <el-input v-model="recordForm.reps_completed"
+                                                placeholder="例如: 12, 12, 10" />
+                                            <div class="target-hint" v-if="currentTarget">
+                                                目标: {{ currentTarget.reps || '-' }} 次
+                                            </div>
+                                        </el-form-item>
 
                                         <el-form-item label="AI 动作评分">
                                             <div class="score-input-wrapper">
@@ -197,7 +219,8 @@
                                         </el-form-item>
 
                                         <el-button type="primary" @click="handleRecordExercise"
-                                            :loading="loading.record" :disabled="!sessionId" block class="action-btn">
+                                            :loading="loading.record" :disabled="!sessionId || !recordForm.exercise"
+                                            block class="action-btn">
                                             ✅ 提交记录
                                         </el-button>
                                     </el-form>
@@ -244,6 +267,7 @@ import { VideoCamera, InfoFilled, Trophy, Edit } from '@element-plus/icons-vue'
 import apiClient from '../api'
 import PosePreview from '../components/ai/PosePreview.vue'
 
+const currentGifUrl = ref('')
 const route = useRoute()
 const activeSteps = ref(['plan'])
 const loading = reactive({
@@ -285,6 +309,12 @@ const currentDayExercises = computed(() => {
     return currentDay.value?.exercises || []
 })
 
+const currentTarget = computed(() => {
+    if (!recordForm.exercise) return null;
+
+    return currentDayExercises.value.find((e: any) => String(e.exercise) === recordForm.exercise);
+});
+
 const recordForm = reactive({
     session_id: sessionId.value || '',
     exercise: '',
@@ -322,6 +352,8 @@ watch(selectedPlanId, async (val) => {
 watch(selectedDayId, (val) => {
     startForm.plan_day_id = val ?? ''
 })
+
+
 
 const fetchPlans = async () => {
     loading.plans = true
@@ -365,9 +397,13 @@ const handleStartSession = async () => {
 
         const res = await apiClient.post('training/sessions/start/', payload)
         sessionId.value = res.data.id
-        lastResponse.value = JSON.stringify(res.data, null, 2)
-        ElMessage.success('训练会话已开始')
-        activeSteps.value = ['record']
+        ElMessage.success('训练会话已开始，AI 摄像头已激活！')
+
+        if (recordForm.exercise) {
+            activeSteps.value = ['record'];
+        } else {
+            activeSteps.value = ['session', 'record'];
+        }
     } catch (err: any) {
         ElMessage.error(err.response?.data?.error || '开始会话失败')
     } finally {
@@ -441,15 +477,43 @@ const handleResetSession = () => {
 }
 
 const fillRecordFromPlanExercise = (item: any) => {
-    recordForm.exercise = String(item.exercise)
-    selectedExerciseName.value = item.exercise_name || ''
-    recordForm.sets_completed = item.sets || 0
-    recordForm.reps_completed = item.reps ? String(item.reps) : ''
-    recordForm.weights_used = item.weight ? String(item.weight) : ''
-    recordForm.duration_seconds_actual = item.duration_seconds || 0
-    // Switch to step 3
-    activeSteps.value = ['record']
-    ElMessage.success(`已填入: ${item.exercise_name || '动作'}`)
+    // 1. 预览与图片逻辑 (保持不变)
+    selectedExerciseName.value = item.exercise_name || '';
+
+    if (item.demo_gif) {
+        if (!item.demo_gif.startsWith('http')) {
+            currentGifUrl.value = `http://localhost:8000${item.demo_gif}`;
+        } else {
+            currentGifUrl.value = item.demo_gif;
+        }
+    } else {
+        currentGifUrl.value = '';
+    }
+
+    // 2. 表单初始化 (🔥 修改核心)
+    // 记录 ID 方便后端处理，但界面上不显示了
+    recordForm.exercise = String(item.exercise);
+
+    // 🔥 全部归零！等待 AI 填入或用户手动记录真实数据
+    recordForm.sets_completed = 0;
+    recordForm.reps_completed = ''; // 次数留空
+    recordForm.weights_used = '';   // 重量留空
+    recordForm.duration_seconds_actual = 0;
+    recordForm.form_score = 0;
+
+    // 3. 路由逻辑 (保持不变)
+    if (sessionId.value) {
+        activeSteps.value = ['record'];
+        ElMessage.success(`准备挑战: ${item.exercise_name}`);
+
+        // 重置 AI 计数器
+        if (posePreviewRef.value) posePreviewRef.value.resetCount();
+
+    } else {
+        activeSteps.value = ['session'];
+        ElMessage.info(`已预览: ${item.exercise_name}。请先点击“开始训练”激活 AI！`);
+        console.log("等待用户开始会话...");
+    }
 }
 
 onMounted(async () => {
@@ -785,5 +849,46 @@ export default {
     display: flex;
     justify-content: center;
     padding: 8px 0;
+}
+
+/* GIF 预览框样式 */
+.gif-preview-box {
+    position: relative;
+    width: 280px;
+    height: 280px;
+    border-radius: 16px;
+    overflow: hidden;
+    margin: 0 auto 20px;
+    /* 居中 */
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    background: #000;
+}
+
+.demo-gif {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* 保持比例填满 */
+}
+
+.gif-tag {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    font-size: 12px;
+    padding: 6px 0;
+    text-align: center;
+    backdrop-filter: blur(4px);
+}
+
+.target-hint {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 4px;
+    margin-left: 2px;
 }
 </style>
