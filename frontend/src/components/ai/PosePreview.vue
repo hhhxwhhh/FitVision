@@ -20,6 +20,10 @@
             <div v-if="isUpdating" class="pose-overlay">
                 <div class="stats">
                     <div class="stat-item">
+                        <span class="label">当前动作</span>
+                        <span class="value-sm">{{ exerciseModeMap[exerciseMode] }}</span>
+                    </div>
+                    <div class="stat-item" style="margin-top: 10px;">
                         <span class="label">计数</span>
                         <span class="value">{{ repCount }}</span>
                     </div>
@@ -29,20 +33,13 @@
         </div>
 
         <div class="controls">
-            <div class="mode-selector" v-if="!isUpdating">
-                <el-radio-group v-model="exerciseMode" size="small">
-                    <el-radio-button label="squat">深蹲</el-radio-button>
-                    <el-radio-button label="pushup">俯卧撑</el-radio-button>
-                    <el-radio-button label="jumping_jack">开合跳</el-radio-button>
-                </el-radio-group>
-            </div>
-            <el-button v-if="!isUpdating" type="primary" @click="startDetection" style="margin-top: 10px">
+            <el-button v-if="!isUpdating" type="primary" @click="startDetection" class="start-btn">
                 开启摄像头 AI
             </el-button>
-            <template v-else>
+            <div v-else class="active-controls">
                 <el-button type="danger" @click="stopDetection">关闭摄像头</el-button>
                 <el-button type="warning" @click="resetCount">重新计数</el-button>
-            </template>
+            </div>
         </div>
     </div>
 </template>
@@ -71,7 +68,14 @@ const {
     resetCount
 } = usePoseDetection();
 
-// 简单的关键词映射
+// 中文映射表 (用于显示)
+const exerciseModeMap: Record<string, string> = {
+    'squat': '深蹲',
+    'pushup': '俯卧撑',
+    'jumping_jack': '开合跳'
+}
+
+// 简单的关键词映射 (逻辑核心)
 const mapExerciseToMode = (name: string) => {
     if (!name) return 'squat'
     if (name.includes('深蹲')) return 'squat'
@@ -80,6 +84,7 @@ const mapExerciseToMode = (name: string) => {
     return 'squat'
 }
 
+// 🔥 监听父组件传来的动作，自动切换模式
 watch(() => props.initialExercise, (newVal) => {
     if (newVal) {
         exerciseMode.value = mapExerciseToMode(newVal)
@@ -172,28 +177,37 @@ defineExpose({
 .stat-item {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start; /* 左对齐 */
 }
 
 .stat-item .label {
     font-size: 12px;
     text-transform: uppercase;
     opacity: 0.8;
+    color: #cbd5e1;
 }
 
 .stat-item .value {
     font-size: 32px;
     font-weight: bold;
-    color: #409EFF;
+    color: #4ade80; /* 绿色高亮 */
+    line-height: 1;
+}
+
+.stat-item .value-sm {
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
 }
 
 .feedback {
-    background: rgba(64, 158, 255, 0.8);
+    background: rgba(59, 130, 246, 0.9); /* 蓝色背景 */
     color: white;
     padding: 8px 16px;
     border-radius: 20px;
     font-weight: bold;
     font-size: 16px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
 }
 
 .loading-overlay {
@@ -207,12 +221,13 @@ defineExpose({
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.8);
     color: #fff;
 }
 
 .loading-text {
     margin-top: 15px;
+    font-weight: 500;
 }
 
 .error-overlay {
@@ -224,8 +239,20 @@ defineExpose({
 }
 
 .controls {
-    padding: 10px;
+    padding: 16px;
     text-align: center;
-    background: #1a1a1a;
+    background: #0f172a; /* 深色底 */
+}
+
+.start-btn {
+    width: 100%;
+    font-weight: bold;
+    height: 40px;
+}
+
+.active-controls {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
 }
 </style>
