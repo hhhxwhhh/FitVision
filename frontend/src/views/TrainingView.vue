@@ -1,6 +1,5 @@
 <template>
     <div class="page-container">
-        <!-- Header Section -->
         <div class="page-header-row">
             <h1 class="page-title">智能训练中心</h1>
             <div class="header-tags">
@@ -14,9 +13,7 @@
         </div>
 
         <el-row :gutter="24">
-            <!-- Left Column: AI Vision & Plan -->
             <el-col :xs="24" :lg="15">
-                <!-- AI Camera Card -->
                 <el-card class="ai-display-card" :body-style="{ padding: 0 }">
                     <div class="ai-header">
                         <div class="ai-title">
@@ -59,7 +56,6 @@
                     </div>
                 </el-card>
 
-                <!-- Today's Plan Card -->
                 <el-card class="plan-card" v-if="currentDayExercises.length">
                     <div class="card-header-styled">
                         <h3>📋 今日课表</h3>
@@ -80,7 +76,8 @@
                         <el-table-column label="操作" width="100" align="center">
                             <template #default="scope">
                                 <el-button size="small" :type="sessionId ? 'primary' : 'info'" bg text
-                                    :icon="sessionId ? 'Edit' : 'View'" @click="fillRecordFromPlanExercise(scope.row)">
+                                    :icon="sessionId ? 'Edit' : 'View'"
+                                    @click="fillRecordFromPlanExercise(scope.row)">
                                     {{ sessionId ? '填入' : '预览' }}
                                 </el-button>
                             </template>
@@ -89,7 +86,6 @@
                 </el-card>
             </el-col>
 
-            <!-- Right Column: Control Panel -->
             <el-col :xs="24" :lg="9">
                 <div class="control-column">
                     <el-card class="control-card shadow-sm">
@@ -100,7 +96,6 @@
                         </template>
 
                         <el-collapse v-model="activeSteps" accordion class="styled-collapse">
-                            <!-- Step 1: Select Plan -->
                             <el-collapse-item name="plan">
                                 <template #title>
                                     <div class="step-title">
@@ -129,7 +124,6 @@
                                 </div>
                             </el-collapse-item>
 
-                            <!-- Step 2: Session Control -->
                             <el-collapse-item name="session">
                                 <template #title>
                                     <div class="step-title">
@@ -163,7 +157,6 @@
                                 </div>
                             </el-collapse-item>
 
-                            <!-- Step 3: Record Action -->
                             <el-collapse-item name="record">
                                 <template #title>
                                     <div class="step-title">
@@ -227,7 +220,6 @@
                                 </div>
                             </el-collapse-item>
 
-                            <!-- Step 4: Finish -->
                             <el-collapse-item name="finish">
                                 <template #title>
                                     <div class="step-title">
@@ -256,7 +248,37 @@
                 </div>
             </el-col>
         </el-row>
-    </div>
+
+        <div v-if="showRestOverlay" class="rest-overlay">
+            <div class="rest-content">
+                <h3>🎉 这一组很棒！休息一下</h3>
+
+                <div class="timer-circle">
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" class="bg-ring" />
+                        <circle cx="50" cy="50" r="45" class="progress-ring"
+                            :style="{ strokeDashoffset: calculateDashOffset(restCountdown, initialRestTime) }" />
+                    </svg>
+                    <div class="timer-text">{{ restCountdown }}</div>
+                </div>
+
+                <div class="next-up" v-if="nextExerciseItem">
+                    <p>下一个动作</p>
+                    <h4>{{ nextExerciseItem.exercise_name }}</h4>
+                    <div class="next-meta">
+                        <span>{{ nextExerciseItem.sets }} 组</span> •
+                        <span>{{ nextExerciseItem.reps || '-' }} 次</span>
+                    </div>
+                </div>
+
+                <el-button type="primary" size="large" round class="skip-btn" @click="skipRest">
+                    跳过休息 (开始训练) <el-icon class="el-icon--right">
+                        <ArrowRight />
+                    </el-icon>
+                </el-button>
+            </div>
+        </div>
+        </div>
 </template>
 
 <script setup lang="ts">
@@ -266,6 +288,7 @@ import { ElMessage } from 'element-plus'
 import { VideoCamera, InfoFilled, Trophy, Edit } from '@element-plus/icons-vue'
 import apiClient from '../api'
 import PosePreview from '../components/ai/PosePreview.vue'
+import { ArrowRight } from '@element-plus/icons-vue'
 
 const currentGifUrl = ref('')
 const route = useRoute()
@@ -276,6 +299,12 @@ const loading = reactive({
     complete: false,
     plans: false
 })
+
+const showRestOverlay = ref(false)
+const restCountdown = ref(45)
+const initialRestTime = ref(45)
+const nextExerciseItem = ref<any>(null)
+let timerInterval: any = null
 
 const lastResponse = ref('')
 const posePreviewRef = ref<any>(null)
@@ -288,6 +317,11 @@ const handleAiReps = (count: number) => {
 const handleAiScore = (score: number) => {
     recordForm.form_score = score;
 };
+
+const calculateDashOffset = (current: number, total: number) => {
+    const circumference = 2 * Math.PI * 45; // r=45
+    return circumference - (current / total) * circumference;
+}
 
 const sessionId = ref<number | null>(Number(localStorage.getItem('active_training_session')) || null)
 
@@ -411,6 +445,43 @@ const handleStartSession = async () => {
     }
 }
 
+const startRestProcess = () => {
+    const currentIndex = currentDayExercises.value.findIndex(
+        (e: any) => String(e.exercise) === recordForm.exercise
+    );
+    
+    if (currentIndex !== -1 && currentIndex < currentDayExercises.value.length - 1) {
+        nextExerciseItem.value = currentDayExercises.value[currentIndex + 1];
+        
+        const currentItem = currentDayExercises.value[currentIndex];
+        const restTime = currentItem.rest_between_sets || 45;
+        
+        initialRestTime.value = restTime;
+        restCountdown.value = restTime;
+        showRestOverlay.value = true;
+
+        timerInterval = setInterval(() => {
+            restCountdown.value--;
+            if (restCountdown.value <= 0) {
+                skipRest(); 
+            }
+        }, 1000);
+        
+    } else {
+        ElMessage.success("恭喜！今日所有动作已完成！🎉");
+        activeSteps.value = ['finish'];
+    }
+}
+
+const skipRest = () => {
+    clearInterval(timerInterval);
+    showRestOverlay.value = false;
+
+    if (nextExerciseItem.value) {
+        fillRecordFromPlanExercise(nextExerciseItem.value);
+    }
+}
+
 const handleRecordExercise = async () => {
     if (!sessionId.value) {
         ElMessage.warning('请先开始会话')
@@ -434,13 +505,11 @@ const handleRecordExercise = async () => {
         }
 
         const res = await apiClient.post('training/exercise-records/', payload)
-        lastResponse.value = JSON.stringify(res.data, null, 2)
-        ElMessage.success('动作记录已提交')
+        
+        ElMessage.success('记录提交成功！');
+        startRestProcess(); 
 
-        // 记录成功后重置 AI 计数
-        if (posePreviewRef.value) {
-            posePreviewRef.value.resetCount();
-        }
+        if (posePreviewRef.value) posePreviewRef.value.resetCount();
     } catch (err: any) {
         ElMessage.error(err.response?.data?.error || '提交记录失败')
     } finally {
@@ -890,5 +959,105 @@ export default {
     color: #94a3b8;
     margin-top: 4px;
     margin-left: 2px;
+}
+/* 休息倒计时全屏遮罩 */
+.rest-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.95); /* 深蓝黑色背景 */
+    backdrop-filter: blur(10px);
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    text-align: center;
+}
+.rest-content {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 400px;
+    width: 90%;
+}
+.rest-content h3 {
+    font-size: 24px;
+    margin-bottom: 30px;
+    color: #4ade80; /* 绿色 */
+}
+
+/* 倒计时圆环动画 */
+.timer-circle {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    margin: 0 auto 40px;
+}
+
+.timer-circle svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg); /* 从顶部开始 */
+}
+
+.bg-ring {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.1);
+    stroke-width: 6;
+}
+
+.progress-ring {
+    fill: none;
+    stroke: #3b82f6; /* 蓝色进度条 */
+    stroke-width: 6;
+    stroke-linecap: round;
+    stroke-dasharray: 283; /* 2 * PI * 45 */
+    transition: stroke-dashoffset 1s linear;
+}
+
+.timer-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 64px;
+    font-weight: 700;
+    font-family: monospace;
+}
+
+/* 下一个动作预告 */
+.next-up {
+    margin-bottom: 40px;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 20px;
+    border-radius: 12px;
+}
+
+.next-up p {
+    color: #94a3b8;
+    font-size: 14px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.next-up h4 {
+    font-size: 20px;
+    margin: 0 0 8px 0;
+}
+
+.next-meta {
+    color: #cbd5e1;
+    font-size: 14px;
+}
+
+.skip-btn {
+    padding-left: 30px;
+    padding-right: 30px;
+    font-weight: 600;
 }
 </style>
