@@ -63,7 +63,7 @@
                     <el-table :data="currentDayExercises" style="width: 100%"
                         :header-cell-style="{ background: '#f8fafc', color: '#475569' }"
                         :row-class-name="tableRowClassName">
-                        
+
                         <el-table-column prop="exercise_name" label="动作名称" min-width="140">
                             <template #default="scope">
                                 <span class="exercise-name-cell">{{ scope.row.exercise_name }}</span>
@@ -75,7 +75,7 @@
                             </template>
                         </el-table-column>
                         <el-table-column prop="reps" label="每组次数" width="100" align="center" />
-                        
+
                         <el-table-column label="状态/操作" width="120" align="center">
                             <template #default="scope">
                                 <el-button v-if="!sessionId" size="small" type="info" bg text icon="View"
@@ -84,11 +84,12 @@
                                 </el-button>
 
                                 <template v-else>
-                                    <el-tag v-if="completedExerciseIds.has(String(scope.row.exercise))" type="success" effect="light">
+                                    <el-tag v-if="completedExerciseIds.has(String(scope.row.exercise))" type="success"
+                                        effect="light">
                                         ✅ 已完成
                                     </el-tag>
 
-                                    <el-button v-else-if="String(scope.row.exercise) === recordForm.exercise" 
+                                    <el-button v-else-if="String(scope.row.exercise) === recordForm.exercise"
                                         size="small" type="primary" loading>
                                         🔥 进行中
                                     </el-button>
@@ -102,7 +103,7 @@
                         </el-table-column>
                     </el-table>
                 </el-card>
-                </el-col>
+            </el-col>
 
             <el-col :xs="24" :lg="9">
                 <div class="control-column">
@@ -242,23 +243,82 @@
                                 <template #title>
                                     <div class="step-title">
                                         <div class="step-icon">4</div>
-                                        <span>完成总结</span>
+                                        <span>战报总结</span>
                                     </div>
                                 </template>
-                                <div class="step-content">
-                                    <el-form label-position="top">
-                                        <el-form-item label="自我评分">
-                                            <div class="rate-wrapper">
-                                                <el-rate v-model="completeForm.performance_score" :max="5" size="large"
-                                                    allow-half show-text :texts="['状态不佳', '一般', '还可以', '很棒', '超神']" />
+
+                                <div class="step-content finish-panel">
+
+                                    <div class="result-banner">
+                                        <div class="trophy-icon">🏆</div>
+                                        <h2>训练完成!</h2>
+                                        <p>本次训练超越了 80% 的用户</p>
+                                    </div>
+
+                                    <div class="stats-grid">
+                                        <div class="stat-box">
+                                            <el-icon>
+                                                <CircleCheck />
+                                            </el-icon>
+                                            <div class="stat-val">{{ sessionStats.completedCount }}/{{
+                                                sessionStats.totalCount }}
                                             </div>
-                                        </el-form-item>
-                                        <el-button type="success" @click="handleCompleteSession"
-                                            :loading="loading.complete" :disabled="!sessionId" block
-                                            class="action-btn success-glow">
-                                            🎉甚至完成训练
-                                        </el-button>
-                                    </el-form>
+                                            <div class="stat-label">完成动作</div>
+                                        </div>
+                                        <div class="stat-box">
+                                            <el-icon>
+                                                <DataLine />
+                                            </el-icon>
+                                            <div class="stat-val">{{ sessionStats.totalSets }}</div>
+                                            <div class="stat-label">累计组数</div>
+                                        </div>
+                                        <div class="stat-box">
+                                            <el-icon>
+                                                <Timer />
+                                            </el-icon>
+                                            <div class="stat-val">
+                                                {{ Math.ceil(sessionStats.totalDuration / 60) }}<span
+                                                    class="unit">分</span>
+                                            </div>
+                                            <div class="stat-label">实际耗时</div>
+                                        </div>
+                                        <div class="stat-box highlight">
+                                            <el-icon>
+                                                <Medal />
+                                            </el-icon>
+                                            <div class="stat-val">{{ sessionStats.calories }}<span
+                                                    class="unit">kcal</span></div>
+                                            <div class="stat-label">消耗热量</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="rating-section">
+                                        <div class="section-divider">
+                                            <span>自我评价</span>
+                                        </div>
+
+                                        <el-form label-position="top">
+                                            <el-form-item>
+                                                <div class="rate-wrapper">
+                                                    <el-rate v-model="completeForm.performance_score" :max="5"
+                                                        size="large" allow-half show-text
+                                                        :texts="['有点累', '状态一般', '刚刚好', '状态不错', '感觉无敌']"
+                                                        :colors="['#99A9BF', '#F7BA2A', '#FF9900']" />
+                                                </div>
+                                            </el-form-item>
+
+                                            <el-button type="success" @click="handleCompleteSession"
+                                                :loading="loading.complete" :disabled="!sessionId" block
+                                                class="action-btn success-glow finish-btn">
+                                                <span class="btn-content">
+                                                    生成训练报告并结束
+                                                    <el-icon class="el-icon--right">
+                                                        <ArrowRight />
+                                                    </el-icon>
+                                                </span>
+                                            </el-button>
+                                        </el-form>
+                                    </div>
                                 </div>
                             </el-collapse-item>
                         </el-collapse>
@@ -316,6 +376,7 @@ import { VideoCamera, InfoFilled, Trophy, Edit } from '@element-plus/icons-vue'
 import apiClient from '../api'
 import PosePreview from '../components/ai/PosePreview.vue'
 import { ArrowRight } from '@element-plus/icons-vue'
+import { CircleCheck, Timer, DataLine, Medal } from '@element-plus/icons-vue'
 
 const currentGifUrl = ref('')
 const route = useRoute()
@@ -337,6 +398,7 @@ const lastResponse = ref('')
 const posePreviewRef = ref<any>(null)
 const selectedExerciseName = ref('')
 const completedExerciseIds = ref<Set<string>>(new Set())
+const sessionRecords = ref<any[]>([])
 
 const getFullGifUrl = (path: string | null) => {
     if (!path) return '';
@@ -421,7 +483,39 @@ watch(selectedDayId, (val) => {
     startForm.plan_day_id = val ?? ''
 })
 
+const sessionStats = computed(() => {
+    const completedCount = sessionRecords.value.length;
+    const totalCount = currentDayExercises.value.length;
 
+    let totalSets = 0;
+    let totalReps = 0;
+    let totalDuration = 0;
+
+    sessionRecords.value.forEach((record) => {
+        totalSets += (record.sets_completed || 0);
+
+        totalDuration += (record.duration_seconds_actual || 0);
+
+        if (Array.isArray(record.reps_completed)) {
+            const repsSum = record.reps_completed.reduce((a: number, b: number) => a + b, 0);
+            totalReps += repsSum;
+        }
+    });
+
+    const calories = Math.floor((totalReps * 0.4) + (totalDuration * 0.15));
+
+    const percentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+    return {
+        completedCount,
+        totalCount,
+        totalSets,
+        totalReps,
+        totalDuration,
+        calories,
+        percentage
+    }
+})
 
 const fetchPlans = async () => {
     loading.plans = true
@@ -491,7 +585,7 @@ const startRestProcess = () => {
         nextExerciseItem.value = remainingExercise;
 
         const restTime = remainingExercise.rest_between_sets || 45;
-        
+
         initialRestTime.value = restTime;
         restCountdown.value = restTime;
         showRestOverlay.value = true;
@@ -499,10 +593,10 @@ const startRestProcess = () => {
         timerInterval = setInterval(() => {
             restCountdown.value--;
             if (restCountdown.value <= 0) {
-                skipRest(); 
+                skipRest();
             }
         }, 1000);
-        
+
     } else {
         ElMessage.success("太棒了！今日所有训练动作已清空！🎉");
         activeSteps.value = ['finish'];
@@ -511,10 +605,10 @@ const startRestProcess = () => {
 
 const tableRowClassName = ({ row }: { row: any }) => {
     if (String(row.exercise) === recordForm.exercise) {
-        return 'active-row'; 
+        return 'active-row';
     }
     if (completedExerciseIds.value.has(String(row.exercise))) {
-        return 'completed-row'; 
+        return 'completed-row';
     }
     return '';
 }
@@ -553,6 +647,7 @@ const handleRecordExercise = async () => {
         const res = await apiClient.post('training/exercise-records/', payload)
 
         ElMessage.success('记录提交成功！');
+        sessionRecords.value.push(payload);
         if (recordForm.exercise) {
             completedExerciseIds.value.add(String(recordForm.exercise));
         }
@@ -1147,7 +1242,136 @@ export default {
 }
 
 :deep(.el-table .completed-row) {
-    opacity: 0.6; 
+    opacity: 0.6;
     background: #f8fafc !important;
+}
+
+.finish-panel {
+    padding: 0 10px 20px;
+}
+
+.result-banner {
+    text-align: center;
+    margin-bottom: 24px;
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    padding: 20px;
+    border-radius: 16px;
+    border: 1px solid #a7f3d0;
+}
+
+.trophy-icon {
+    font-size: 48px;
+    margin-bottom: 8px;
+    animation: bounce 2s infinite;
+}
+
+.result-banner h2 {
+    margin: 0;
+    color: #065f46;
+    font-size: 24px;
+}
+
+.result-banner p {
+    margin: 4px 0 0;
+    color: #059669;
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 30px;
+}
+
+.stat-box {
+    background: #f8fafc;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #e2e8f0;
+    transition: transform 0.2s;
+}
+
+.stat-box:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.stat-box .el-icon {
+    font-size: 20px;
+    color: #64748b;
+    margin-bottom: 8px;
+}
+
+.stat-val {
+    font-size: 24px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+
+.stat-val .unit {
+    font-size: 12px;
+    font-weight: normal;
+    color: #94a3b8;
+    margin-left: 2px;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.stat-box.highlight {
+    background: #fff7ed;
+    border-color: #ffedd5;
+}
+
+.stat-box.highlight .el-icon {
+    color: #ea580c;
+}
+
+.section-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 12px;
+    margin-bottom: 16px;
+}
+
+.section-divider::before,
+.section-divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px dashed #cbd5e1;
+}
+
+.section-divider span {
+    padding: 0 12px;
+}
+
+.finish-btn {
+    height: 56px;
+    font-size: 18px;
+    margin-top: 10px;
+}
+
+@keyframes bounce {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
 }
 </style>
