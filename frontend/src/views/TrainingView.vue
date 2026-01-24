@@ -61,7 +61,9 @@
                         <h3>📋 今日课表</h3>
                     </div>
                     <el-table :data="currentDayExercises" style="width: 100%"
-                        :header-cell-style="{ background: '#f8fafc', color: '#475569' }">
+                        :header-cell-style="{ background: '#f8fafc', color: '#475569' }"
+                        :row-class-name="tableRowClassName">
+                        
                         <el-table-column prop="exercise_name" label="动作名称" min-width="140">
                             <template #default="scope">
                                 <span class="exercise-name-cell">{{ scope.row.exercise_name }}</span>
@@ -73,18 +75,34 @@
                             </template>
                         </el-table-column>
                         <el-table-column prop="reps" label="每组次数" width="100" align="center" />
-                        <el-table-column label="操作" width="100" align="center">
+                        
+                        <el-table-column label="状态/操作" width="120" align="center">
                             <template #default="scope">
-                                <el-button size="small" :type="sessionId ? 'primary' : 'info'" bg text
-                                    :icon="sessionId ? 'Edit' : 'View'"
+                                <el-button v-if="!sessionId" size="small" type="info" bg text icon="View"
                                     @click="fillRecordFromPlanExercise(scope.row)">
-                                    {{ sessionId ? '填入' : '预览' }}
+                                    预览
                                 </el-button>
+
+                                <template v-else>
+                                    <el-tag v-if="completedExerciseIds.has(String(scope.row.exercise))" type="success" effect="light">
+                                        ✅ 已完成
+                                    </el-tag>
+
+                                    <el-button v-else-if="String(scope.row.exercise) === recordForm.exercise" 
+                                        size="small" type="primary" loading>
+                                        🔥 进行中
+                                    </el-button>
+
+                                    <el-button v-else size="small" type="warning" bg text icon="Sort"
+                                        @click="fillRecordFromPlanExercise(scope.row)">
+                                        插队
+                                    </el-button>
+                                </template>
                             </template>
                         </el-table-column>
                     </el-table>
                 </el-card>
-            </el-col>
+                </el-col>
 
             <el-col :xs="24" :lg="9">
                 <div class="control-column">
@@ -264,10 +282,19 @@
 
                 <div class="next-up" v-if="nextExerciseItem">
                     <p>下一个动作</p>
-                    <h4>{{ nextExerciseItem.exercise_name }}</h4>
-                    <div class="next-meta">
-                        <span>{{ nextExerciseItem.sets }} 组</span> •
-                        <span>{{ nextExerciseItem.reps || '-' }} 次</span>
+
+                    <div class="next-info-row">
+                        <div class="info-left">
+                            <h4>{{ nextExerciseItem.exercise_name }}</h4>
+                            <div class="next-meta">
+                                <span>{{ nextExerciseItem.sets }} 组</span> •
+                                <span>{{ nextExerciseItem.reps || '-' }} 次</span>
+                            </div>
+                        </div>
+
+                        <div class="info-right" v-if="nextExerciseItem.demo_gif">
+                            <img :src="getFullGifUrl(nextExerciseItem.demo_gif)" class="mini-gif" />
+                        </div>
                     </div>
                 </div>
 
@@ -278,7 +305,7 @@
                 </el-button>
             </div>
         </div>
-        </div>
+    </div>
 </template>
 
 <script setup lang="ts">
@@ -309,6 +336,13 @@ let timerInterval: any = null
 const lastResponse = ref('')
 const posePreviewRef = ref<any>(null)
 const selectedExerciseName = ref('')
+const completedExerciseIds = ref<Set<string>>(new Set())
+
+const getFullGifUrl = (path: string | null) => {
+    if (!path) return '';
+    if (path.startsWith('http')) return path;
+    return `http://localhost:8000${path}`;
+}
 
 const handleAiReps = (count: number) => {
     recordForm.reps_completed = String(count);
@@ -430,13 +464,14 @@ const handleStartSession = async () => {
         if (startForm.plan_day_id) payload.plan_day_id = Number(startForm.plan_day_id)
 
         const res = await apiClient.post('training/sessions/start/', payload)
+
         sessionId.value = res.data.id
         ElMessage.success('训练会话已开始，AI 摄像头已激活！')
 
-        if (recordForm.exercise) {
+        if (currentDayExercises.value.length > 0) {
+            const firstExercise = currentDayExercises.value[0];
+            fillRecordFromPlanExercise(firstExercise);
             activeSteps.value = ['record'];
-        } else {
-            activeSteps.value = ['session', 'record'];
         }
     } catch (err: any) {
         ElMessage.error(err.response?.data?.error || '开始会话失败')
@@ -446,15 +481,16 @@ const handleStartSession = async () => {
 }
 
 const startRestProcess = () => {
-    const currentIndex = currentDayExercises.value.findIndex(
-        (e: any) => String(e.exercise) === recordForm.exercise
+    const exercises = currentDayExercises.value;
+
+    const remainingExercise = exercises.find(
+        (e: any) => !completedExerciseIds.value.has(String(e.exercise))
     );
-    
-    if (currentIndex !== -1 && currentIndex < currentDayExercises.value.length - 1) {
-        nextExerciseItem.value = currentDayExercises.value[currentIndex + 1];
-        
-        const currentItem = currentDayExercises.value[currentIndex];
-        const restTime = currentItem.rest_between_sets || 45;
+
+    if (remainingExercise) {
+        nextExerciseItem.value = remainingExercise;
+
+        const restTime = remainingExercise.rest_between_sets || 45;
         
         initialRestTime.value = restTime;
         restCountdown.value = restTime;
@@ -468,9 +504,19 @@ const startRestProcess = () => {
         }, 1000);
         
     } else {
-        ElMessage.success("恭喜！今日所有动作已完成！🎉");
+        ElMessage.success("太棒了！今日所有训练动作已清空！🎉");
         activeSteps.value = ['finish'];
     }
+}
+
+const tableRowClassName = ({ row }: { row: any }) => {
+    if (String(row.exercise) === recordForm.exercise) {
+        return 'active-row'; 
+    }
+    if (completedExerciseIds.value.has(String(row.exercise))) {
+        return 'completed-row'; 
+    }
+    return '';
 }
 
 const skipRest = () => {
@@ -505,9 +551,12 @@ const handleRecordExercise = async () => {
         }
 
         const res = await apiClient.post('training/exercise-records/', payload)
-        
+
         ElMessage.success('记录提交成功！');
-        startRestProcess(); 
+        if (recordForm.exercise) {
+            completedExerciseIds.value.add(String(recordForm.exercise));
+        }
+        startRestProcess();
 
         if (posePreviewRef.value) posePreviewRef.value.resetCount();
     } catch (err: any) {
@@ -960,6 +1009,7 @@ export default {
     margin-top: 4px;
     margin-left: 2px;
 }
+
 /* 休息倒计时全屏遮罩 */
 .rest-overlay {
     position: fixed;
@@ -967,7 +1017,8 @@ export default {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(15, 23, 42, 0.95); /* 深蓝黑色背景 */
+    background: rgba(15, 23, 42, 0.95);
+    /* 深蓝黑色背景 */
     backdrop-filter: blur(10px);
     z-index: 9999;
     display: flex;
@@ -976,6 +1027,7 @@ export default {
     color: white;
     text-align: center;
 }
+
 .rest-content {
     text-align: center;
     display: flex;
@@ -984,10 +1036,12 @@ export default {
     max-width: 400px;
     width: 90%;
 }
+
 .rest-content h3 {
     font-size: 24px;
     margin-bottom: 30px;
-    color: #4ade80; /* 绿色 */
+    color: #4ade80;
+    /* 绿色 */
 }
 
 /* 倒计时圆环动画 */
@@ -1001,7 +1055,8 @@ export default {
 .timer-circle svg {
     width: 100%;
     height: 100%;
-    transform: rotate(-90deg); /* 从顶部开始 */
+    transform: rotate(-90deg);
+    /* 从顶部开始 */
 }
 
 .bg-ring {
@@ -1012,10 +1067,12 @@ export default {
 
 .progress-ring {
     fill: none;
-    stroke: #3b82f6; /* 蓝色进度条 */
+    stroke: #3b82f6;
+    /* 蓝色进度条 */
     stroke-width: 6;
     stroke-linecap: round;
-    stroke-dasharray: 283; /* 2 * PI * 45 */
+    stroke-dasharray: 283;
+    /* 2 * PI * 45 */
     transition: stroke-dashoffset 1s linear;
 }
 
@@ -1059,5 +1116,38 @@ export default {
     padding-left: 30px;
     padding-right: 30px;
     font-weight: 600;
+}
+
+.next-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    text-align: left;
+    /* 让文字靠左 */
+}
+
+.mini-gif {
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    background: #000;
+}
+
+.next-up h4 {
+    margin: 0 0 4px 0;
+    font-size: 22px;
+}
+
+:deep(.el-table .active-row) {
+    background: #f0f9ff !important;
+    --el-table-row-hover-bg-color: #e0f2fe;
+}
+
+:deep(.el-table .completed-row) {
+    opacity: 0.6; 
+    background: #f8fafc !important;
 }
 </style>
