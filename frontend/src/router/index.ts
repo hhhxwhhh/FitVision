@@ -35,6 +35,11 @@ const router = createRouter({
           component: TrainingView
         },
         {
+          path: 'training/report',
+          name: 'TrainingReport',
+          component: () => import('../views/TrainingReportView.vue')
+        },
+        {
           path: 'analytics',
           name: 'analytics',
           component: AnalyticsView
@@ -49,7 +54,6 @@ const router = createRouter({
   ]
 })
 
-// 简单的路由守卫：没登录不准看首页
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('jwt_token')
   if (to.path !== '/login' && !token) {

@@ -8,6 +8,8 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Sum
 from django.utils import timezone
 from datetime import timedelta
+import json 
+from openai import OpenAI  
 
 from .models import TrainingPlan, TrainingPlanDay, TrainingPlanExercise, UserTrainingSession, UserTrainingExerciseRecord
 from .serializers import (
@@ -20,6 +22,8 @@ from .serializers import (
 )
 from exercises.models import Exercise
 from users.models import UserProfile
+
+DEEPSEEK_API_KEY = "sk-2b8ed8fe048b4ceeb9118a1e150b9ea6"
 
 class TrainingPlanListView(generics.ListAPIView):
     """获取所有公开的训练计划，支持过滤、搜索和排序"""
@@ -82,27 +86,43 @@ def start_training_session(request):
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def complete_training_session(request, session_id):
-    """完成训练会话"""
+    """完成训练会话（AI 判官版）"""
     user = request.user
     session = get_object_or_404(UserTrainingSession, id=session_id, user=user)
     
     if session.is_completed:
         return Response({'error': '训练会话已结束'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    # 更新会话信息
+
+    # 1. 获取基本数据
     session.end_time = timezone.now() if not request.data.get('end_time') else request.data.get('end_time')
     session.is_completed = True
     session.completed_exercises = request.data.get('completed_exercises', session.total_exercises)
     session.calories_burned = request.data.get('calories_burned', 0)
-    session.performance_score = request.data.get('performance_score', 0)
-    session.save()
     
-    # 计算训练时长（秒）
+    # 获取用户的自评数据
+    user_self_rating = request.data.get('performance_score', 0) 
+    user_feedback = request.data.get('user_feedback', '')
+
+    # 计算时长
     duration_seconds = 0
     if session.end_time and session.start_time:
         duration_seconds = (session.end_time - session.start_time).total_seconds()
+
+    # 2. 🔥 呼叫 AI 判官
+    # 注意：这里调用的是下面定义的辅助函数，不需要 self
+    ai_result = call_deepseek_ai(session, duration_seconds, user_self_rating, user_feedback)
     
-    # 同步数据到TrainingLog
+    # 3. 🔥 应用 AI 的裁决
+    # 如果 AI 返回了分数，就用 AI 的；否则用用户的兜底
+    final_score = ai_result.get('score', user_self_rating)
+    
+    session.performance_score = final_score
+    session.ai_analysis = ai_result.get('analysis', 'AI 正在分析...')
+    session.ai_tags = ai_result.get('tags', [])
+
+    session.save()
+
+    # 4. 记录日志 (TrainingLog)
     try:
         from users.models import TrainingLog
         TrainingLog.objects.create(
@@ -110,14 +130,22 @@ def complete_training_session(request, session_id):
             action_name=f"训练计划: {session.plan.name if session.plan else '自定义训练'}",
             count=session.completed_exercises,
             duration=duration_seconds,
-            accuracy_score=session.performance_score,
+            accuracy_score=session.performance_score, # 这里存的是 AI 修正后的分数
             calories=session.calories_burned
         )
     except Exception as e:
-        print(e)
-    
+        print(f"TrainingLog Error: {e}")
+
     serializer = UserTrainingSessionSerializer(session)
-    return Response(serializer.data, status=status.HTTP_200_OK)
+
+    response_data = serializer.data
+    response_data['ai_report'] = {
+        "aiAnalysis": session.ai_analysis,
+        "tags": session.ai_tags,
+        "score": session.performance_score # 返回给前端显示
+    }
+    
+    return Response(response_data, status=status.HTTP_200_OK)
 
 
 class UserTrainingSessionListView(generics.ListAPIView):
@@ -250,3 +278,55 @@ def get_plan_days(request, plan_id):
     days = TrainingPlanDay.objects.filter(plan=plan).order_by('day_number')
     serializer = TrainingPlanDaySerializer(days, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
+
+def call_deepseek_ai(session, duration_seconds, user_rating, user_feedback):
+    """
+    辅助函数：让 AI 决定分数
+    注意：这是一个独立函数，不需要 'self' 参数
+    """
+    client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
+    duration_minutes = round(duration_seconds / 60, 1)
+
+    # 🔥 修改 Prompt：让 AI 当判官
+    # 注意：这里用了 session.calories_burned 而不是 session.calories
+    prompt = f"""
+    你是一位严格但幽默的健身教练。用户完成了一次训练，数据如下：
+    - 动作数量：{session.completed_exercises}个
+    - 消耗热量：{session.calories_burned}千卡
+    - 训练时长：{duration_minutes}分钟
+    - 【用户自评】：{user_rating}/5分
+    - 【用户主观反馈】：{user_feedback}
+    
+    请根据客观训练数据（动作数、热量）和用户的主观感受，生成一份分析报告，并给出一个【最终综合评分】。
+    
+    评分逻辑：
+    1. 如果动作数量很少（<3个）或热量很低，即使如同用户自评满分，最终评分也不能超过 2.0 分（可以幽默地吐槽）。
+    2. 如果数据扎实，且用户感觉良好，可以给高分。
+    
+    要求返回纯 JSON：
+    {{
+        "score": (数字, 0-5之间, 保留1位小数),
+        "analysis": (字符串, 150字以内, 包含HTML标签如<b>),
+        "tags": (字符串数组, 3个短标签)
+    }}
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": "你是一个输出 JSON 格式的健身教练助手。"},
+                {"role": "user", "content": prompt},
+            ],
+            response_format={ 'type': 'json_object' },
+            temperature=1.2 
+        )
+        return json.loads(response.choices[0].message.content)
+    except Exception as e:
+        print(f"DeepSeek Error: {e}")
+        # 出错时的兜底
+        return {
+            "score": user_rating, 
+            "analysis": "AI 暂时掉线了，但你的努力已被记录。", 
+            "tags": ["训练完成"]
+        }

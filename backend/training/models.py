@@ -119,6 +119,21 @@ class UserTrainingSession(models.Model):
     calories_burned = models.FloatField("消耗卡路里", default=0.0)
     performance_score = models.FloatField("表现评分", default=0.0, 
                                         help_text="基于完成度和动作质量的综合评分")
+
+    ai_analysis = models.TextField(
+        "AI分析报告", 
+        blank=True, 
+        null=True, 
+        help_text="DeepSeek生成的文本分析，包含HTML格式"
+    )
+    
+    ai_tags = models.JSONField(
+        "AI标签", 
+        default=list, 
+        blank=True, 
+        null=True, 
+        help_text="AI生成的总结性标签，如['核心稳定', '耐力好']"
+    )
     
     class Meta:
         verbose_name = "用户训练会话"

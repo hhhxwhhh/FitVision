@@ -247,78 +247,60 @@
                                     </div>
                                 </template>
 
+
                                 <div class="step-content finish-panel">
 
-                                    <div class="result-banner">
+                                    <div class="completion-header">
                                         <div class="trophy-icon">🏆</div>
-                                        <h2>训练完成!</h2>
-                                        <p>本次训练超越了 80% 的用户</p>
+                                        <h2>训练完成！</h2>
+                                        <p class="sub-text">深呼吸，告诉 AI 教练你现在的真实感受</p>
                                     </div>
 
-                                    <div class="stats-grid">
-                                        <div class="stat-box">
-                                            <el-icon>
-                                                <CircleCheck />
-                                            </el-icon>
-                                            <div class="stat-val">{{ sessionStats.completedCount }}/{{
-                                                sessionStats.totalCount }}
-                                            </div>
-                                            <div class="stat-label">完成动作</div>
+                                    <div class="feedback-card">
+                                        <div class="card-top">
+                                            <span class="card-label">训练强度 (RPE)</span>
+                                            <span class="rpe-value">{{ feedbackForm.rpe }}/10</span>
                                         </div>
-                                        <div class="stat-box">
-                                            <el-icon>
-                                                <DataLine />
-                                            </el-icon>
-                                            <div class="stat-val">{{ sessionStats.totalSets }}</div>
-                                            <div class="stat-label">累计组数</div>
+                                        <div class="slider-container">
+                                            <el-slider v-model="feedbackForm.rpe" :min="1" :max="10" :step="1"
+                                                :marks="rpeMarks" show-stops />
                                         </div>
-                                        <div class="stat-box">
-                                            <el-icon>
-                                                <Timer />
-                                            </el-icon>
-                                            <div class="stat-val">
-                                                {{ Math.ceil(sessionStats.totalDuration / 60) }}<span
-                                                    class="unit">分</span>
-                                            </div>
-                                            <div class="stat-label">实际耗时</div>
-                                        </div>
-                                        <div class="stat-box highlight">
-                                            <el-icon>
-                                                <Medal />
-                                            </el-icon>
-                                            <div class="stat-val">{{ sessionStats.calories }}<span
-                                                    class="unit">kcal</span></div>
-                                            <div class="stat-label">消耗热量</div>
+                                        <div class="rpe-desc-text">
+                                            {{ getRPEDesc(feedbackForm.rpe) }}
                                         </div>
                                     </div>
 
-                                    <div class="rating-section">
-                                        <div class="section-divider">
-                                            <span>自我评价</span>
+                                    <div class="feedback-card">
+                                        <div class="card-label">身体反馈 (多选)</div>
+                                        <div class="tags-wrapper">
+                                            <el-check-tag v-for="tag in availableBodyTags" :key="tag"
+                                                :checked="feedbackForm.selectedTags.includes(tag)"
+                                                @change="toggleTag(tag)" class="feedback-tag">
+                                                {{ tag }}
+                                            </el-check-tag>
                                         </div>
-
-                                        <el-form label-position="top">
-                                            <el-form-item>
-                                                <div class="rate-wrapper">
-                                                    <el-rate v-model="completeForm.performance_score" :max="5"
-                                                        size="large" allow-half show-text
-                                                        :texts="['有点累', '状态一般', '刚刚好', '状态不错', '感觉无敌']"
-                                                        :colors="['#99A9BF', '#F7BA2A', '#FF9900']" />
-                                                </div>
-                                            </el-form-item>
-
-                                            <el-button type="success" @click="handleCompleteSession"
-                                                :loading="loading.complete" :disabled="!sessionId" block
-                                                class="action-btn success-glow finish-btn">
-                                                <span class="btn-content">
-                                                    生成训练报告并结束
-                                                    <el-icon class="el-icon--right">
-                                                        <ArrowRight />
-                                                    </el-icon>
-                                                </span>
-                                            </el-button>
-                                        </el-form>
                                     </div>
+
+                                    <div class="feedback-card">
+                                        <div class="card-label">整体满意度</div>
+                                        <div class="rate-center">
+                                            <el-rate v-model="completeForm.performance_score" size="large" allow-half
+                                                show-text :texts="['失望', '一般', '合格', '满意', '超神']"
+                                                :colors="['#99A9BF', '#F7BA2A', '#FF9900']" />
+                                        </div>
+                                    </div>
+
+                                    <div class="action-area">
+                                        <el-button type="success" size="large" class="generate-btn success-glow"
+                                            :loading="loading.complete" :disabled="!sessionId"
+                                            @click="handleCompleteSession">
+                                            {{ loading.complete ? 'AI 正在分析数据...' : '生成智能报告并结束' }}
+                                            <el-icon class="el-icon--right" v-if="!loading.complete">
+                                                <MagicStick />
+                                            </el-icon>
+                                        </el-button>
+                                    </div>
+
                                 </div>
                             </el-collapse-item>
                         </el-collapse>
@@ -377,6 +359,9 @@ import apiClient from '../api'
 import PosePreview from '../components/ai/PosePreview.vue'
 import { ArrowRight } from '@element-plus/icons-vue'
 import { CircleCheck, Timer, DataLine, Medal } from '@element-plus/icons-vue'
+
+import { useRouter } from 'vue-router'
+const router = useRouter()
 
 const currentGifUrl = ref('')
 const route = useRoute()
@@ -460,6 +445,42 @@ const completeForm = reactive({
     calories_burned: 0,
     performance_score: 0
 })
+
+const feedbackForm = ref({
+  rpe: 5, 
+  selectedTags: [] as string[]
+})
+
+const rpeMarks = {
+  1: { style: { color: '#10b981' }, label: '轻松' },
+  5: { style: { color: '#e6a23c' }, label: '适中' },
+  8: { style: { color: '#f56c6c' }, label: '力竭' },
+  10: { style: { color: '#7f1d1d' }, label: '极限' }
+}
+
+const availableBodyTags = [
+  '呼吸顺畅', '大汗淋漓', '肌肉泵感', 
+  '核心酸爽', '膝盖不适', '腰部紧张', 
+  '有点头晕', '状态爆表', '还可以再做'
+]
+
+const getRPEDesc = (val: number) => {
+  if (val <= 2) return "热身般的轻松，毫无压力 🌱";
+  if (val <= 4) return "轻微出汗，感觉很舒适 💧";
+  if (val <= 6) return "呼吸加快，稍显吃力，刚刚好 🔥";
+  if (val <= 8) return "肌肉酸痛，非常有挑战性 💪";
+  return "完全力竭，感觉灵魂出窍 💀";
+}
+
+// --- 辅助函数：切换标签选中状态 ---
+const toggleTag = (tag: string) => {
+  const index = feedbackForm.value.selectedTags.indexOf(tag)
+  if (index > -1) {
+    feedbackForm.value.selectedTags.splice(index, 1)
+  } else {
+    feedbackForm.value.selectedTags.push(tag)
+  }
+}
 
 watch(sessionId, (val) => {
     recordForm.session_id = val ? String(val) : ''
@@ -666,19 +687,51 @@ const handleCompleteSession = async () => {
 
     loading.complete = true
     try {
+        const durationSeconds = sessionStats.value.totalDuration;
+
+        const tagsStr = feedbackForm.value.selectedTags.length > 0 
+            ? feedbackForm.value.selectedTags.join('、') 
+            : '无特殊不适';
+            
+        const feedbackText = `用户主观感受：训练强度RPE为 ${feedbackForm.value.rpe}/10，身体反馈包括：${tagsStr}。`;
+
         const payload = {
-            completed_exercises: completeForm.completed_exercises,
-            calories_burned: completeForm.calories_burned,
-            performance_score: completeForm.performance_score
+            completed_exercises: sessionStats.value.completedCount,
+            calories_burned: sessionStats.value.calories,
+            performance_score: completeForm.performance_score,
+            duration: durationSeconds,
+            user_feedback: feedbackText 
         }
 
         const res = await apiClient.put(`training/sessions/${sessionId.value}/complete/`, payload)
-        lastResponse.value = JSON.stringify(res.data, null, 2)
-        ElMessage.success('训练会话已完成')
-        sessionId.value = null
-        activeSteps.value = ['plan']
+
+        console.log("后端返回的数据:", res.data);
+
+        const aiReport = res.data.ai_report || {};
+        
+        const finalScore = (aiReport.score !== undefined && aiReport.score !== null) 
+                            ? Number(aiReport.score)  
+                            : completeForm.performance_score;
+
+        const realReportData = {
+            score: finalScore, 
+            duration: Math.ceil(durationSeconds / 60),
+            calories: sessionStats.value.calories,
+            completedCount: sessionStats.value.completedCount,
+            totalReps: sessionStats.value.totalReps,
+            aiAnalysis: aiReport.aiAnalysis || "AI 正在思考...",
+            tags: aiReport.tags || ["训练完成"]
+        }
+
+        localStorage.setItem('latestTrainingReport', JSON.stringify(realReportData));
+
+        resetAllState();
+
+        router.push('/training/report');
+
     } catch (err: any) {
-        ElMessage.error(err.response?.data?.error || '完成会话失败')
+        console.error("提交失败:", err);
+        ElMessage.error(err.response?.data?.error || '生成报告失败，请重试')
     } finally {
         loading.complete = false
     }
@@ -729,6 +782,30 @@ const fillRecordFromPlanExercise = (item: any) => {
     }
 }
 
+const resetAllState = () => {
+    sessionId.value = null;
+
+    sessionRecords.value = [];
+    completedExerciseIds.value.clear();
+
+    recordForm.exercise = '';
+    recordForm.sets_completed = 0;
+    recordForm.reps_completed = '';
+    recordForm.duration_seconds_actual = 0;
+    recordForm.form_score = 0;
+
+    completeForm.performance_score = 0;
+
+    activeSteps.value = ['plan'];
+
+    if (posePreviewRef.value) {
+        posePreviewRef.value.resetCount();
+        if (posePreviewRef.value.stopDetection) {
+            posePreviewRef.value.stopDetection();
+        }
+    }
+}
+
 onMounted(async () => {
     await fetchPlans()
     const exerciseId = route.query.exercise_id
@@ -765,6 +842,7 @@ export default {
 </script>
 
 <style scoped>
+
 .page-container {
     max-width: 1200px;
     margin: 0 auto;
@@ -798,7 +876,6 @@ export default {
     background-color: #22c55e;
 }
 
-/* AI Card */
 .ai-display-card {
     background: #0f172a !important;
     border: 1px solid #1e293b;
@@ -833,20 +910,6 @@ export default {
     border-radius: 50%;
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
     animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0% {
-        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
-    }
-
-    70% {
-        box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
-    }
-
-    100% {
-        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
-    }
 }
 
 .camera-wrapper {
@@ -903,7 +966,6 @@ export default {
     gap: 8px;
 }
 
-/* Plan Card */
 .plan-card {
     border-radius: 16px;
     border: none;
@@ -927,7 +989,17 @@ export default {
     color: var(--text-main);
 }
 
-/* Control Panel */
+:deep(.el-table .active-row) {
+    background: #f0f9ff !important;
+    --el-table-row-hover-bg-color: #e0f2fe;
+}
+
+:deep(.el-table .completed-row) {
+    opacity: 0.6;
+    background: #f8fafc !important;
+}
+
+
 .control-column {
     position: sticky;
     top: 90px;
@@ -937,12 +1009,7 @@ export default {
     border-radius: 16px;
     border: none;
     overflow: hidden;
-}
-
-.panel-header {
-    font-weight: 700;
-    font-size: 16px;
-    color: var(--text-main);
+    background: white; 
 }
 
 .styled-collapse {
@@ -954,6 +1021,7 @@ export default {
     height: 60px;
     font-size: 15px;
     border-bottom-color: var(--border-color);
+    padding: 0 20px; 
 }
 
 .step-title {
@@ -985,10 +1053,9 @@ export default {
 }
 
 .step-content {
-    padding: 24px 8px;
+    padding: 24px 20px;
 }
 
-/* Form Styling */
 .compact-form :deep(.el-form-item) {
     margin-bottom: 16px;
 }
@@ -997,6 +1064,43 @@ export default {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 16px;
+}
+
+.gif-preview-box {
+    position: relative;
+    width: 100%; 
+    max-width: 280px;
+    height: 200px;
+    border-radius: 16px;
+    overflow: hidden;
+    margin: 0 auto 20px;
+    border: 2px solid rgba(226, 232, 240, 0.5);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    background: #f8fafc;
+}
+
+.demo-gif {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.gif-tag {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font-size: 12px;
+    padding: 6px 0;
+    text-align: center;
+    backdrop-filter: blur(4px);
+}
+
+.start-state {
+    text-align: center;
+    padding: 10px 0;
 }
 
 .exercise-badge {
@@ -1010,17 +1114,9 @@ export default {
     display: inline-block;
 }
 
-.score-input-wrapper {
-    padding: 0 8px;
-}
-
-.start-state {
-    text-align: center;
-    padding: 10px 0;
-}
-
 .empty-placeholder {
     margin-bottom: 20px;
+    text-align: center;
 }
 
 .empty-placeholder p {
@@ -1043,69 +1139,6 @@ export default {
     margin-bottom: 4px;
 }
 
-.action-btn {
-    height: 48px;
-    font-weight: 600;
-    font-size: 16px;
-    border-radius: 10px;
-}
-
-.glow-effect {
-    box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.39);
-}
-
-.success-glow {
-    box-shadow: 0 4px 14px 0 rgba(74, 222, 128, 0.4);
-}
-
-.rate-wrapper {
-    display: flex;
-    justify-content: center;
-    padding: 8px 0;
-}
-
-/* GIF 预览框样式 */
-.gif-preview-box {
-    position: relative;
-    width: 280px;
-    height: 280px;
-    border-radius: 16px;
-    overflow: hidden;
-    margin: 0 auto 20px;
-    /* 居中 */
-    border: 2px solid rgba(255, 255, 255, 0.2);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-    background: #000;
-}
-
-.demo-gif {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    /* 保持比例填满 */
-}
-
-.gif-tag {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    background: rgba(0, 0, 0, 0.7);
-    color: #fff;
-    font-size: 12px;
-    padding: 6px 0;
-    text-align: center;
-    backdrop-filter: blur(4px);
-}
-
-.target-hint {
-    font-size: 12px;
-    color: #94a3b8;
-    margin-top: 4px;
-    margin-left: 2px;
-}
-
-/* 休息倒计时全屏遮罩 */
 .rest-overlay {
     position: fixed;
     top: 0;
@@ -1113,7 +1146,6 @@ export default {
     width: 100vw;
     height: 100vh;
     background: rgba(15, 23, 42, 0.95);
-    /* 深蓝黑色背景 */
     backdrop-filter: blur(10px);
     z-index: 9999;
     display: flex;
@@ -1124,7 +1156,6 @@ export default {
 }
 
 .rest-content {
-    text-align: center;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1136,10 +1167,8 @@ export default {
     font-size: 24px;
     margin-bottom: 30px;
     color: #4ade80;
-    /* 绿色 */
 }
 
-/* 倒计时圆环动画 */
 .timer-circle {
     position: relative;
     width: 200px;
@@ -1151,7 +1180,6 @@ export default {
     width: 100%;
     height: 100%;
     transform: rotate(-90deg);
-    /* 从顶部开始 */
 }
 
 .bg-ring {
@@ -1163,11 +1191,9 @@ export default {
 .progress-ring {
     fill: none;
     stroke: #3b82f6;
-    /* 蓝色进度条 */
     stroke-width: 6;
     stroke-linecap: round;
     stroke-dasharray: 283;
-    /* 2 * PI * 45 */
     transition: stroke-dashoffset 1s linear;
 }
 
@@ -1181,12 +1207,12 @@ export default {
     font-family: monospace;
 }
 
-/* 下一个动作预告 */
 .next-up {
     margin-bottom: 40px;
     background: rgba(255, 255, 255, 0.1);
     padding: 20px;
     border-radius: 12px;
+    width: 100%;
 }
 
 .next-up p {
@@ -1195,22 +1221,7 @@ export default {
     margin-bottom: 8px;
     text-transform: uppercase;
     letter-spacing: 1px;
-}
-
-.next-up h4 {
-    font-size: 20px;
-    margin: 0 0 8px 0;
-}
-
-.next-meta {
-    color: #cbd5e1;
-    font-size: 14px;
-}
-
-.skip-btn {
-    padding-left: 30px;
-    padding-right: 30px;
-    font-weight: 600;
+    text-align: left;
 }
 
 .next-info-row {
@@ -1219,7 +1230,6 @@ export default {
     align-items: center;
     gap: 16px;
     text-align: left;
-    /* 让文字靠左 */
 }
 
 .mini-gif {
@@ -1231,147 +1241,159 @@ export default {
     background: #000;
 }
 
-.next-up h4 {
-    margin: 0 0 4px 0;
-    font-size: 22px;
-}
-
-:deep(.el-table .active-row) {
-    background: #f0f9ff !important;
-    --el-table-row-hover-bg-color: #e0f2fe;
-}
-
-:deep(.el-table .completed-row) {
-    opacity: 0.6;
-    background: #f8fafc !important;
+.skip-btn {
+    padding-left: 30px;
+    padding-right: 30px;
+    font-weight: 600;
 }
 
 .finish-panel {
-    padding: 0 10px 20px;
+    padding: 0 5px 10px;
 }
 
-.result-banner {
+.completion-header {
     text-align: center;
-    margin-bottom: 24px;
-    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-    padding: 20px;
-    border-radius: 16px;
-    border: 1px solid #a7f3d0;
+    margin-bottom: 25px;
 }
 
 .trophy-icon {
-    font-size: 48px;
+    font-size: 50px;
     margin-bottom: 8px;
     animation: bounce 2s infinite;
 }
 
-.result-banner h2 {
+.completion-header h2 {
     margin: 0;
-    color: #065f46;
-    font-size: 24px;
+    font-size: 22px;
+    color: var(--text-main);
+    font-weight: 700;
 }
 
-.result-banner p {
-    margin: 4px 0 0;
-    color: #059669;
+.sub-text {
+    margin-top: 6px;
     font-size: 13px;
-    opacity: 0.8;
+    color: #64748b;
 }
 
-.stats-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 30px;
-}
-
-.stat-box {
-    background: #f8fafc;
+.feedback-card {
+    background: #1e293b; 
     border-radius: 12px;
     padding: 16px;
+    margin-bottom: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    color: white; 
+}
+
+.card-top {
     display: flex;
-    flex-direction: column;
+    justify-content: space-between;
     align-items: center;
-    justify-content: center;
-    border: 1px solid #e2e8f0;
-    transition: transform 0.2s;
+    margin-bottom: 12px;
 }
 
-.stat-box:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+.card-label {
+    font-size: 14px;
+    color: #cbd5e1;
+    font-weight: 600;
 }
 
-.stat-box .el-icon {
-    font-size: 20px;
-    color: #64748b;
+/* RPE 滑动条 */
+.rpe-value {
+    font-size: 16px;
+    font-weight: bold;
+    color: #3b82f6;
+}
+
+.slider-container {
+    padding: 0 8px;
     margin-bottom: 8px;
 }
 
-.stat-val {
-    font-size: 24px;
-    font-weight: 800;
-    color: #0f172a;
-    line-height: 1;
-    margin-bottom: 4px;
-}
-
-.stat-val .unit {
-    font-size: 12px;
-    font-weight: normal;
-    color: #94a3b8;
-    margin-left: 2px;
-}
-
-.stat-label {
-    font-size: 12px;
-    color: #64748b;
-}
-
-.stat-box.highlight {
-    background: #fff7ed;
-    border-color: #ffedd5;
-}
-
-.stat-box.highlight .el-icon {
-    color: #ea580c;
-}
-
-.section-divider {
-    display: flex;
-    align-items: center;
+.rpe-desc-text {
     text-align: center;
+    font-size: 13px;
     color: #94a3b8;
-    font-size: 12px;
-    margin-bottom: 16px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 6px;
+    border-radius: 8px;
 }
 
-.section-divider::before,
-.section-divider::after {
-    content: '';
-    flex: 1;
-    border-bottom: 1px dashed #cbd5e1;
-}
-
-.section-divider span {
-    padding: 0 12px;
-}
-
-.finish-btn {
-    height: 56px;
-    font-size: 18px;
+/* 身体标签 */
+.tags-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
     margin-top: 10px;
 }
 
+.feedback-tag {
+    cursor: pointer;
+    transition: all 0.2s;
+    background-color: #0f172a;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+}
+
+.feedback-tag:hover {
+    border-color: #3b82f6;
+    color: #3b82f6;
+}
+
+/* 覆盖 Element CheckTag 选中态 */
+:deep(.el-check-tag.is-checked) {
+    background-color: #3b82f6 !important;
+    border-color: #3b82f6 !important;
+    color: #fff !important;
+    font-weight: 600;
+}
+
+/* 评分区域 */
+.rate-center {
+    display: flex;
+    justify-content: center;
+    margin-top: 8px;
+}
+
+/* 底部按钮区 */
+.action-area {
+    margin-top: 24px;
+}
+
+.generate-btn {
+    width: 100%;
+    height: 50px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 12px;
+    background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+    border: none;
+    transition: all 0.3s;
+}
+
+.generate-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.success-glow {
+    box-shadow: 0 4px 14px 0 rgba(74, 222, 128, 0.4);
+}
+
+/* =========================================
+   6. 动画 Keyframes
+   ========================================= */
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+    70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
 @keyframes bounce {
-
-    0%,
-    100% {
-        transform: translateY(0);
-    }
-
-    50% {
-        transform: translateY(-10px);
-    }
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
 }
 </style>
