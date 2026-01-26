@@ -1048,5 +1048,215 @@
       "created_at": "2026-01-20T10:00:00Z",
       "updated_at": "2026-01-20T10:00:00Z"
     }
+  },
+  {
+    "model": "exercises.exercise",
+    "pk": 51,
+    "fields": {
+      "name": "杠铃平板卧推",
+      "english_name": "Barbell Bench Press",
+      "category": null,
+      "description": "练胸的王牌动作，能最大程度刺激胸大肌整体厚度。",
+      "difficulty": "intermediate",
+      "equipment": "barbell",
+      "target_muscle": "chest",
+      "instructions": "1. 仰卧在卧推凳上，双脚踩实地面。\n2. 宽握杠铃，出杠后吸气下放至胸骨上方。\n3. 呼气发力推起，手肘微屈不要锁死。",
+      "tips": "大臂与躯干夹角呈45-60度，不要过度外展。",
+      "image_url": "https://cdn-icons-png.flaticon.com/512/2548/2548443.png",
+      "calories_burned": 6.5,
+      "default_reps": 10,
+      "is_active": true,
+      "created_at": "2026-01-20T10:00:00Z",
+      "updated_at": "2026-01-20T10:00:00Z"
+    }
+  },
+  {
+    "model": "exercises.exercise",
+    "pk": 52,
+    "fields": {
+      "name": "哑铃上斜卧推",
+      "english_name": "Incline Dumbbell Press",
+      "category": null,
+      "description": "针对上胸部的黄金动作，打造饱满的胸肌上沿。",
+      "difficulty": "intermediate",
+      "equipment": "dumbbell",
+      "target_muscle": "chest",
+      "instructions": "1. 将凳子调至30-45度倾角。\n2. 双手持哑铃，推举至锁骨上方。\n3. 缓慢下放拉伸胸肌，感受上胸发力。",
+      "tips": "不要耸肩，注意力集中在锁骨下方的肌肉。",
+      "image_url": "https://cdn-icons-png.flaticon.com/512/2548/2548440.png",
+      "calories_burned": 6.0,
+      "default_reps": 12,
+      "is_active": true,
+      "created_at": "2026-01-20T10:00:00Z",
+      "updated_at": "2026-01-20T10:00:00Z"
+    }
+  },
+  {
+    "model": "exercises.exercise",
+    "pk": 53,
+    "fields": {
+      "name": "高位下拉",
+      "english_name": "Lat Pulldown",
+      "category": null,
+      "description": "拓宽背部宽度的首选动作，适合初学者寻找背部发力感。",
+      "difficulty": "beginner",
+      "equipment": "machine",
+      "target_muscle": "back",
+      "instructions": "1. 坐姿固定腿部，宽握把手。\n2. 挺胸沉肩，用手肘引导向下拉至上胸口。\n3. 缓慢回放，感受背阔肌拉伸。",
+      "tips": "不要后仰过度，不要用手臂硬拉。",
+      "image_url": "https://cdn-icons-png.flaticon.com/512/2548/2548657.png",
+      "calories_burned": 5.5,
+      "default_reps": 12,
+      "is_active": true,
+      "created_at": "2026-01-20T10:00:00Z",
+      "updated_at": "2026-01-20T10:00:00Z"
+    }
+  },
+  {
+    "model": "exercises.exercise",
+    "pk": 54,
+    "fields": {
+      "name": "坐姿划船",
+      "english_name": "Seated Cable Row",
+      "category": null,
+      "description": "增加背部厚度，改善圆肩驼背。",
+      "difficulty": "beginner",
+      "equipment": "machine",
+      "target_muscle": "back",
+      "instructions": "1. 坐姿蹬实踏板，微屈膝。\n2. 挺直腰背，将把手拉向小腹位置。\n3. 夹紧肩胛骨，停顿一秒后还原。",
+      "tips": "全程保持腰背挺直，不要利用惯性后仰。",
+      "image_url": "https://cdn-icons-png.flaticon.com/512/2548/2548657.png",
+      "calories_burned": 5.5,
+      "default_reps": 12,
+      "is_active": true,
+      "created_at": "2026-01-20T10:00:00Z",
+      "updated_at": "2026-01-20T10:00:00Z"
+    }
+  },
+  {
+    "model": "exercises.exercise",
+    "pk": 55,
+    "fields": {
+      "name": "杠铃深蹲",
+      "english_name": "Barbell Squat",
+      "category": null,
+      "description": "力量训练之王，全面强化下肢与核心力量。",
+      "difficulty": "advanced",
+      "equipment": "barbell",
+      "target_muscle": "legs",
+      "instructions": "1. 杠铃置于斜方肌上，双脚略宽于肩。\n2. 屈髋屈膝下蹲，大腿至少与地面平行。\n3. 臀腿发力站起，膝盖不要内扣。",
+      "tips": "腰背始终挺直，重心在足中后部。",
+      "image_url": "https://cdn-icons-png.flaticon.com/512/2548/2548443.png",
+      "calories_burned": 9.0,
+      "default_reps": 8,
+      "is_active": true,
+      "created_at": "2026-01-20T10:00:00Z",
+      "updated_at": "2026-01-20T10:00:00Z"
+    }
+  },
+  {
+    "model": "exercises.exercise",
+    "pk": 56,
+    "fields": {
+      "name": "坐姿腿举(倒蹬)",
+      "english_name": "Leg Press",
+      "category": null,
+      "description": "大重量腿部训练，安全性高，刺激到位。",
+      "difficulty": "beginner",
+      "equipment": "machine",
+      "target_muscle": "legs",
+      "instructions": "1. 坐在器械上，背部紧贴靠背。\n2. 双脚踩在踏板上，与肩同宽。\n3. 解锁保险，屈膝下放至大腿贴近胸部后蹬起。",
+      "tips": "蹬起时膝盖绝对不要锁死，防止受伤。",
+      "image_url": "https://cdn-icons-png.flaticon.com/512/2548/2548545.png",
+      "calories_burned": 7.0,
+      "default_reps": 12,
+      "is_active": true,
+      "created_at": "2026-01-20T10:00:00Z",
+      "updated_at": "2026-01-20T10:00:00Z"
+    }
+  },
+  {
+    "model": "exercises.exercise",
+    "pk": 57,
+    "fields": {
+      "name": "哑铃坐姿推举",
+      "english_name": "Seated Dumbbell Press",
+      "category": null,
+      "description": "打造宽阔肩膀的核心动作，主要刺激三角肌前束和中束。",
+      "difficulty": "intermediate",
+      "equipment": "dumbbell",
+      "target_muscle": "shoulders",
+      "instructions": "1. 坐姿靠背，双手持哑铃举至肩部高度。\n2. 向上推举至手臂伸直（微屈）。\n3. 缓慢下放至耳垂高度。",
+      "tips": "核心收紧，腰部不要过度反弓。",
+      "image_url": "https://cdn-icons-png.flaticon.com/512/2548/2548512.png",
+      "calories_burned": 5.0,
+      "default_reps": 12,
+      "is_active": true,
+      "created_at": "2026-01-20T10:00:00Z",
+      "updated_at": "2026-01-20T10:00:00Z"
+    }
+  },
+  {
+    "model": "exercises.exercise",
+    "pk": 58,
+    "fields": {
+      "name": "哑铃侧平举",
+      "english_name": "Dumbbell Lateral Raise",
+      "category": null,
+      "description": "针对三角肌中束的孤立动作，让肩膀更圆润。",
+      "difficulty": "intermediate",
+      "equipment": "dumbbell",
+      "target_muscle": "shoulders",
+      "instructions": "1. 站立或坐姿，双手持哑铃垂于体侧。\n2. 手肘微屈，向身体两侧举起至肩膀高度。\n3. 缓慢下放，不要完全卸力。",
+      "tips": "不要耸肩，像倒水一样略微内旋手腕。",
+      "image_url": "https://cdn-icons-png.flaticon.com/512/2548/2548512.png",
+      "calories_burned": 4.0,
+      "default_reps": 15,
+      "is_active": true,
+      "created_at": "2026-01-20T10:00:00Z",
+      "updated_at": "2026-01-20T10:00:00Z"
+    }
+  },
+  {
+    "model": "exercises.exercise",
+    "pk": 59,
+    "fields": {
+      "name": "杠铃弯举",
+      "english_name": "Barbell Bicep Curl",
+      "category": null,
+      "description": "手臂训练的基础动作，增加二头肌体积。",
+      "difficulty": "beginner",
+      "equipment": "barbell",
+      "target_muscle": "arms",
+      "instructions": "1. 站立，掌心朝前反握杠铃。\n2. 大臂夹紧躯干不动，弯举小臂。\n3. 顶峰收缩一秒后缓慢下放。",
+      "tips": "不要前后晃动身体借力。",
+      "image_url": "https://cdn-icons-png.flaticon.com/512/2548/2548530.png",
+      "calories_burned": 4.5,
+      "default_reps": 12,
+      "is_active": true,
+      "created_at": "2026-01-20T10:00:00Z",
+      "updated_at": "2026-01-20T10:00:00Z"
+    }
+  },
+  {
+    "model": "exercises.exercise",
+    "pk": 60,
+    "fields": {
+      "name": "绳索下压",
+      "english_name": "Tricep Rope Pushdown",
+      "category": null,
+      "description": "针对肱三头肌的经典动作，消除拜拜肉。",
+      "difficulty": "beginner",
+      "equipment": "machine",
+      "target_muscle": "arms",
+      "instructions": "1. 面对龙门架，双手握住绳索下端。\n2. 大臂紧贴躯干，仅小臂向下压。\n3. 到底时手腕向外旋，充分收缩三头肌。",
+      "tips": "大臂要像焊死在身体两侧一样不动。",
+      "image_url": "https://cdn-icons-png.flaticon.com/512/2548/2548657.png",
+      "calories_burned": 4.0,
+      "default_reps": 15,
+      "is_active": true,
+      "created_at": "2026-01-20T10:00:00Z",
+      "updated_at": "2026-01-20T10:00:00Z"
+    }
   }
 ]

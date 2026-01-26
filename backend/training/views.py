@@ -10,6 +10,7 @@ from django.utils import timezone
 from datetime import timedelta
 import json 
 from openai import OpenAI  
+from utils.vector_db import VectorDB
 
 from .models import TrainingPlan, TrainingPlanDay, TrainingPlanExercise, UserTrainingSession, UserTrainingExerciseRecord
 from .serializers import (
@@ -330,3 +331,174 @@ def call_deepseek_ai(session, duration_seconds, user_rating, user_feedback):
             "analysis": "AI 暂时掉线了，但你的努力已被记录。", 
             "tags": ["训练完成"]
         }
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def generate_smart_plan(request):
+    user = request.user
+    
+    # 1. 接收配置
+    config = {
+        "goal": request.data.get('goal', '增肌'),
+        "level": request.data.get('level', '初学者'),
+        "days": request.data.get('days', 3),
+        "duration": request.data.get('duration', 45),
+        "focus": request.data.get('focus', '全身'),
+        "equipment": request.data.get('equipment', '哑铃')
+    }
+
+    # 2. 构造 Prompt：增加 target_muscle 约束
+    prompt = f"""
+    你是一位健身专家。请为用户生成一周训练计划。
+    
+    用户档案：目标{config['goal']}，{config['days']}天/周，重点{config['focus']}，器材{config['equipment']}。
+
+    请严格返回 JSON。对于每个动作，必须包含两个关键字段：
+    1. "search_query": 准确的动作中文描述。
+    2. "target_muscle": 必须从以下单词中选一个最匹配的：['chest', 'back', 'shoulders', 'arms', 'abs', 'legs', 'glutes', 'full_body']
+
+    JSON 格式示例：
+    {{
+        "report_title": "AI定制计划",
+        "report_summary": "HTML分析...",
+        "weekly_schedule": [
+            {{
+                "day": "周一", 
+                "title": "胸肌训练", 
+                "type": "training",
+                "status": "消耗300kcal",
+                "exercises": [
+                    {{
+                        "search_query": "哑铃平板卧推", 
+                        "target_muscle": "chest", 
+                        "sets": 4,
+                        "reps": "12次"
+                    }}
+                ]
+            }},
+            ... (生成 {config['days']} 个训练日)
+        ],
+        "suggestions": [], 
+        "goal_progress": 0
+    }}
+    """
+
+    client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
+
+    try:
+        # 3. 呼叫 AI (只呼叫一次！)
+        print("🤖 AI 正在生成计划结构...")
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": "你是一个输出纯 JSON 的健身专家。"},
+                {"role": "user", "content": prompt},
+            ],
+            response_format={ 'type': 'json_object' },
+            temperature=1.1
+        )
+        ai_plan = json.loads(response.choices[0].message.content)
+
+        # 4. 🔥 向量召回 + 逻辑强校验
+        db = VectorDB()
+        print("🔍 开始三级匹配...")
+
+        for day in ai_plan.get('weekly_schedule', []):
+            if day.get('type') != 'training':
+                continue
+                
+            real_exercises = []
+            # 🔥 新增：记录今天已经选过的动作 ID (去重集合)
+            used_exercise_ids = set()
+            
+            for ex_item in day.get('exercises', []):
+                query = ex_item.get('search_query', '')
+                required_muscle = ex_item.get('target_muscle', '').lower()
+                
+                final_match = None
+                
+                # -------------------------------------------------
+                # 1. 向量检索 (扩大搜 Top 10，给备选留足空间)
+                # -------------------------------------------------
+                candidate_ids = db.search(query, top_k=10)
+                
+                if candidate_ids:
+                    candidates = Exercise.objects.filter(id__in=candidate_ids)
+                    
+                    # 筛选出部位匹配的候选人
+                    valid_candidates = [c for c in candidates if c.target_muscle == required_muscle]
+                    
+                    # 🔥 核心去重逻辑：
+                    # 在符合部位的动作里，找一个【还没被选过】的
+                    for cand in valid_candidates:
+                        if cand.id not in used_exercise_ids:
+                            final_match = cand
+                            break # 找到了！跳出循环
+                    
+                    # ⚠️ 如果所有候选人都用过了（动作库太小），没办法，只能复用第一个
+                    if not final_match and valid_candidates:
+                        final_match = valid_candidates[0]
+                        # 可以在这里打印个日志提醒自己
+                        print(f"⚠️ 动作库不足，被迫重复使用: {final_match.name}")
+
+                # -------------------------------------------------
+                # 2. 关键词兜底 (如果向量没搜到)
+                # -------------------------------------------------
+                if not final_match:
+                    keywords = query.replace("哑铃", "").replace("杠铃", "").replace("动作", "").strip()
+                    if len(keywords) > 1:
+                        # 尝试去数据库捞一个没用过的、名字相似的、部位对的
+                        backup_qs = Exercise.objects.filter(
+                            name__icontains=keywords[:2],
+                            target_muscle=required_muscle
+                        )
+                        for backup in backup_qs:
+                            if backup.id not in used_exercise_ids:
+                                final_match = backup
+                                break
+                        
+                        # 如果还没找到，就随便拿第一个
+                        if not final_match:
+                            final_match = backup_qs.first()
+
+                # -------------------------------------------------
+                # 3. 组装数据
+                # -------------------------------------------------
+                if final_match:
+                    # 📝 登记到“已用”名单，下次不许再选它
+                    used_exercise_ids.add(final_match.id)
+                    
+                    real_exercises.append({
+                        "id": final_match.id,
+                        "name": final_match.name,
+                        "gif": final_match.demo_gif.url if final_match.demo_gif else "",
+                        "img": final_match.image_url,
+                        "sets": ex_item.get('sets', 3),
+                        "reps": ex_item.get('reps', '10次'),
+                        "ai_desc": query,
+                        "is_real": True
+                    })
+                else:
+                    # 彻底失败，纯文本展示
+                    real_exercises.append({
+                        "id": 0,
+                        "name": ex_item.get('search_query'),
+                        "gif": "",
+                        "img": "",
+                        "sets": ex_item.get('sets', 3),
+                        "reps": ex_item.get('reps', '10次'),
+                        "ai_desc": query,
+                        "is_real": False
+                    })
+            
+            day['exercises'] = real_exercises
+
+        return Response(ai_plan)
+    except json.JSONDecodeError:
+        print("DeepSeek 返回的不是有效 JSON")
+        return Response({"error": "AI 脑子瓦特了，返回格式错误，请重试"}, status=500)
+    except Exception as e:
+        import traceback
+        traceback.print_exc() # 打印详细报错堆栈到终端，方便调试
+        print(f"Plan Generation Error: {e}")
+        return Response({"error": f"生成失败: {str(e)}"}, status=500)

@@ -19,4 +19,7 @@ urlpatterns = [
     
     # 用户统计数据路由
     path('stats/', views.user_training_stats, name='user-training-stats'),
+
+    # AI 计划生成接口
+    path('plan/create_smart/', views.generate_smart_plan, name='create-smart-plan'),
 ]
