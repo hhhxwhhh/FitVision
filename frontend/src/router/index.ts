@@ -40,6 +40,11 @@ const router = createRouter({
           component: () => import('../views/TrainingReportView.vue')
         },
         {
+          path: 'ai-plan', 
+          name: 'ai-plan',
+          component: () => import('../views/AIPlanView.vue')
+        },
+        {
           path: 'analytics',
           name: 'analytics',
           component: AnalyticsView
