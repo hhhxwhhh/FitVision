@@ -14,6 +14,8 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+
 # 加载.env文件
 load_dotenv()
 

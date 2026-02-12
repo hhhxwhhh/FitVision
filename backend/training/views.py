@@ -11,6 +11,8 @@ from datetime import timedelta
 import json 
 from openai import OpenAI  
 from utils.vector_db import VectorDB
+import os
+from .services import UserSimilarityService, SmartRecommendationService
 
 from .models import TrainingPlan, TrainingPlanDay, TrainingPlanExercise, UserTrainingSession, UserTrainingExerciseRecord
 from .serializers import (
@@ -24,7 +26,7 @@ from .serializers import (
 from exercises.models import Exercise
 from users.models import UserProfile
 
-DEEPSEEK_API_KEY = "sk-2b8ed8fe048b4ceeb9118a1e150b9ea6"
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 
 class TrainingPlanListView(generics.ListAPIView):
     """获取所有公开的训练计划，支持过滤、搜索和排序"""
@@ -146,6 +148,35 @@ def complete_training_session(request, session_id):
         "score": session.performance_score # 返回给前端显示
     }
     
+    try:
+        # 假设 session 关联了 exercise_records
+        records = session.exercise_records.order_by('created_at') # 确保按时间排序
+        exercises = [r.exercise for r in records]
+        
+        # 更新 A -> B 的权重
+        for i in range(len(exercises) - 1):
+            curr = exercises[i]
+            next_ex = exercises[i+1]
+            
+            # 找到或创建边
+            edge, _ = ExerciseGraph.objects.get_or_create(
+                from_exercise=curr, 
+                to_exercise=next_ex
+            )
+            
+            # 加权逻辑：完成度越高权重越大
+            weight_add = 1
+            if session.performance_score >= 4: weight_add = 2
+            
+            edge.weight += weight_add
+            edge.save()
+            
+            # (可选) 重新计算概率: probability = weight / sum(all_weights)
+            # 建议放到 Celery 异步任务里，或者每隔一段时间批量算
+            
+    except Exception as e:
+        print(f"Graph Update Error: {e}")
+
     return Response(response_data, status=status.HTTP_200_OK)
 
 
@@ -320,7 +351,8 @@ def call_deepseek_ai(session, duration_seconds, user_rating, user_feedback):
                 {"role": "user", "content": prompt},
             ],
             response_format={ 'type': 'json_object' },
-            temperature=1.2 
+            temperature=1.2,
+            timeout=60.0
         )
         return json.loads(response.choices[0].message.content)
     except Exception as e:
@@ -340,165 +372,144 @@ def generate_smart_plan(request):
     # 1. 接收配置
     config = {
         "goal": request.data.get('goal', '增肌'),
-        "level": request.data.get('level', '初学者'),
-        "days": request.data.get('days', 3),
-        "duration": request.data.get('duration', 45),
-        "focus": request.data.get('focus', '全身'),
+        "level_str": request.data.get('level', '初学者'),
+        "days": int(request.data.get('days', 3)), # 🔥 确保转为 int
+        "focus": request.data.get('focus', '全身'), 
         "equipment": request.data.get('equipment', '哑铃')
     }
-
-    # 2. 构造 Prompt：增加 target_muscle 约束
-    prompt = f"""
-    你是一位健身专家。请为用户生成一周训练计划。
     
-    用户档案：目标{config['goal']}，{config['days']}天/周，重点{config['focus']}，器材{config['equipment']}。
+    # 等级映射
+    level_map = {'初学者': 1, '中级': 3, '高级': 5}
+    user_level = level_map.get(config['level_str'], 1)
+    
+    # 映射部位到英文
+    muscle_map = {
+        '胸': 'chest', '背': 'back', '腿': 'legs', '肩': 'shoulders', '手': 'arms', '腹': 'abs',
+        '全身': 'full_body'
+    }
+    main_target_muscle = 'full_body'
+    for k, v in muscle_map.items():
+        if k in config['focus']:
+            main_target_muscle = v
+            break
 
-    请严格返回 JSON。对于每个动作，必须包含两个关键字段：
-    1. "search_query": 准确的动作中文描述。
-    2. "target_muscle": 必须从以下单词中选一个最匹配的：['chest', 'back', 'shoulders', 'arms', 'abs', 'legs', 'glutes', 'full_body']
+    # ==========================================
+    # 策略 A: 冷启动 (相似用户推荐)
+    # ==========================================
+    # 只有训练记录极少时才触发
+    if UserTrainingSession.objects.filter(user=user).count() < 3:
+        print("🔍 触发冷启动推荐...")
+        cold_start_result = UserSimilarityService.recommend_for_cold_start(user)
+        
+        if cold_start_result:
+            ref_session = cold_start_result['ref_session']
+            exercises_data = []
+            
+            # 获取大神的历史记录
+            from .models import UserTrainingExerciseRecord
+            records = UserTrainingExerciseRecord.objects.filter(session=ref_session).order_by('created_at')
+            
+            for rec in records:
+                ex = rec.exercise
+                exercises_data.append({
+                    "id": ex.id,
+                    "name": ex.name,
+                    "target_muscle": ex.target_muscle,
+                    "sets": rec.sets_completed or 3,
+                    "reps": "8-12次",
+                    "gif": ex.demo_gif.url if ex.demo_gif else "",
+                    "img": ex.image_url if hasattr(ex, 'image_url') else "",
+                    "ai_desc": f"大神同款：{cold_start_result.get('report_summary', '经典训练')}"
+                })
+            
+            if exercises_data:
+                # 冷启动我们暂时只给一天体验版，或者你可以简单复制几天
+                return Response({
+                    "report_title": "新手专属 · 达人推荐",
+                    "report_summary": "为您匹配到了体型相似的健身达人推荐计划，快速上手！",
+                    "weekly_schedule": [{
+                        "day": "Day 1",
+                        "title": "达人验证 · 核心训练",
+                        "type": "training",
+                        "status": "难度适中",
+                        "exercises": exercises_data
+                    }],
+                    "suggestions": ["这是根据和你体型相似的用户生成的验证方案"],
+                    "goal_progress": 0
+                })
 
-    JSON 格式示例：
-    {{
-        "report_title": "AI定制计划",
-        "report_summary": "HTML分析...",
-        "weekly_schedule": [
-            {{
-                "day": "周一", 
-                "title": "胸肌训练", 
-                "type": "training",
-                "status": "消耗300kcal",
-                "exercises": [
-                    {{
-                        "search_query": "哑铃平板卧推", 
-                        "target_muscle": "chest", 
-                        "sets": 4,
-                        "reps": "12次"
-                    }}
-                ]
-            }},
-            ... (生成 {config['days']} 个训练日)
-        ],
-        "suggestions": [], 
-        "goal_progress": 0
-    }}
-    """
+    # ==========================================
+    # 策略 B: 智能生成 (M3E + Graph + SkillTree)
+    # ==========================================
+    print(f"🧠 智能生成启动: {config['focus']} (Lv.{user_level}) - {config['days']}天")
+    
+    weekly_schedule = []
 
-    client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
+    # 🔥 定义分化训练逻辑 (如果选全身，自动每天换部位)
+    split_routine = [
+        {'query': '胸肌训练', 'muscle': 'chest', 'title': '推力强化 (胸部)'},
+        {'query': '背部训练', 'muscle': 'back',  'title': '背部刻画 (拉力)'},
+        {'query': '腿部训练', 'muscle': 'legs',  'title': '下肢力量 (腿部)'},
+        {'query': '肩部训练', 'muscle': 'shoulders', 'title': '肩部塑形'},
+        {'query': '手臂训练', 'muscle': 'arms',  'title': '手臂轰炸'},
+        {'query': '腹肌训练', 'muscle': 'abs',   'title': '核心强化'},
+    ]
 
-    try:
-        # 3. 呼叫 AI (只呼叫一次！)
-        print("🤖 AI 正在生成计划结构...")
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": "你是一个输出纯 JSON 的健身专家。"},
-                {"role": "user", "content": prompt},
-            ],
-            response_format={ 'type': 'json_object' },
-            temperature=1.1
+    # 🔥 循环生成每一天的计划
+    for day_i in range(config['days']):
+        
+        # 1. 决定今天的训练重点
+        if main_target_muscle == 'full_body':
+            # 如果是练全身，就轮询 split_routine
+            routine = split_routine[day_i % len(split_routine)]
+            daily_query = routine['query']
+            daily_muscle = routine['muscle']
+            daily_title = routine['title']
+        else:
+            # 如果是专项（比如只练胸），就一直练胸，但标题变一下
+            daily_query = config['focus']
+            daily_muscle = main_target_muscle
+            daily_title = f"{config['focus']}专项 (Day {day_i + 1})"
+
+        # 2. 调用 Service 生成当天的动作链
+        exercise_chain = SmartRecommendationService.generate_chain_plan(
+            seed_query=daily_query, 
+            user_level=user_level,
+            target_muscle=daily_muscle,
+            count=4 
         )
-        ai_plan = json.loads(response.choices[0].message.content)
+        
+        # 3. 格式化动作数据
+        exercises_data = []
+        for ex in exercise_chain:
+            exercises_data.append({
+                "id": ex.id,
+                "name": ex.name,
+                "search_query": ex.name,
+                "target_muscle": ex.target_muscle,
+                "sets": 3,
+                "reps": "8-12次",
+                "gif": ex.demo_gif.url if ex.demo_gif else "",
+                "img": ex.image_url if hasattr(ex, 'image_url') else "",
+                "ai_desc": f"适合Lv.{user_level}的进阶动作"
+            })
+        
+        # 4. 加入周计划列表
+        weekly_schedule.append({
+            "day": f"Day {day_i + 1}", # 显示第几天
+            "title": daily_title,
+            "type": "training",
+            "status": "预计消耗 250kcal",
+            "exercises": exercises_data
+        })
 
-        # 4. 🔥 向量召回 + 逻辑强校验
-        db = VectorDB()
-        print("🔍 开始三级匹配...")
+    # 5. 返回结果
+    final_response = {
+        "report_title": "FitVision 智能进化计划",
+        "report_summary": f"已为您生成 {config['days']} 天的{config['focus']}进阶方案。动作编排符合运动生物力学，兼顾了安全与效率。",
+        "weekly_schedule": weekly_schedule,
+        "suggestions": ["注意顶峰收缩", "离心过程控制在2秒", "组间休息60-90秒"],
+        "goal_progress": 0
+    }
 
-        for day in ai_plan.get('weekly_schedule', []):
-            if day.get('type') != 'training':
-                continue
-                
-            real_exercises = []
-            # 🔥 新增：记录今天已经选过的动作 ID (去重集合)
-            used_exercise_ids = set()
-            
-            for ex_item in day.get('exercises', []):
-                query = ex_item.get('search_query', '')
-                required_muscle = ex_item.get('target_muscle', '').lower()
-                
-                final_match = None
-                
-                # -------------------------------------------------
-                # 1. 向量检索 (扩大搜 Top 10，给备选留足空间)
-                # -------------------------------------------------
-                candidate_ids = db.search(query, top_k=10)
-                
-                if candidate_ids:
-                    candidates = Exercise.objects.filter(id__in=candidate_ids)
-                    
-                    # 筛选出部位匹配的候选人
-                    valid_candidates = [c for c in candidates if c.target_muscle == required_muscle]
-                    
-                    # 🔥 核心去重逻辑：
-                    # 在符合部位的动作里，找一个【还没被选过】的
-                    for cand in valid_candidates:
-                        if cand.id not in used_exercise_ids:
-                            final_match = cand
-                            break # 找到了！跳出循环
-                    
-                    # ⚠️ 如果所有候选人都用过了（动作库太小），没办法，只能复用第一个
-                    if not final_match and valid_candidates:
-                        final_match = valid_candidates[0]
-                        # 可以在这里打印个日志提醒自己
-                        print(f"⚠️ 动作库不足，被迫重复使用: {final_match.name}")
-
-                # -------------------------------------------------
-                # 2. 关键词兜底 (如果向量没搜到)
-                # -------------------------------------------------
-                if not final_match:
-                    keywords = query.replace("哑铃", "").replace("杠铃", "").replace("动作", "").strip()
-                    if len(keywords) > 1:
-                        # 尝试去数据库捞一个没用过的、名字相似的、部位对的
-                        backup_qs = Exercise.objects.filter(
-                            name__icontains=keywords[:2],
-                            target_muscle=required_muscle
-                        )
-                        for backup in backup_qs:
-                            if backup.id not in used_exercise_ids:
-                                final_match = backup
-                                break
-                        
-                        # 如果还没找到，就随便拿第一个
-                        if not final_match:
-                            final_match = backup_qs.first()
-
-                # -------------------------------------------------
-                # 3. 组装数据
-                # -------------------------------------------------
-                if final_match:
-                    # 📝 登记到“已用”名单，下次不许再选它
-                    used_exercise_ids.add(final_match.id)
-                    
-                    real_exercises.append({
-                        "id": final_match.id,
-                        "name": final_match.name,
-                        "gif": final_match.demo_gif.url if final_match.demo_gif else "",
-                        "img": final_match.image_url,
-                        "sets": ex_item.get('sets', 3),
-                        "reps": ex_item.get('reps', '10次'),
-                        "ai_desc": query,
-                        "is_real": True
-                    })
-                else:
-                    # 彻底失败，纯文本展示
-                    real_exercises.append({
-                        "id": 0,
-                        "name": ex_item.get('search_query'),
-                        "gif": "",
-                        "img": "",
-                        "sets": ex_item.get('sets', 3),
-                        "reps": ex_item.get('reps', '10次'),
-                        "ai_desc": query,
-                        "is_real": False
-                    })
-            
-            day['exercises'] = real_exercises
-
-        return Response(ai_plan)
-    except json.JSONDecodeError:
-        print("DeepSeek 返回的不是有效 JSON")
-        return Response({"error": "AI 脑子瓦特了，返回格式错误，请重试"}, status=500)
-    except Exception as e:
-        import traceback
-        traceback.print_exc() # 打印详细报错堆栈到终端，方便调试
-        print(f"Plan Generation Error: {e}")
-        return Response({"error": f"生成失败: {str(e)}"}, status=500)
+    return Response(final_response)

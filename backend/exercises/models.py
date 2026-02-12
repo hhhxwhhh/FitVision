@@ -11,7 +11,6 @@ class ExerciseCategory(models.Model):
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
     updated_at = models.DateTimeField("更新时间", auto_now=True)
     
-
     class Meta:
         verbose_name = "动作分类"
         verbose_name_plural = "动作分类"
@@ -63,9 +62,19 @@ class Exercise(models.Model):
     )
     
     # 难度和设备
-    difficulty = models.CharField("难度等级", max_length=20, choices=DIFFICULTY_CHOICES, default='beginner')
+    difficulty = models.CharField("难度等级(显示用)", max_length=20, choices=DIFFICULTY_CHOICES, default='beginner')
     equipment = models.CharField("所需器材", max_length=30, choices=EQUIPMENT_CHOICES, default='none')
     target_muscle = models.CharField("目标肌群", max_length=20, choices=TARGET_MUSCLE_CHOICES)
+
+    level = models.IntegerField("难度等级(逻辑用)", default=1, help_text="1:入门, 5:大神")
+
+    prerequisites = models.ManyToManyField(
+        'self', 
+        symmetrical=False, 
+        blank=True, 
+        related_name='unlocks',
+        verbose_name="前置解锁动作"
+    )
     
     # 动作细节
     instructions = models.TextField("动作要领", help_text="详细的执行步骤")
@@ -77,7 +86,7 @@ class Exercise(models.Model):
     keypoints = models.JSONField("关键点坐标", blank=True, null=True, 
                                 help_text="动作标准姿态的关键点坐标数据")
     angle_thresholds = models.JSONField("角度阈值", blank=True, null=True,
-                                       help_text="各关节角度评判标准，如{'knee_min': 90}")
+                                     help_text="各关节角度评判标准，如{'knee_min': 90}")
     correction_tips = models.JSONField("纠正提示", blank=True, null=True,
                                      help_text="常见错误及纠正方法，如{'knee_cave': '膝盖不要内扣'}")
     
@@ -87,7 +96,7 @@ class Exercise(models.Model):
     default_reps = models.IntegerField("默认次数", default=10, 
                                       help_text="建议的单次训练次数")
     calories_burned = models.FloatField("每分钟消耗(卡路里)", default=5.0,
-                                       help_text="每分钟平均消耗的卡路里")
+                                      help_text="每分钟平均消耗的卡路里")
 
     demo_gif = models.FileField(
         "动作演示", 
@@ -102,8 +111,6 @@ class Exercise(models.Model):
     order = models.IntegerField("排序", default=0, help_text="显示顺序")
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
     updated_at = models.DateTimeField("更新时间", auto_now=True)
-
-
 
     class Meta:
         verbose_name = "健身动作"
@@ -123,7 +130,7 @@ class UserExerciseRecord(models.Model):
     count = models.IntegerField("完成次数", default=0)
     duration = models.IntegerField("训练时长(秒)", default=0)
     accuracy_score = models.FloatField("准确度评分", default=0.0, 
-                                      help_text="AI评估的动作准确性(0-100)")
+                                     help_text="AI评估的动作准确性(0-100)")
     calories_burned = models.FloatField("消耗卡路里", default=0.0)
     
     # 详细分析
@@ -140,3 +147,21 @@ class UserExerciseRecord(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.exercise.name} ({self.created_at.strftime('%Y-%m-%d')})"
+
+
+class ExerciseGraph(models.Model):
+    """
+    记录动作之间的关联强度：大家做完 A，通常接下来做 B 的概率
+    """
+    from_exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name='next_paths')
+    to_exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name='prev_paths')
+    
+    # 权重 (路径被走的次数)
+    weight = models.IntegerField(default=0)
+    
+    # 概率 (0.0 - 1.0，用于快速轮盘赌)
+    probability = models.FloatField(default=0.0)
+
+    class Meta:
+        unique_together = ('from_exercise', 'to_exercise')
+        ordering = ['-probability']

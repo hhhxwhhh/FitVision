@@ -25,7 +25,7 @@
 
                     <div class="camera-wrapper">
                         <PosePreview ref="posePreviewRef" :initial-exercise="selectedExerciseName"
-                            @update:reps="handleAiReps" @update:score="handleAiScore" />
+                            :demo-gif="currentGifUrl" @update:reps="handleAiReps" @update:score="handleAiScore" />
 
                         <div class="camera-overlay" v-if="!sessionId">
                             <div class="overlay-content">
@@ -447,39 +447,39 @@ const completeForm = reactive({
 })
 
 const feedbackForm = ref({
-  rpe: 5, 
-  selectedTags: [] as string[]
+    rpe: 5,
+    selectedTags: [] as string[]
 })
 
 const rpeMarks = {
-  1: { style: { color: '#10b981' }, label: '轻松' },
-  5: { style: { color: '#e6a23c' }, label: '适中' },
-  8: { style: { color: '#f56c6c' }, label: '力竭' },
-  10: { style: { color: '#7f1d1d' }, label: '极限' }
+    1: { style: { color: '#10b981' }, label: '轻松' },
+    5: { style: { color: '#e6a23c' }, label: '适中' },
+    8: { style: { color: '#f56c6c' }, label: '力竭' },
+    10: { style: { color: '#7f1d1d' }, label: '极限' }
 }
 
 const availableBodyTags = [
-  '呼吸顺畅', '大汗淋漓', '肌肉泵感', 
-  '核心酸爽', '膝盖不适', '腰部紧张', 
-  '有点头晕', '状态爆表', '还可以再做'
+    '呼吸顺畅', '大汗淋漓', '肌肉泵感',
+    '核心酸爽', '膝盖不适', '腰部紧张',
+    '有点头晕', '状态爆表', '还可以再做'
 ]
 
 const getRPEDesc = (val: number) => {
-  if (val <= 2) return "热身般的轻松，毫无压力 🌱";
-  if (val <= 4) return "轻微出汗，感觉很舒适 💧";
-  if (val <= 6) return "呼吸加快，稍显吃力，刚刚好 🔥";
-  if (val <= 8) return "肌肉酸痛，非常有挑战性 💪";
-  return "完全力竭，感觉灵魂出窍 💀";
+    if (val <= 2) return "热身般的轻松，毫无压力 🌱";
+    if (val <= 4) return "轻微出汗，感觉很舒适 💧";
+    if (val <= 6) return "呼吸加快，稍显吃力，刚刚好 🔥";
+    if (val <= 8) return "肌肉酸痛，非常有挑战性 💪";
+    return "完全力竭，感觉灵魂出窍 💀";
 }
 
 // --- 辅助函数：切换标签选中状态 ---
 const toggleTag = (tag: string) => {
-  const index = feedbackForm.value.selectedTags.indexOf(tag)
-  if (index > -1) {
-    feedbackForm.value.selectedTags.splice(index, 1)
-  } else {
-    feedbackForm.value.selectedTags.push(tag)
-  }
+    const index = feedbackForm.value.selectedTags.indexOf(tag)
+    if (index > -1) {
+        feedbackForm.value.selectedTags.splice(index, 1)
+    } else {
+        feedbackForm.value.selectedTags.push(tag)
+    }
 }
 
 watch(sessionId, (val) => {
@@ -689,10 +689,10 @@ const handleCompleteSession = async () => {
     try {
         const durationSeconds = sessionStats.value.totalDuration;
 
-        const tagsStr = feedbackForm.value.selectedTags.length > 0 
-            ? feedbackForm.value.selectedTags.join('、') 
+        const tagsStr = feedbackForm.value.selectedTags.length > 0
+            ? feedbackForm.value.selectedTags.join('、')
             : '无特殊不适';
-            
+
         const feedbackText = `用户主观感受：训练强度RPE为 ${feedbackForm.value.rpe}/10，身体反馈包括：${tagsStr}。`;
 
         const payload = {
@@ -700,7 +700,7 @@ const handleCompleteSession = async () => {
             calories_burned: sessionStats.value.calories,
             performance_score: completeForm.performance_score,
             duration: durationSeconds,
-            user_feedback: feedbackText 
+            user_feedback: feedbackText
         }
 
         const res = await apiClient.put(`training/sessions/${sessionId.value}/complete/`, payload)
@@ -708,13 +708,13 @@ const handleCompleteSession = async () => {
         console.log("后端返回的数据:", res.data);
 
         const aiReport = res.data.ai_report || {};
-        
-        const finalScore = (aiReport.score !== undefined && aiReport.score !== null) 
-                            ? Number(aiReport.score)  
-                            : completeForm.performance_score;
+
+        const finalScore = (aiReport.score !== undefined && aiReport.score !== null)
+            ? Number(aiReport.score)
+            : completeForm.performance_score;
 
         const realReportData = {
-            score: finalScore, 
+            score: finalScore,
             duration: Math.ceil(durationSeconds / 60),
             calories: sessionStats.value.calories,
             completedCount: sessionStats.value.completedCount,
@@ -842,7 +842,6 @@ export default {
 </script>
 
 <style scoped>
-
 .page-container {
     max-width: 1200px;
     margin: 0 auto;
@@ -1009,7 +1008,7 @@ export default {
     border-radius: 16px;
     border: none;
     overflow: hidden;
-    background: white; 
+    background: white;
 }
 
 .styled-collapse {
@@ -1021,7 +1020,7 @@ export default {
     height: 60px;
     font-size: 15px;
     border-bottom-color: var(--border-color);
-    padding: 0 20px; 
+    padding: 0 20px;
 }
 
 .step-title {
@@ -1068,7 +1067,7 @@ export default {
 
 .gif-preview-box {
     position: relative;
-    width: 100%; 
+    width: 100%;
     max-width: 280px;
     height: 200px;
     border-radius: 16px;
@@ -1276,12 +1275,12 @@ export default {
 }
 
 .feedback-card {
-    background: #1e293b; 
+    background: #1e293b;
     border-radius: 12px;
     padding: 16px;
     margin-bottom: 16px;
     border: 1px solid rgba(255, 255, 255, 0.05);
-    color: white; 
+    color: white;
 }
 
 .card-top {
@@ -1387,13 +1386,28 @@ export default {
    6. 动画 Keyframes
    ========================================= */
 @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-    70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    0% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    }
 }
 
 @keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-8px); }
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-8px);
+    }
 }
 </style>
