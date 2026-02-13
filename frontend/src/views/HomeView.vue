@@ -79,6 +79,9 @@
         </el-col>
       </el-row>
     </section>
+
+    <!-- AI 推荐模块 -->
+    <AIRecommendations />
   </div>
 </template>
 
@@ -86,6 +89,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import apiClient from '../api'
+import AIRecommendations from '../components/AIRecommendations.vue'
 
 const router = useRouter()
 const username = ref(localStorage.getItem('username') || '健身者')
