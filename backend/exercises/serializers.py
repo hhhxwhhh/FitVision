@@ -47,6 +47,9 @@ class UserExerciseRecordSerializer(serializers.ModelSerializer):
 class ExerciseWithUserProgressSerializer(serializers.ModelSerializer):
     """包含用户进度的动作序列化器"""
     category_name = serializers.CharField(source='category.name', read_only=True)
+    difficulty_display = serializers.CharField(source='get_difficulty_display', read_only=True)
+    equipment_display = serializers.CharField(source='get_equipment_display', read_only=True)
+    target_muscle_display = serializers.CharField(source='get_target_muscle_display', read_only=True)
     user_best_score = serializers.SerializerMethodField()
     user_last_record = serializers.SerializerMethodField()
     

@@ -1,4 +1,4 @@
-from rest_framework import generics,status
+from rest_framework import generics,status, pagination
 from rest_framework.decorators import api_view,permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -18,6 +18,11 @@ from .serializers import (
 )
 from users.models import UserProfile
 
+class StandardResultsSetPagination(pagination.PageNumberPagination):
+    page_size = 12
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
 class ExerciseCategoryList(generics.ListAPIView):
     """获取所有运动类别"""
     queryset=ExerciseCategory.objects.filter(is_active=True)
@@ -26,14 +31,15 @@ class ExerciseCategoryList(generics.ListAPIView):
 
 class ExerciseList(generics.ListAPIView):
     """获取所有动作列表，支持过滤、搜索和排序"""
-    queryset = Exercise.objects.filter(is_active=True)
+    queryset = Exercise.objects.filter(is_active=True).order_by('order', 'id')
     serializer_class = ExerciseWithUserProgressSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category', 'difficulty', 'target_muscle', 'equipment']
     search_fields = ['name', 'english_name', 'description']
-    ordering_fields = ['name', 'difficulty', 'order']
-    ordering = ['order']
+    ordering_fields = ['name', 'difficulty', 'order', 'id']
+    ordering = ['order', 'id']
 
     def get_serializer_context(self):
         context=super().get_serializer_context()

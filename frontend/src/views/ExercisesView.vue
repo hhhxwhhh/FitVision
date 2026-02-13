@@ -14,7 +14,7 @@
         <el-card class="filter-card mb-4" :body-style="{ padding: '12px 20px' }">
             <div class="filter-row">
                 <span class="filter-label">部位筛选:</span>
-                <el-radio-group v-model="filter.target_muscle" size="default" @change="fetchExercises" class="custom-radio-group">
+                <el-radio-group v-model="filter.target_muscle" size="default" class="custom-radio-group">
                     <el-radio-button label="">全部</el-radio-button>
                     <el-radio-button label="chest">胸部</el-radio-button>
                     <el-radio-button label="back">背部</el-radio-button>
@@ -27,7 +27,7 @@
         </el-card>
 
         <el-row :gutter="24" v-loading="loading">
-            <el-col v-for="ex in filteredExercises" :key="ex.id" :xs="24" :sm="12" :md="8" :lg="6">
+            <el-col v-for="ex in exercises" :key="ex.id" :xs="24" :sm="12" :md="8" :lg="6">
                 <el-card class="exercise-card hover-lift" :body-style="{ padding: 0 }">
                     <div class="card-image-wrapper">
                          <img :src="ex.image_url || 'https://via.placeholder.com/300x200?text=FitVision'"
@@ -60,20 +60,20 @@
             </el-col>
         </el-row>
 
-        <div class="pagination-container" v-if="nextUrl">
-            <el-button 
-                type="primary" 
-                plain 
-                round 
-                size="large"
-                :loading="loadingMore" 
-                @click="loadMore"
-            >
-                加载更多动作 ({{ exercises.length }} / {{ totalCount }})
-            </el-button>
+        <div class="pagination-container" v-if="totalCount > 0">
+            <el-pagination
+                v-model:current-page="currentPage"
+                v-model:page-size="pageSize"
+                :page-sizes="[12, 24, 36, 48]"
+                layout="total, sizes, prev, pager, next, jumper"
+                :total="totalCount"
+                @current-change="handlePageChange"
+                @size-change="handleSizeChange"
+                background
+            />
         </div>
-        <div class="no-more-data" v-else-if="exercises.length > 0 && !loading">
-            <small>没有更多动作了</small>
+        <div class="no-more-data" v-if="exercises.length === 0 && !loading">
+            <el-empty description="没有找到符合条件的动作" />
         </div>
 
         <el-dialog v-model="detailVisible" :title="currentEx.name" width="600px" align-center class="exercise-dialog">
@@ -116,18 +116,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, VideoPlay } from '@element-plus/icons-vue'
+import { debounce } from 'lodash-es'
 import apiClient from '../api'
 
 const router = useRouter()
 const exercises = ref<any[]>([])
 const loading = ref(false)
-const loadingMore = ref(false) // 加载更多时的loading
 const search = ref('')
-const nextUrl = ref<string | null>(null) // 下一页的URL
-const totalCount = ref(0) // 总数
+const totalCount = ref(0)
+const currentPage = ref(1)
+const pageSize = ref(12)
 const filter = ref({
     target_muscle: ''
 })
@@ -138,70 +139,74 @@ const currentEx = ref<any>({})
 // 初始加载或筛选改变时调用
 const fetchExercises = async () => {
     loading.value = true
-    // 重置列表
-    exercises.value = []
-    nextUrl.value = null
     
     try {
-        let url = 'exercises/'
-        if (filter.value.target_muscle) {
-            url += `?target_muscle=${filter.value.target_muscle}`
+        const params: any = {
+            page: currentPage.value,
+            page_size: pageSize.value,
         }
         
-        const res = await apiClient.get(url)
+        if (filter.value.target_muscle) {
+            params.target_muscle = filter.value.target_muscle
+        }
+        
+        if (search.value) {
+            params.search = search.value
+        }
+        
+        const res = await apiClient.get('exercises/', { params })
 
         // 处理分页数据
         if (res.data.results) {
             exercises.value = res.data.results
-            nextUrl.value = res.data.next // 记录下一页
-            totalCount.value = res.data.count // 记录总数
+            totalCount.value = res.data.count
         } else {
             // 如果后端没开启分页（兼容处理）
             exercises.value = res.data
-            nextUrl.value = null
+            totalCount.value = res.data.length
         }
 
     } catch (err) {
-        console.error(err)
+        console.error('获取动作失败:', err)
     } finally {
         loading.value = false
     }
 }
 
-// 加载更多按钮点击时调用
-const loadMore = async () => {
-    if (!nextUrl.value) return
-    
-    loadingMore.value = true
-    try {
-        // 直接请求 nextUrl
-        // 注意：nextUrl 是完整链接 (http://...), apiClient.get 会处理
-        const res = await apiClient.get(nextUrl.value)
-        
-        if (res.data.results) {
-            // 关键：将新数据追加到现有数组后面
-            exercises.value.push(...res.data.results)
-            // 更新下一页地址
-            nextUrl.value = res.data.next
-        }
-    } catch (err) {
-        console.error("加载更多失败", err)
-    } finally {
-        loadingMore.value = false
-    }
+// 采用 debounce 的搜索，避免频繁请求后端
+const debouncedFetch = debounce(() => {
+    currentPage.value = 1
+    fetchExercises()
+}, 500)
+
+// 监听搜索词变化
+watch(search, () => {
+    debouncedFetch()
+})
+
+// 监听部位筛选变化
+watch(() => filter.value.target_muscle, () => {
+    currentPage.value = 1
+    fetchExercises()
+})
+
+const handlePageChange = (page: number) => {
+    currentPage.value = page
+    fetchExercises()
+    // 自动滚动到顶部，提升体验
+    window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-const filteredExercises = computed(() => {
-    if (!search.value) return exercises.value
-    // 注意：这里的搜索只针对“已加载”的数据进行过滤
-    return exercises.value.filter(ex => 
-        ex.name.toLowerCase().includes(search.value.toLowerCase()) ||
-        ex.english_name?.toLowerCase().includes(search.value.toLowerCase())
-    )
-})
+const handleSizeChange = (size: number) => {
+    pageSize.value = size
+    currentPage.value = 1
+    fetchExercises()
+}
 
 const handleSearchClear = () => {
     search.value = ''
+    currentPage.value = 1
+    fetchExercises()
 }
 
 const viewDetail = (ex: any) => {
