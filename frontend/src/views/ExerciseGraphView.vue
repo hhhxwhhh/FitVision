@@ -34,6 +34,32 @@
             <el-tag v-for="tag in currentNode.tags" :key="tag" size="small" type="success" effect="light">{{ tag }}</el-tag>
           </div>
         </div>
+        
+        <div class="divider"></div>
+        
+        <div class="relation-section">
+          <div class="rel-group" v-if="currentNode.preds && currentNode.preds.length">
+            <div class="rel-header">🔙 前置基础</div>
+            <div class="rel-list">
+              <el-tag v-for="p in currentNode.preds" :key="p.id" size="small" type="info" class="rel-tag" @click="handleNodeJump(p.id)">
+                {{ p.name }}
+              </el-tag>
+            </div>
+          </div>
+          
+          <div class="rel-group" v-if="currentNode.succs && currentNode.succs.length">
+            <div class="rel-header">🔜 后续进阶</div>
+            <div class="rel-list">
+              <el-tag v-for="s in currentNode.succs" :key="s.id" size="small" type="success" class="rel-tag" @click="handleNodeJump(s.id)">
+                {{ s.name }}
+              </el-tag>
+            </div>
+          </div>
+          
+          <div v-if="(!currentNode.preds || !currentNode.preds.length) && (!currentNode.succs || !currentNode.succs.length)" class="no-rel">
+            该动作目前为独立学习节点
+          </div>
+        </div>
       </div>
       <template #footer>
         <el-button type="primary" @click="goToExercise(currentNode.id)">查看百科详情</el-button>
@@ -55,11 +81,37 @@ const nodeDialogVisible = ref(false)
 const currentNode = ref<any>({})
 const nodesCount = ref(0)
 let myChart: any = null
+let graphRawData: any = null
+
+const handleNodeJump = (id: number) => {
+  const node = graphRawData.nodes.find((n: any) => n.id === id)
+  if (node) {
+    showNodeDetail(node)
+  }
+}
+
+const showNodeDetail = (node: any) => {
+  // 查找前置动作 (links 中 target 是当前 node.id 的)
+  const preds = graphRawData.links
+    .filter((l: any) => l.target === node.id)
+    .map((l: any) => graphRawData.nodes.find((n: any) => n.id === l.source))
+    .filter(Boolean)
+
+  // 查找后续动作 (links 中 source 是当前 node.id 的)
+  const succs = graphRawData.links
+    .filter((l: any) => l.source === node.id)
+    .map((l: any) => graphRawData.nodes.find((n: any) => n.id === l.target))
+    .filter(Boolean)
+
+  currentNode.value = { ...node, preds, succs }
+  nodeDialogVisible.value = true
+}
 
 const fetchGraphData = async () => {
   loading.value = true
   try {
     const res = await apiClient.get('exercises/graph/')
+    graphRawData = res.data
     nodesCount.value = res.data.nodes?.length || 0
     if (nodesCount.value > 0) {
       // 等待 DOM 更新（loading 变 false 后的渲染）
@@ -188,8 +240,7 @@ const initChart = (data: any) => {
 
   myChart.on('click', (params: any) => {
     if (params.dataType === 'node') {
-      currentNode.value = params.data
-      nodeDialogVisible.value = true
+      showNodeDetail(params.data)
     }
   })
 }
@@ -282,5 +333,48 @@ onUnmounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.divider {
+  height: 1px;
+  background: #ebeef5;
+  margin: 15px 0;
+}
+
+.relation-section {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.rel-header {
+  font-size: 14px;
+  font-weight: bold;
+  color: #606266;
+  margin-bottom: 8px;
+}
+
+.rel-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rel-tag {
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.rel-tag:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.no-rel {
+  text-align: center;
+  color: #909399;
+  font-style: italic;
+  font-size: 13px;
+  padding: 10px 0;
 }
 </style>

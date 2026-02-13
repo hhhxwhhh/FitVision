@@ -149,10 +149,19 @@
                                 </ul>
                             </div>
 
+                            <div class="dialog-section" v-if="currentEx.prerequisite_list && currentEx.prerequisite_list.length">
+                                <h4>📚 前置基础</h4>
+                                <div class="relation-tags">
+                                    <el-tag v-for="rel in currentEx.prerequisite_list" :key="rel.id" type="info" size="small" class="mr-1 clickable-tag" @click="navigateToExercise(rel.id)">
+                                        {{ rel.name }}
+                                    </el-tag>
+                                </div>
+                            </div>
+
                             <div class="dialog-section" v-if="currentEx.unlocks && currentEx.unlocks.length">
                                 <h4>🔓 后后续解锁</h4>
                                 <div class="relation-tags">
-                                    <el-tag v-for="rel in currentEx.unlocks" :key="rel.id" type="success" size="small" class="mr-1">
+                                    <el-tag v-for="rel in currentEx.unlocks" :key="rel.id" type="success" size="small" class="mr-1 clickable-tag" @click="navigateToExercise(rel.id)">
                                         {{ rel.name }}
                                     </el-tag>
                                 </div>
@@ -186,6 +195,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, VideoPlay } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { debounce } from 'lodash-es'
 import apiClient from '../api'
 
@@ -287,6 +297,16 @@ const handleSearchClear = () => {
 const viewDetail = (ex: any) => {
     currentEx.value = ex
     detailVisible.value = true
+}
+
+const navigateToExercise = async (id: number) => {
+    try {
+        const res = await apiClient.get(`exercises/${id}/`)
+        currentEx.value = res.data
+        // 保持弹窗开启，但更新内容
+    } catch (err) {
+        ElMessage.error('无法加载该动作详情')
+    }
 }
 
 const startTraining = (ex: any) => {
@@ -619,6 +639,23 @@ export default {
     background: var(--bg-color);
     padding: 16px;
     border-radius: 12px;
+}
+
+.relation-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.clickable-tag {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.clickable-tag:hover {
+    transform: scale(1.05);
+    opacity: 0.8;
 }
 
 .stat-item .label {

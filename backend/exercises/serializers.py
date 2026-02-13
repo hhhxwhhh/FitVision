@@ -33,6 +33,7 @@ class ExerciseDetailSerializer(serializers.ModelSerializer):
     user_best_score = serializers.SerializerMethodField()
     user_last_record = serializers.SerializerMethodField()
     unlocks = serializers.SerializerMethodField()
+    prerequisite_list = serializers.SerializerMethodField()
     
     class Meta:
         model = Exercise
@@ -40,6 +41,9 @@ class ExerciseDetailSerializer(serializers.ModelSerializer):
 
     def get_unlocks(self, obj):
         return [{"id": e.id, "name": e.name} for e in obj.unlocks.all()]
+
+    def get_prerequisite_list(self, obj):
+        return [{"id": e.id, "name": e.name} for e in obj.prerequisites.all()]
 
     def get_user_best_score(self, obj):
         request = self.context.get('request')
@@ -88,11 +92,19 @@ class ExerciseWithUserProgressSerializer(serializers.ModelSerializer):
     target_muscle_display = serializers.CharField(source='get_target_muscle_display', read_only=True)
     user_best_score = serializers.SerializerMethodField()
     user_last_record = serializers.SerializerMethodField()
+    prerequisite_list = serializers.SerializerMethodField()
+    unlocks = serializers.SerializerMethodField()
     
     class Meta:
         model = Exercise
         fields = '__all__'
         
+    def get_prerequisite_list(self, obj):
+        return [{"id": e.id, "name": e.name} for e in obj.prerequisites.all()]
+
+    def get_unlocks(self, obj):
+        return [{"id": e.id, "name": e.name} for e in obj.unlocks.all()]
+
     def get_user_best_score(self, obj):
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
