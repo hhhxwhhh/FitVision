@@ -11,6 +11,5 @@ import { RouterView } from 'vue-router'
 body {
   margin: 0;
   padding: 0;
-  background-color: #2c3e50;
 }
 </style>

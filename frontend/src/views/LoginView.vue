@@ -144,7 +144,7 @@ const handleRegister = async () => {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: radial-gradient(circle at top left, #1e293b, #0f172a);
+  background: radial-gradient(circle at top left, #4f46e5, #0f172a);
   background-size: cover;
   position: relative;
   overflow: hidden;

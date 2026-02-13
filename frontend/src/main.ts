@@ -3,6 +3,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import ElementPlus from 'element-plus' // 引入 UI 组件库
 import 'element-plus/dist/index.css'   // 引入 UI 样式文件 (别漏了这行)
+import './style.css'                  // 引入全局样式
 import App from './App.vue'
 import router from './router'          // 引入我们写的路由配置
 

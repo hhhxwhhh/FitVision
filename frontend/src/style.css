@@ -8,9 +8,9 @@
   --el-color-primary-light-9: #eef2ff;
   --el-color-primary-dark-2: #4f46e5;
   
-  --bg-color: #f8fafc; /* Slate 50 */
-  --text-main: #1e293b; /* Slate 800 */
-  --text-secondary: #64748b; /* Slate 500 */
+  --bg-color: #f5f7ff; /* Very Light Indigo Tint */
+  --text-main: #0f172a; /* Slate 900 */
+  --text-secondary: #475569; /* Slate 600 */
   
   --header-height: 64px;
   --max-width: 1200px;
