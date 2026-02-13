@@ -65,6 +65,7 @@ class Exercise(models.Model):
     difficulty = models.CharField("难度等级(显示用)", max_length=20, choices=DIFFICULTY_CHOICES, default='beginner')
     equipment = models.CharField("所需器材", max_length=30, choices=EQUIPMENT_CHOICES, default='none')
     target_muscle = models.CharField("目标肌群", max_length=20, choices=TARGET_MUSCLE_CHOICES)
+    tags = models.JSONField("动作标签", default=list, blank=True, help_text="动作的关键词标签，建议不超过5个")
 
     level = models.IntegerField("难度等级(逻辑用)", default=1, help_text="1:入门, 5:大神")
 

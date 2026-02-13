@@ -32,10 +32,14 @@ class ExerciseDetailSerializer(serializers.ModelSerializer):
     target_muscle_display = serializers.CharField(source='get_target_muscle_display', read_only=True)
     user_best_score = serializers.SerializerMethodField()
     user_last_record = serializers.SerializerMethodField()
+    unlocks = serializers.SerializerMethodField()
     
     class Meta:
         model = Exercise
         exclude = ('created_at', 'updated_at')
+
+    def get_unlocks(self, obj):
+        return [{"id": e.id, "name": e.name} for e in obj.unlocks.all()]
 
     def get_user_best_score(self, obj):
         request = self.context.get('request')

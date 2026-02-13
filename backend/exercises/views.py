@@ -58,6 +58,59 @@ class ExerciseDetail(generics.RetrieveAPIView):
         context['request'] = self.request
         return context
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def exercise_graph_data(request):
+    """获取动作知识图谱数据 (前驱和后继关系)"""
+    exercises = Exercise.objects.filter(is_active=True).prefetch_related('prerequisites')
+    nodes = []
+    links = []
+    
+    # 定义分类颜色映射 (可选)
+    category_colors = {
+        '胸部': '#ff4d4f',
+        '背部': '#40a9ff',
+        '腿部': '#73d13d',
+        '肩部': '#ffc53d',
+        '手臂': '#ff7a45',
+        '腹部': '#9254de',
+        '有氧': '#36cfc9'
+    }
+
+    for ex in exercises:
+        target_muscle_display = ex.get_target_muscle_display()
+        nodes.append({
+            'name': ex.name,
+            'id': str(ex.id),
+            'category': target_muscle_display,
+            'symbolSize': 40 + (ex.level * 5), # 难度越高球越大
+            'value': ex.level,
+            'tags': ex.tags,
+            'itemStyle': {
+                'color': category_colors.get(target_muscle_display, '#bfbfbf')
+            }
+        })
+        
+        # 前驱关系 (A 是 B 的前置)
+        for pre in ex.prerequisites.all():
+            links.append({
+                'source': str(pre.id),
+                'target': str(ex.id),
+                'label': {
+                    'show': True,
+                    'formatter': '前置'
+                },
+                'lineStyle': {
+                    'width': 2,
+                    'curveness': 0.2
+                }
+            })
+            
+    return Response({
+        'nodes': nodes,
+        'links': links
+    }, status=status.HTTP_200_OK)
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def record_exercise_performance(request):

@@ -73,7 +73,7 @@
                         
                         <div class="tags-row">
                             <el-tag size="small" type="info" effect="plain" round>🎯 {{ ex.target_muscle_display }}</el-tag>
-                            <el-tag size="small" type="info" effect="plain" round>🛠️ {{ ex.equipment_display }}</el-tag>
+                            <el-tag size="small" type="info" effect="plain" round v-for="tag in ex.tags" :key="tag"># {{ tag }}</el-tag>
                         </div>
                         
                         <p class="desc">{{ ex.description }}</p>
@@ -147,6 +147,15 @@
                                         {{ tip }}
                                     </li>
                                 </ul>
+                            </div>
+
+                            <div class="dialog-section" v-if="currentEx.unlocks && currentEx.unlocks.length">
+                                <h4>🔓 后后续解锁</h4>
+                                <div class="relation-tags">
+                                    <el-tag v-for="rel in currentEx.unlocks" :key="rel.id" type="success" size="small" class="mr-1">
+                                        {{ rel.name }}
+                                    </el-tag>
+                                </div>
                             </div>
 
                             <div class="dialog-stats">
