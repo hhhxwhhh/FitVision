@@ -38,7 +38,7 @@ class ExerciseList(generics.ListAPIView):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category', 'difficulty', 'target_muscle', 'equipment']
     search_fields = ['name', 'english_name', 'description']
-    ordering_fields = ['name', 'difficulty', 'order', 'id']
+    ordering_fields = ['name', 'difficulty', 'order', 'id', 'level']
     ordering = ['order', 'id']
 
     def get_serializer_context(self):
@@ -52,6 +52,11 @@ class ExerciseDetail(generics.RetrieveAPIView):
     serializer_class = ExerciseDetailSerializer
     permission_classes = [IsAuthenticated]
     lookup_field = 'id'
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])

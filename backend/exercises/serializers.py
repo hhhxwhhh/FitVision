@@ -25,12 +25,44 @@ class ExerciseSerializer(serializers.ModelSerializer):
 
 
 class ExerciseDetailSerializer(serializers.ModelSerializer):
-    """动作详情序列化器"""
+    """动作详情序列化器，包含用户进度和详细显示文本"""
     category_name = serializers.CharField(source='category.name', read_only=True)
+    difficulty_display = serializers.CharField(source='get_difficulty_display', read_only=True)
+    equipment_display = serializers.CharField(source='get_equipment_display', read_only=True)
+    target_muscle_display = serializers.CharField(source='get_target_muscle_display', read_only=True)
+    user_best_score = serializers.SerializerMethodField()
+    user_last_record = serializers.SerializerMethodField()
     
     class Meta:
         model = Exercise
         exclude = ('created_at', 'updated_at')
+
+    def get_user_best_score(self, obj):
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            best_record = UserExerciseRecord.objects.filter(
+                user=request.user,
+                exercise=obj
+            ).order_by('-accuracy_score').first()
+            return best_record.accuracy_score if best_record else None
+        return None
+        
+    def get_user_last_record(self, obj):
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            last_record = UserExerciseRecord.objects.filter(
+                user=request.user,
+                exercise=obj
+            ).order_by('-created_at').first()
+            
+            if last_record:
+                return {
+                    'accuracy_score': last_record.accuracy_score,
+                    'count': last_record.count,
+                    'duration': last_record.duration,
+                    'created_at': last_record.created_at
+                }
+        return None
 
 
 class UserExerciseRecordSerializer(serializers.ModelSerializer):

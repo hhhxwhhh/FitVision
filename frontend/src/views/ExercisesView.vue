@@ -3,6 +3,12 @@
         <div class="page-header-row">
             <h1 class="page-title">动作百科</h1>
             <div class="header-actions">
+                <el-select v-model="ordering" placeholder="排序方式" size="large" class="sort-select" @change="fetchExercises">
+                    <el-option label="默认排序" value="order" />
+                    <el-option label="难度从低到高" value="level" />
+                    <el-option label="难度从高到低" value="-level" />
+                    <el-option label="名称 (A-Z)" value="name" />
+                </el-select>
                 <el-input v-model="search" placeholder="搜索动作名称..." size="large" class="search-input" clearable @clear="handleSearchClear">
                     <template #prefix>
                         <el-icon class="search-icon"><Search /></el-icon>
@@ -11,18 +17,41 @@
             </div>
         </div>
 
-        <el-card class="filter-card mb-4" :body-style="{ padding: '12px 20px' }">
-            <div class="filter-row">
-                <span class="filter-label">部位筛选:</span>
-                <el-radio-group v-model="filter.target_muscle" size="default" class="custom-radio-group">
-                    <el-radio-button label="">全部</el-radio-button>
-                    <el-radio-button label="chest">胸部</el-radio-button>
-                    <el-radio-button label="back">背部</el-radio-button>
-                    <el-radio-button label="shoulders">肩部</el-radio-button>
-                    <el-radio-button label="arms">手臂</el-radio-button>
-                    <el-radio-button label="abs">腹部</el-radio-button>
-                    <el-radio-button label="legs">腿部</el-radio-button>
-                </el-radio-group>
+        <el-card class="filter-card mb-4" :body-style="{ padding: '16px 20px' }">
+            <div class="filter-container">
+                <div class="filter-row">
+                    <span class="filter-label">部位筛选:</span>
+                    <el-radio-group v-model="filter.target_muscle" size="default" class="custom-radio-group">
+                        <el-radio-button label="">全部</el-radio-button>
+                        <el-radio-button label="chest">胸部</el-radio-button>
+                        <el-radio-button label="back">背部</el-radio-button>
+                        <el-radio-button label="shoulders">肩部</el-radio-button>
+                        <el-radio-button label="arms">手臂</el-radio-button>
+                        <el-radio-button label="abs">腹部</el-radio-button>
+                        <el-radio-button label="legs">腿部</el-radio-button>
+                    </el-radio-group>
+                </div>
+                
+                <div class="filter-row mt-2">
+                    <span class="filter-label">难度等级:</span>
+                    <el-radio-group v-model="filter.difficulty" size="default" class="custom-radio-group">
+                        <el-radio-button label="">全部</el-radio-button>
+                        <el-radio-button label="beginner">入门</el-radio-button>
+                        <el-radio-button label="intermediate">中级</el-radio-button>
+                        <el-radio-button label="advanced">高级</el-radio-button>
+                    </el-radio-group>
+                </div>
+
+                <div class="filter-row mt-2">
+                    <span class="filter-label">器械要求:</span>
+                    <el-radio-group v-model="filter.equipment" size="default" class="custom-radio-group">
+                        <el-radio-button label="">全部</el-radio-button>
+                        <el-radio-button label="none">无器械</el-radio-button>
+                        <el-radio-button label="dumbbell">哑铃</el-radio-button>
+                        <el-radio-button label="barbell">杠铃</el-radio-button>
+                        <el-radio-button label="machine">器械</el-radio-button>
+                    </el-radio-group>
+                </div>
             </div>
         </el-card>
 
@@ -76,31 +105,60 @@
             <el-empty description="没有找到符合条件的动作" />
         </div>
 
-        <el-dialog v-model="detailVisible" :title="currentEx.name" width="600px" align-center class="exercise-dialog">
+        <el-dialog v-model="detailVisible" :title="currentEx.name" width="800px" align-center class="exercise-dialog">
             <div class="detail-content" v-if="currentEx.id">
-                <div class="dialog-image-wrapper">
-                    <img :src="currentEx.image_url" class="dialog-image" />
-                </div>
-                
-                <div class="dialog-body">
-                    <div class="dialog-section">
-                        <h4>💡 动作要领</h4>
-                        <p class="instructions-text">{{ currentEx.instructions }}</p>
-                    </div>
-                    
-                    <div class="dialog-section">
-                        <h4>⚠️ 注意事项</h4>
-                        <el-alert :title="currentEx.tips || '保持核心收紧，注意呼吸节奏'" type="warning" :closable="false" show-icon />
+                <div class="dialog-flex-container">
+                    <div class="dialog-left-pane">
+                        <div class="dialog-image-wrapper">
+                            <img :src="currentEx.image_url" class="dialog-image" />
+                        </div>
+                        
+                        <div class="user-progress-box" v-if="currentEx.user_best_score !== null">
+                            <div class="progress-title">📈 历史表现</div>
+                            <div class="progress-stats">
+                                <div class="p-item">
+                                    <span class="p-label">最高准确率</span>
+                                    <span class="p-value">{{ (currentEx.user_best_score * 100).toFixed(1) }}%</span>
+                                </div>
+                                <div class="p-item" v-if="currentEx.user_last_record">
+                                    <span class="p-label">最近练习</span>
+                                    <span class="p-value">{{ new Date(currentEx.user_last_record.created_at).toLocaleDateString() }}</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="dialog-stats">
-                        <div class="stat-item">
-                            <div class="label">消耗</div>
-                            <div class="value">{{ currentEx.calories_burned }} <small>kcal/min</small></div>
-                        </div>
-                         <div class="stat-item">
-                            <div class="label">推荐组次</div>
-                            <div class="value">{{ currentEx.default_reps }} <small>次</small></div>
+                    <div class="dialog-right-pane">
+                        <div class="dialog-body">
+                            <div class="dialog-section">
+                                <h4>💡 动作要领</h4>
+                                <p class="instructions-text">{{ currentEx.instructions }}</p>
+                            </div>
+                            
+                            <div class="dialog-section">
+                                <h4>⚠️ 注意事项</h4>
+                                <el-alert :title="currentEx.tips || '保持核心收紧，注意呼吸节奏'" type="warning" :closable="false" show-icon />
+                            </div>
+
+                            <div class="dialog-section" v-if="currentEx.correction_tips">
+                                <h4>🤖 AI 纠错建议</h4>
+                                <ul class="ai-tips">
+                                    <li v-for="(tip, key) in currentEx.correction_tips" :key="key">
+                                        {{ tip }}
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div class="dialog-stats">
+                                <div class="stat-item">
+                                    <div class="label">消耗</div>
+                                    <div class="value">{{ currentEx.calories_burned }} <small>kcal/min</small></div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="label">推荐组次</div>
+                                    <div class="value">{{ currentEx.default_reps }} <small>次</small></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -126,11 +184,14 @@ const router = useRouter()
 const exercises = ref<any[]>([])
 const loading = ref(false)
 const search = ref('')
+const ordering = ref('order')
 const totalCount = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(12)
 const filter = ref({
-    target_muscle: ''
+    target_muscle: '',
+    difficulty: '',
+    equipment: ''
 })
 
 const detailVisible = ref(false)
@@ -144,11 +205,12 @@ const fetchExercises = async () => {
         const params: any = {
             page: currentPage.value,
             page_size: pageSize.value,
+            ordering: ordering.value
         }
         
-        if (filter.value.target_muscle) {
-            params.target_muscle = filter.value.target_muscle
-        }
+        if (filter.value.target_muscle) params.target_muscle = filter.value.target_muscle
+        if (filter.value.difficulty) params.difficulty = filter.value.difficulty
+        if (filter.value.equipment) params.equipment = filter.value.equipment
         
         if (search.value) {
             params.search = search.value
@@ -184,8 +246,12 @@ watch(search, () => {
     debouncedFetch()
 })
 
-// 监听部位筛选变化
-watch(() => filter.value.target_muscle, () => {
+// 监听筛选条件变化
+watch([
+    () => filter.value.target_muscle,
+    () => filter.value.difficulty,
+    () => filter.value.equipment
+], () => {
     currentPage.value = 1
     fetchExercises()
 })
@@ -257,11 +323,23 @@ export default {
     border-radius: 8px;
 }
 
+.sort-select {
+    width: 160px;
+    margin-right: 12px;
+}
+
 .filter-card {
     margin-bottom: 24px;
     border: none;
     border-radius: 12px;
-    box-shadow: var(--card-shadow);
+    box-shadow: var(--card-shadow, 0 4px 12px rgba(0,0,0,0.05));
+    background: #fff;
+}
+
+.filter-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
 .filter-row {
@@ -270,9 +348,14 @@ export default {
     gap: 16px;
 }
 
+.mt-2 {
+    margin-top: 8px;
+}
+
 .filter-label {
     font-weight: 600;
     color: var(--text-secondary);
+    min-width: 80px;
 }
 
 .custom-radio-group :deep(.el-radio-button__inner) {
@@ -408,11 +491,33 @@ export default {
 }
 
 /* Dialog */
-.dialog-image-wrapper {
-    margin: -20px -20px 20px -20px;
-    height: 240px;
+.exercise-dialog :deep(.el-dialog__body) {
+    padding: 0; /* 移除默认内边距，实现图片贴合 */
     overflow: hidden;
-    background: #f5f7fa;
+}
+
+.dialog-flex-container {
+    display: flex;
+    min-height: 400px;
+}
+
+.dialog-left-pane {
+    flex: 0 0 320px;
+    background: #1f2937;
+    display: flex;
+    flex-direction: column;
+}
+
+.dialog-right-pane {
+    flex: 1;
+    padding: 24px;
+    background: #fff;
+}
+
+.dialog-image-wrapper {
+    width: 100%;
+    height: 320px;
+    overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -421,8 +526,60 @@ export default {
 .dialog-image {
     width: 100%;
     height: 100%;
-    object-fit: contain; /* 修复详情弹窗图片变形问题 */
-    max-width: 300px;
+    object-fit: contain; /* 默认 contain 保证不裁剪，背景色填充 */
+    padding: 20px; /* 内部稍微留白，避免主体图片贴边太死 */
+}
+
+.dialog-image-wrapper:hover .dialog-image {
+    transform: scale(1.05);
+}
+
+.user-progress-box {
+    margin: auto 16px 16px 16px; /* 移动到左侧窗格底部 */
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.05); /* 深色背景下的进度框 */
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.progress-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 8px;
+}
+
+.progress-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.p-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+}
+
+.p-label {
+    color: #9ca3af;
+}
+
+.p-value {
+    font-weight: 600;
+    color: #fff;
+}
+
+.ai-tips {
+    margin: 0;
+    padding-left: 18px;
+    color: #606266;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.ai-tips li {
+    margin-bottom: 4px;
 }
 
 .dialog-section {
