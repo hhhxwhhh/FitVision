@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import axios from 'axios'
+import apiClient from '@/api'
 
 // 定义用户类型
 interface User {
@@ -26,18 +26,20 @@ export const useUserStore = defineStore('user', {
       this.error = null
       
       try {
-        // 这里是模拟登录，实际应调用真实API
-        console.log('Login attempt with:', credentials)
-        // 模拟成功的登录响应
-        this.user = {
-          id: 1,
-          username: credentials.username,
-          email: `${credentials.username}@fitvision.com`
-        }
+        const response = await apiClient.post('/auth/login/', credentials)
+        const { access, refresh } = response.data
+        
+        localStorage.setItem('jwt_token', access)
+        localStorage.setItem('refresh_token', refresh)
+        
+        // 获取用户信息
+        const userRes = await apiClient.get('/auth/me/')
+        this.user = userRes.data
         this.isAuthenticated = true
+        
         return { success: true }
       } catch (error: any) {
-        this.error = '登录失败'
+        this.error = error.response?.data?.detail || '登录失败'
         throw error
       } finally {
         this.loading = false
@@ -45,6 +47,8 @@ export const useUserStore = defineStore('user', {
     },
     
     logout() {
+      localStorage.removeItem('jwt_token')
+      localStorage.removeItem('refresh_token')
       this.user = null
       this.isAuthenticated = false
       this.error = null

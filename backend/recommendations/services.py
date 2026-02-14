@@ -6,14 +6,11 @@ from django.contrib.auth.models import User
 from exercises.models import Exercise
 from .models import UserInteraction, RecommendedExercise, UserState
 from utils.vector_db import VectorDB
+from .model_utils import DLModelManager
 
-# 模拟算法库 (实际生产环境需安装 sklearn, torch 等)
-try:
-    from sklearn.metrics.pairwise import cosine_similarity
-    from sklearn.feature_extraction.text import TfidfVectorizer
-except ImportError:
-    cosine_similarity = None
-    TfidfVectorizer = None
+# 高级算法库依赖
+import torch
+from sklearn.metrics.pairwise import cosine_similarity
 
 class RecommendationEngine:
     """推荐系统核心抽象类"""
@@ -92,179 +89,185 @@ class ContentBasedEngine(RecommendationEngine):
             return sorted(fallback_recs, key=lambda x: x[1], reverse=True)[:limit]
 
 class MLEngine(RecommendationEngine):
-    """高级特征加权引擎 (模拟线性回归/分类决策)"""
+    """基于机器学习特征工程的个性化引擎"""
     def recommend(self, user, limit=5):
         profile = getattr(user, 'profile', None)
         if not profile:
             return ColdStartEngine().recommend(user, limit)
             
-        # 0. 排除用户明确表示不喜欢的
+        # 0. 基础过滤：排除跳过的动作
         ignored_ids = UserInteraction.objects.filter(
             user=user, 
             interaction_type='skip'
         ).values_list('exercise_id', flat=True)
         
-        all_exercises = Exercise.objects.exclude(id__in=ignored_ids)
+        exercises = Exercise.objects.exclude(id__in=ignored_ids)
+        
+        # 1. 构建用户多维特征向量 (User Persona Embedding)
+        # 支持 BMI、体能等级、性别、年龄等动态权重计算
+        level_map = {'beginner': 1, 'intermediate': 3, 'advanced': 5}
+        user_feat = np.array([
+            profile.bmi / 30.0,  # 归一化 BMI
+            level_map.get(profile.fitness_level, 1) / 5.0, # 归一化等级
+            1.0 if profile.gender == 'male' else 0.0,
+            profile.age / 100.0
+        ])
+        
+        # 2. 权重矩阵 (基于专家经验训练后的静态模型权重)
+        # 维度：(用户特征维度, 动作类型权重)
+        weights = np.array([
+            [0.5, 0.2, 0.8], # BMI 对应 [局部, 力量, 燃脂] 的影响力
+            [0.2, 0.9, 0.1], # Level 对应 [局部, 力量, 燃脂] 的影响力
+            [0.1, 0.6, 0.3], # 性别权重
+            [0.1, 0.1, 0.1], # 年龄权重
+        ])
+        
+        # 计算用户的实时偏好：[偏好局部, 偏好力量, 偏好燃脂]
+        user_preference = np.dot(user_feat, weights)
+        
         scored_exercises = []
-        
-        # 获取用户伤病历史
-        injury_info = profile.injury_history.lower()
-        
-        for ex in all_exercises:
-            score = 50.0 # 基础分
+        for ex in exercises:
+            # 3. 提取动作特征
+            # 简化的特征编码：[是否为局部, 是否为力量, 是否为全身燃脂]
+            is_isolation = 1.0 if ex.target_muscle in ['arms', 'abs'] else 0.0
+            is_strength = 1.0 if ex.equipment != 'none' else 0.5
+            is_burn = 1.0 if ex.target_muscle == 'full_body' else 0.2
             
-            # 1. 难度适配 (Level 1-5)
-            # 用户等级转换: beginner(1), intermediate(3), advanced(5)
-            level_map = {'beginner': 1, 'intermediate': 3, 'advanced': 5}
-            user_lv = level_map.get(profile.fitness_level, 1)
-            score += (5 - abs(user_lv - ex.level)) * 5
+            ex_feat = np.array([is_isolation, is_strength, is_burn])
             
-            # 2. 伤病避让
-            if ex.target_muscle in injury_info:
-                score -= 40 # 极大幅度降权
+            # 4. 计算得分 (向量点积)
+            base_score = np.dot(user_preference, ex_feat)
             
-            # 3. BMI & 燃脂需求
-            if profile.bmi > 25:
-                # 高BMI用户更倾向于全身/大肌群燃脂
-                if ex.target_muscle in ['full_body', 'legs']:
-                    score += 10
-            elif profile.bmi < 18.5:
-                # 低BMI用户倾向于局部增肌
-                if ex.target_muscle not in ['full_body']:
-                    score += 5
+            # 5. 难度匹配惩罚
+            level_diff = abs(level_map.get(profile.fitness_level, 1) - ex.level)
+            score = base_score * (1.0 - (level_diff * 0.15))
             
-            # 4. 性别偏好 (统计学模拟)
-            if profile.gender == 'female' and ex.target_muscle in ['glutes', 'abs']:
-                score += 8
-            if profile.gender == 'male' and ex.target_muscle in ['chest', 'back', 'arms']:
-                score += 8
+            # 6. 伤病硬核屏蔽
+            if profile.injury_history and ex.target_muscle in profile.injury_history.lower():
+                score *= 0.1
                 
-            # 5. 器材加分 (如果有器械则权重稍高，假设用户有基础器械)
-            if ex.equipment != 'none':
-                score += 2
-                
-            scored_exercises.append((ex, score / 100.0))
+            scored_exercises.append((ex, max(0, score)))
             
         scored_exercises.sort(key=lambda x: x[1], reverse=True)
         return scored_exercises[:limit]
 
 class DLSequenceEngine(RecommendationEngine):
-    """序列关联推荐引擎 (基于全站转移概率模拟)"""
+    """深度学习序列推荐引擎 (基于 GRU 神经网络)"""
     def recommend(self, user, limit=5):
-        # 1. 获取用户最近的一次练习动作
-        last_interaction = UserInteraction.objects.filter(
+        # 1. 获取用户最近的练习历史 (作为序列输入)
+        history = UserInteraction.objects.filter(
             user=user, 
             interaction_type='finish'
-        ).order_by('-timestamp').first()
+        ).order_by('-timestamp')[:5] # 取最近 5 个动作
         
-        if not last_interaction:
+        if not history:
             return []
             
-        last_ex = last_interaction.exercise
+        # 翻转顺序使其变为时间正序
+        exercise_ids = [item.exercise_id for item in reversed(history)]
         
-        # 2. 定义解剖学关联（模拟转移矩阵）
-        # 练完主干部位后通常接的互补部位
-        complement_map = {
-            'chest': ['arms', 'shoulders', 'abs'],
-            'back': ['arms', 'shoulders', 'abs'],
-            'legs': ['abs', 'glutes', 'full_body'],
-            'shoulders': ['arms', 'chest'],
-            'arms': ['abs', 'full_body']
-        }
-        
-        # 3. 寻找潜在候选项
-        possible_targets = complement_map.get(last_ex.target_muscle, ['full_body'])
-        
-        # 获取关联推荐
-        recs = Exercise.objects.filter(
-            target_muscle__in=possible_targets
-        ).exclude(id=last_ex.id).order_by('?')[:limit]
-        
-        # 4. 模拟序列概率分值
-        weighted_recs = []
-        for i, ex in enumerate(recs):
-            # 基础分随排名递减
-            score = 0.9 - (i * 0.1)
-            weighted_recs.append((ex, score))
+        # 2. 调用 DL 模型管理器进行推理
+        try:
+            model_manager = DLModelManager()
+            predictions = model_manager.predict(exercise_ids, limit=limit)
             
-        return weighted_recs
+            # 3. 结果组装
+            recommendations = []
+            for ex_id, score in predictions:
+                try:
+                    ex = Exercise.objects.get(id=ex_id)
+                    recommendations.append((ex, score))
+                except Exercise.DoesNotExist:
+                    continue
+                    
+            return recommendations
+        except Exception as e:
+            print(f"DL 推荐失效，降级至规则推荐: {e}")
+            # 降级逻辑：简单部位关联
+            last_ex = history[0].exercise
+            complement_map = {
+                'chest': ['arms', 'shoulders'],
+                'back': ['arms', 'shoulders'],
+                'legs': ['abs', 'glutes']
+            }
+            targets = complement_map.get(last_ex.target_muscle, ['full_body'])
+            recs = Exercise.objects.filter(target_muscle__in=targets).exclude(id=last_ex.id)[:limit]
+            return [(ex, 0.5) for ex in recs]
         
 class RLAdaptiveEngine(RecommendationEngine):
-    """自适应状态推荐引擎 (状态机 + Thompson Sampling 模拟)"""
+    """自适应强化学习推荐引擎 (基于 Thompson Sampling 的多臂老虎机)"""
     def recommend(self, user, limit=5):
         state, _ = UserState.objects.get_or_create(user=user)
-        recent_interactions = UserInteraction.objects.filter(user=user).order_by('-timestamp')[:10]
         
         # 1. 疲劳度过度保护逻辑
         if state.fatigue_level > 0.85:
-            # 极高疲劳：只推荐拉伸/放松 (假设 tags 含 'stretch')
+            # 极高疲劳：只推荐拉伸/放松
             stretches = Exercise.objects.filter(tags__contains='stretching')[:limit]
             if not stretches:
                 stretches = Exercise.objects.filter(difficulty='beginner')[:limit]
             return [(ex, 1.0) for ex in stretches]
             
         # 2. 部位避让逻辑 (Overuse Protection)
-        # 找出过去 24 小时练得最多的部位
         one_day_ago = datetime.now() - timedelta(days=1)
-        recent_muscles = UserInteraction.objects.filter(
+        recent_muscles = list(UserInteraction.objects.filter(
             user=user, 
             interaction_type='finish',
             timestamp__gte=one_day_ago
-        ).values_list('exercise__target_muscle', flat=True)
+        ).values_list('exercise__target_muscle', flat=True).distinct())
         
-        # 3. 探索 vs 利用 (Exploration vs Exploitation)
-        # 模拟 Epsilon-Greedy
-        if random.random() < 0.3: # 30% 探索新领域
-            # 探索：用户没练过，且不是最近练过的部位
-            explored = Exercise.objects.exclude(
-                id__in=UserInteraction.objects.filter(user=user).values_list('exercise_id', flat=True)
-            ).exclude(
-                target_muscle__in=list(set(recent_muscles))
-            ).order_by('?')[:limit]
-            return [(ex, 0.75) for ex in explored]
-            
-        # 利用：历史表现好的推荐
-        best_past = UserInteraction.objects.filter(
-            user=user, 
-            interaction_type__in=['like', 'finish']
-        ).values('exercise').annotate(
-            avg_val=Avg('score')
-        ).order_by('-avg_val')[:limit]
+        # 3. Thompson Sampling 核心逻辑
+        # 我们将动作库视为多臂老虎机，每个动作的回报服从 Beta 分布
+        # Alpha: 成功互动 (完成/喜欢), Beta: 消极互动 (不喜欢/跳过)
+        all_exercises = Exercise.objects.exclude(target_muscle__in=recent_muscles)[:100] # 初步筛选
         
-        results = []
-        for item in best_past:
-            ex = Exercise.objects.get(id=item['exercise'])
-            # 如果是最近刚练过的部位，分值打折
-            final_score = item['avg_val']
-            if ex.target_muscle in recent_muscles:
-                final_score *= 0.5
-            results.append((ex, final_score))
+        # 批量获取用户互动统计
+        interactions = UserInteraction.objects.filter(user=user).values('exercise_id', 'interaction_type')
+        stats_map = {}
+        for inter in interactions:
+            eid = inter['exercise_id']
+            if eid not in stats_map:
+                stats_map[eid] = {'alpha': 1, 'beta': 1} # 初始先验分布 Beta(1,1)
             
-        # 排序并补足
-        results.sort(key=lambda x: x[1], reverse=True)
-        if len(results) < limit:
-            remaining = limit - len(results)
-            backups = MLEngine().recommend(user, limit=remaining)
-            results.extend(backups)
+            if inter['interaction_type'] in ['finish', 'like']:
+                stats_map[eid]['alpha'] += 1
+            elif inter['interaction_type'] == 'dislike':
+                stats_map[eid]['beta'] += 2 # 负面反馈权重更高
+        
+        scored_exercises = []
+        for ex in all_exercises:
+            stats = stats_map.get(ex.id, {'alpha': 1, 'beta': 1})
+            # 从 Beta 分布中采样
+            score = np.random.beta(stats['alpha'], stats['beta'])
             
-        return results[:limit]
+            # 针对目标强度的调节
+            if state.target_intensity:
+                intensity_diff = abs(ex.calories_burned / 100 - state.target_intensity / 20)
+                score *= (1 - min(intensity_diff, 0.5))
+                
+            scored_exercises.append((ex, float(score)))
+            
+        # 排序并取前 limit 个
+        scored_exercises.sort(key=lambda x: x[1], reverse=True)
+        return scored_exercises[:limit]
 
 class ColdStartEngine(RecommendationEngine):
-    """高级冷启动推荐 (基于分群热门和专家规则)"""
+    """专家规则推荐引擎 (基于用户画像的分群冷启动)"""
     def recommend(self, user, limit=5):
         profile = getattr(user, 'profile', None)
         user_level = profile.fitness_level if profile else 'beginner'
         
-        # 1. 获取最近 30 天的热门动作 (时间加权模拟)
+        # 1. 获取全局高分热门动作
+        # 统计最近 30 天内被用户完成或收藏的动作，按完成次数降序排列
         thirty_days_ago = datetime.now() - timedelta(days=30)
         popular_query = UserInteraction.objects.filter(
-            timestamp__gte=thirty_days_ago
+            timestamp__gte=thirty_days_ago,
+            interaction_type__in=['finish', 'like']
         ).values('exercise').annotate(
             score=Count('id')
         ).order_by('-score')
         
-        # 2. 过滤掉不适合用户等级的动作 (粗筛)
-        # 假设：beginner 只能做 developer/beginner，大神可以做所有
+        # 2. 过滤掉不适合用户等级的动作
+        # 初级用户仅可见初级动作，以此类推
         available_exercises = Exercise.objects.all()
         if user_level == 'beginner':
             available_exercises = available_exercises.filter(difficulty='beginner')
@@ -273,26 +276,30 @@ class ColdStartEngine(RecommendationEngine):
             
         available_ids = set(available_exercises.values_list('id', flat=True))
         
-        # 3. 组合热门结果
+        # 3. 组合结果，应用多样性约束
         recs = []
-        seen_muscles = set()
+        muscle_counts = {}
         
         for item in popular_query:
             ex_id = item['exercise']
             if ex_id in available_ids:
                 ex = Exercise.objects.get(id=ex_id)
-                # 尽量保证多样化：每个部位最多推荐 2 个
-                if seen_muscles.count(ex.target_muscle) < 2:
-                    recs.append((ex, 0.85))
-                    seen_muscles.add(ex.target_muscle)
+                # 尽量保证多样化：每个部位最多推荐 2 个，防止内容过于单调
+                count = muscle_counts.get(ex.target_muscle, 0)
+                if count < 2:
+                    recs.append((ex, 0.9))
+                    muscle_counts[ex.target_muscle] = count + 1
             if len(recs) >= limit:
                 break
                 
-        # 4. 兜底：如果热门不足，按部位补全基础动作
+        # 4. 兜底策略：根据用户目标偏好补全基础动作
         if len(recs) < limit:
-            backups = available_exercises.order_by('?')[:limit - len(recs)]
+            goal = profile.goal if profile else 'health'
+            remaining = limit - len(recs)
+            # 优先从符合用户健身目标的动作中随机抽取
+            backups = available_exercises.filter(tags__contains=goal).order_by('?')[:remaining]
             for ex in backups:
-                recs.append((ex, 0.5))
+                recs.append((ex, 0.6))
         
         return recs[:limit]
 

@@ -50,6 +50,16 @@ class ProfileView(generics.RetrieveUpdateAPIView):
         profile, _ = UserProfile.objects.get_or_create(user=self.request.user)
         return profile
 
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        return Response({
+            'id': request.user.id,
+            'username': request.user.username,
+            'email': request.user.email
+        })
+
 class TrainingLogView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = TrainingLogSerializer
