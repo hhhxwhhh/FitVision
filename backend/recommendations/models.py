@@ -27,6 +27,7 @@ class RecommendedExercise(models.Model):
         ('ml_regression', '机器学习回归预测'),
         ('dl_sequence', '深度学习序列推荐'),
         ('rl_adaptive', '强化学习动态调整'),
+        ('gnn_reasoning', '图神经网络 (知识图谱分析)'),
         ('popularity', '热门推荐 (冷启动)'),
     ]
 
@@ -46,6 +47,7 @@ class UserState(models.Model):
     """用于强化学习和上下文推荐的用户实时状态"""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='rec_state')
     fatigue_level = models.FloatField(default=0.0, help_text="疲劳度 0-1")
+    target_intensity = models.FloatField(default=5.0, help_text="目标强度 1-10")
     consistency_score = models.FloatField(default=0.0, help_text="坚持程度评分")
     last_trained_at = models.DateTimeField(null=True, blank=True)
     current_equipment_available = models.CharField(max_length=100, default='all')

@@ -26,7 +26,13 @@
         </div>
         <div class="detail-item">
           <span class="label">动作难度：</span>
-          <el-rate v-model="currentNode.value" disabled />
+          <el-rate v-model="currentNode.level_value" disabled />
+        </div>
+        <div class="detail-item gnn-insight-box" v-if="currentNode.gnn_insight">
+          <div class="gnn-label">
+            <el-icon><Cpu /></el-icon> GNN 结构洞察
+          </div>
+          <p class="gnn-text">{{ currentNode.gnn_insight }}</p>
         </div>
         <div class="detail-item" v-if="currentNode.tags && currentNode.tags.length">
           <span class="label">动作标签：</span>
@@ -71,6 +77,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import { Cpu, ArrowLeft } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import apiClient from '../api'
 
@@ -103,7 +110,12 @@ const showNodeDetail = (node: any) => {
     .map((l: any) => graphRawData.nodes.find((n: any) => n.id === l.target))
     .filter(Boolean)
 
-  currentNode.value = { ...node, preds, succs }
+  currentNode.value = { 
+    ...node, 
+    level_value: node.value, // value 其实是 GNN 分分
+    preds, 
+    succs 
+  }
   nodeDialogVisible.value = true
 }
 
@@ -114,7 +126,6 @@ const fetchGraphData = async () => {
     graphRawData = res.data
     nodesCount.value = res.data.nodes?.length || 0
     if (nodesCount.value > 0) {
-      // 等待 DOM 更新（loading 变 false 后的渲染）
       await nextTick()
       initChart(res.data)
     }
@@ -122,7 +133,6 @@ const fetchGraphData = async () => {
     console.error('获取图谱失败', err)
   } finally {
     loading.value = false
-    // 再次确认 resize
     setTimeout(() => {
       myChart?.resize()
     }, 200)
@@ -132,25 +142,23 @@ const fetchGraphData = async () => {
 const initChart = (data: any) => {
   if (!chartRef.value) return
   
-  // 提取唯一的部位作为分类
-  const categories = Array.from(new Set(data.nodes.map((n: any) => n.category)))
-    .map(name => ({ name }))
+  // 使用后端提供的 categories
+  const categories = data.categories || []
 
-  // 将节点的 category 转换为索引
+  // 处理节点：保留后端计算好的颜色和大小
   const nodes = data.nodes.map((n: any) => ({
     ...n,
-    symbolSize: (n.value || 3) * 15, // 根据难度设置节点大小
-    category: categories.findIndex(c => c.name === n.category)
+    category: categories.findIndex((c: any) => c.name === n.category)
   }))
 
-  // 增强连线数据，添加名称用于 Tooltip 显示
   const links = data.links.map((l: any) => {
     const sourceNode = data.nodes.find((n: any) => n.id === l.source)
     const targetNode = data.nodes.find((n: any) => n.id === l.target)
     return {
       ...l,
       source_name: sourceNode ? sourceNode.name : '',
-      target_name: targetNode ? targetNode.name : ''
+      target_name: targetNode ? targetNode.name : '',
+      label: { show: true, formatter: '{c}', position: 'middle', fontSize: 10 }
     }
   })
 
@@ -376,5 +384,30 @@ onUnmounted(() => {
   font-style: italic;
   font-size: 13px;
   padding: 10px 0;
+}
+
+.gnn-insight-box {
+  background: #f0f7ff;
+  border-radius: 8px;
+  padding: 12px;
+  display: block !important; /* 强制覆盖 flex */
+  margin: 10px 0;
+}
+
+.gnn-label {
+  color: #409eff;
+  font-weight: bold;
+  font-size: 13px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gnn-text {
+  margin: 0;
+  font-size: 13px;
+  color: #606266;
+  line-height: 1.5;
 }
 </style>

@@ -1,21 +1,91 @@
 import numpy as np
 import random
-from datetime import datetime, timedelta
+from datetime import timedelta
+from django.utils import timezone
 from django.db.models import Count, Avg
 from django.contrib.auth.models import User
 from exercises.models import Exercise
 from .models import UserInteraction, RecommendedExercise, UserState
 from utils.vector_db import VectorDB
 from .model_utils import DLModelManager
+from .gnn_models import KnowledgeGraphGNN
 
 # 高级算法库依赖
 import torch
+import torch.nn.functional as F
 from sklearn.metrics.pairwise import cosine_similarity
 
 class RecommendationEngine:
     """推荐系统核心抽象类"""
     def recommend(self, user, limit=5):
         raise NotImplementedError
+
+class KnowledgeGraphEngine(RecommendationEngine):
+    """基于图神经网络 (GNN) 的知识图谱路径推荐"""
+    def recommend(self, user, limit=5):
+        # 1. 构建图结构
+        exercises = list(Exercise.objects.filter(is_active=True).prefetch_related('prerequisites'))
+        ex_id_to_idx = {ex.id: i for i, ex in enumerate(exercises)}
+        num_nodes = len(exercises)
+        
+        if num_nodes == 0:
+            return []
+            
+        # 2. 构造邻接矩阵 (归一化)
+        adj = torch.eye(num_nodes)
+        for ex in exercises:
+            for pre in ex.prerequisites.all():
+                if pre.id in ex_id_to_idx:
+                    adj[ex_id_to_idx[pre.id], ex_id_to_idx[ex.id]] = 1.0
+        
+        # 归一化 D^-1/2 * A * D^-1/2
+        rowsum = adj.sum(1)
+        d_inv_sqrt = torch.pow(rowsum, -0.5).flatten()
+        d_inv_sqrt[torch.isinf(d_inv_sqrt)] = 0.
+        d_mat_inv_sqrt = torch.diag(d_inv_sqrt)
+        adj_norm = d_mat_inv_sqrt.mm(adj).mm(d_mat_inv_sqrt)
+        
+        # 3. 初始化 GNN 模型并进行推理
+        # (实际生产中应加载预训练权重，这里展示实时特征传播过程)
+        model = KnowledgeGraphGNN(num_nodes=num_nodes, feature_dim=16)
+        x_indices = torch.arange(num_nodes)
+        
+        with torch.no_grad():
+            embeddings = model(x_indices, adj_norm)
+            
+        # 4. 基于用户历史寻找“下一个逻辑动作”
+        history = list(UserInteraction.objects.filter(user=user, interaction_type='finish').order_by('-timestamp')[:3])
+        if not history:
+            # 优化：预加载 count 避免 N+1
+            start_nodes_query = Exercise.objects.filter(is_active=True).annotate(
+                num_pre=Count('prerequisites'),
+                num_unlocks=Count('unlocks')
+            ).filter(num_pre=0).order_by('-num_unlocks')[:limit]
+            
+            return [(ex, 0.5 + (ex.num_unlocks / 10.0 if hasattr(ex, 'num_unlocks') else 0)) for ex in start_nodes_query]
+            
+        # 计算历史动作嵌入的均值作为当前“知识状态”
+        history_indices = [ex_id_to_idx[h.exercise_id] for h in history if h.exercise_id in ex_id_to_idx]
+        if not history_indices:
+            return []
+            
+        user_knowledge_emb = embeddings[history_indices].mean(dim=0)
+        
+        # 5. 计算备选动作与用户知识状态的关联度
+        # 优化：预加载关系
+        unlocked_candidates = Exercise.objects.filter(prerequisites__id__in=[h.exercise_id for h in history]).distinct()
+        
+        results = []
+        for ex in unlocked_candidates:
+            if ex.id in [h.exercise_id for h in history]: continue
+            if ex.id not in ex_id_to_idx: continue
+            idx = ex_id_to_idx[ex.id]
+            # 使用 GNN 嵌入计算余弦相似度 + 路径分值
+            sim = F.cosine_similarity(user_knowledge_emb.unsqueeze(0), embeddings[idx].unsqueeze(0)).item()
+            results.append((ex, sim))
+            
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:limit]
 
 class ContentBasedEngine(RecommendationEngine):
     """基于语义向量的动作推荐"""
@@ -146,7 +216,7 @@ class MLEngine(RecommendationEngine):
             if profile.injury_history and ex.target_muscle in profile.injury_history.lower():
                 score *= 0.1
                 
-            scored_exercises.append((ex, max(0, score)))
+            scored_exercises.append((ex, float(max(0.1, score))))
             
         scored_exercises.sort(key=lambda x: x[1], reverse=True)
         return scored_exercises[:limit]
@@ -155,10 +225,10 @@ class DLSequenceEngine(RecommendationEngine):
     """深度学习序列推荐引擎 (基于 GRU 神经网络)"""
     def recommend(self, user, limit=5):
         # 1. 获取用户最近的练习历史 (作为序列输入)
-        history = UserInteraction.objects.filter(
+        history = list(UserInteraction.objects.filter(
             user=user, 
             interaction_type='finish'
-        ).order_by('-timestamp')[:5] # 取最近 5 个动作
+        ).order_by('-timestamp')[:5]) # 取最近 5 个动作
         
         if not history:
             return []
@@ -208,7 +278,7 @@ class RLAdaptiveEngine(RecommendationEngine):
             return [(ex, 1.0) for ex in stretches]
             
         # 2. 部位避让逻辑 (Overuse Protection)
-        one_day_ago = datetime.now() - timedelta(days=1)
+        one_day_ago = timezone.now() - timedelta(days=1)
         recent_muscles = list(UserInteraction.objects.filter(
             user=user, 
             interaction_type='finish',
@@ -239,9 +309,10 @@ class RLAdaptiveEngine(RecommendationEngine):
             # 从 Beta 分布中采样
             score = np.random.beta(stats['alpha'], stats['beta'])
             
-            # 针对目标强度的调节
-            if state.target_intensity:
-                intensity_diff = abs(ex.calories_burned / 100 - state.target_intensity / 20)
+            # 针对目标强度的调节 (兼容新旧模型字段)
+            target_intensity = getattr(state, 'target_intensity', 5.0)
+            if target_intensity:
+                intensity_diff = abs(ex.calories_burned / 100 - target_intensity / 20)
                 score *= (1 - min(intensity_diff, 0.5))
                 
             scored_exercises.append((ex, float(score)))
@@ -258,7 +329,7 @@ class ColdStartEngine(RecommendationEngine):
         
         # 1. 获取全局高分热门动作
         # 统计最近 30 天内被用户完成或收藏的动作，按完成次数降序排列
-        thirty_days_ago = datetime.now() - timedelta(days=30)
+        thirty_days_ago = timezone.now() - timedelta(days=30)
         popular_query = UserInteraction.objects.filter(
             timestamp__gte=thirty_days_ago,
             interaction_type__in=['finish', 'like']
@@ -304,80 +375,114 @@ class ColdStartEngine(RecommendationEngine):
         return recs[:limit]
 
 class HybridRecommender:
-    """高级混合推荐调度器：负责召回过滤与结果持久化"""
+    """高级混合推荐调度器：支持多路召回、策略路由与结果持久化"""
     
     @staticmethod
     def get_recommendations(user, scenario='default', limit=6):
-        # 1. 持久化检查：如果过去 6 小时内已经为该场景生成过推荐，则直接返回
-        # 这样可以保证推荐结果的稳定性，直到用户主动触发变化或时间到期
-        six_hours_ago = datetime.now() - timedelta(hours=6)
+        # 1. 缓存/持久化检查：如果过去 6 小时内已经为该场景生成过充分的推荐，则直接返回
+        six_hours_ago = timezone.now() - timedelta(hours=6)
+        # 注意：这里我们按场景进行过滤，如果场景不同，则重新生成
         existing_recs = RecommendedExercise.objects.filter(
             user=user,
+            algorithm__icontains=scenario if scenario != 'default' else '',
             created_at__gte=six_hours_ago
         ).order_by('rank')
         
-        # 对于默认场景，如果已经有至少 3 条推荐，暂时不更新以节省资源
-        if scenario == 'default' and existing_recs.count() >= 3:
+        if existing_recs.count() >= limit:
             return existing_recs[:limit]
 
-        # 2. 策略路由选择
-        interaction_count = UserInteraction.objects.filter(user=user).count()
+        # 2. 策略路由：基于场景选择主引擎，或者使用全路召回
+        rec_sources = []
         
-        # 实时状态感知：如果疲劳度极高，强制触发状态感知逻辑
-        state, _ = UserState.objects.get_or_create(user=user)
-        if state.fatigue_level > 0.8 and scenario != 'discovery':
-            scenario = 'auto_adjust'
+        try:
+            if scenario == 'auto_adjust':
+                # 强化学习主导：自适应疲劳和表现
+                sources = RLAdaptiveEngine().recommend(user, limit=limit)
+                rec_sources.extend([(ex, s, 'rl_adaptive') for ex, s in sources])
+            elif scenario == 'discovery':
+                # 内容/知识图谱主导：发现新领域
+                sources_gnn = KnowledgeGraphEngine().recommend(user, limit=limit//2)
+                rec_sources.extend([(ex, s, 'gnn_reasoning') for ex, s in sources_gnn])
+                sources_cb = ContentBasedEngine().recommend(user, limit=limit//2)
+                rec_sources.extend([(ex, s, 'cosine') for ex, s in sources_cb])
+            elif scenario == 'daily_plan':
+                # 机器学习主导：计划性较强
+                sources = MLEngine().recommend(user, limit=limit)
+                rec_sources.extend([(ex, s, 'ml_regression') for ex, s in sources])
+            else:
+                # 默认/混合策略：多路召回
+                try:
+                    sources_dl = DLSequenceEngine().recommend(user, limit=3)
+                    rec_sources.extend([(ex, s, 'dl_sequence') for ex, s in sources_dl])
+                except Exception as e: print(f"DL Engine Error: {e}")
+                
+                try:
+                    sources_gnn = KnowledgeGraphEngine().recommend(user, limit=2)
+                    rec_sources.extend([(ex, s, 'gnn_reasoning') for ex, s in sources_gnn])
+                except Exception as e: print(f"GNN Engine Error: {e}")
+                
+                try:
+                    sources_cb = ContentBasedEngine().recommend(user, limit=2)
+                    rec_sources.extend([(ex, s, 'cosine') for ex, s in sources_cb])
+                except Exception as e: print(f"Cosine Engine Error: {e}")
+        except Exception as e:
+            print(f"推荐场景 [{scenario}] 执行异常: {e}")
 
-        # 默认引擎选择逻辑
-        if interaction_count < 3 and scenario == 'default':
-            engine = ColdStartEngine()
-            algo_name = 'popularity'
-        elif scenario == 'discovery':
-            engine = ContentBasedEngine()
-            algo_name = 'cosine'
-        elif scenario == 'daily_plan':
-            engine = MLEngine()
-            algo_name = 'ml_regression'
-        elif scenario == 'auto_adjust':
-            engine = RLAdaptiveEngine()
-            algo_name = 'rl_adaptive'
-        else:
-            # 混合策略：尝试 DL 序列
-            engine = DLSequenceEngine()
-            algo_name = 'dl_sequence'
-
-        # 3. 执行推荐召回
-        raw_recs = engine.recommend(user, limit=limit)
+        # 3. 结果合并、去重与排序
+        seen_ids = set()
+        final_recs = []
         
-        # 降级处理
-        if not raw_recs and algo_name != 'popularity':
-            raw_recs = ColdStartEngine().recommend(user, limit=limit)
-            algo_name = 'popularity (fallback)'
-
-        # 4. 存储并持久化结果
-        processed_recs = []
-        # 清理该用户在该场景下的过时结果 (可选)
-        # RecommendedExercise.objects.filter(user=user, algorithm=algo_name[:20]).delete()
+        # 按照预测分值和权重混合
+        for ex, score, algo in rec_sources:
+            if ex and ex.id not in seen_ids:
+                # 确保分值合法
+                valid_score = float(score) if not np.isnan(score) else 0.5
+                final_recs.append({
+                    'ex': ex,
+                    'score': valid_score,
+                    'algorithm': algo
+                })
+                seen_ids.add(ex.id)
         
-        for rank, item in enumerate(raw_recs, 1):
-            ex, score = item
-            # 根据算法类型生成持久化的推荐理由
-            reason_map = {
-                'cosine': f"发现与您喜欢的动作相似的 {ex.name}",
-                'ml_regression': f"基于您的 BMI 和健身等级定制",
-                'dl_sequence': f"根据您的练习历史，下一组建议进行这个",
-                'rl_adaptive': f"检测到您的疲劳状态，已为您切换为低强度训练",
-                'popularity': f"大家都在练的入门动作"
-            }
+        # 4. 兜底策略：如果召回不足，使用热门冷启动补全
+        if len(final_recs) < limit:
+            remaining = limit - len(final_recs)
+            backups = ColdStartEngine().recommend(user, limit=remaining)
+            for ex, score in backups:
+                if ex.id not in seen_ids:
+                    final_recs.append({
+                        'ex': ex, 
+                        'score': score, 
+                        'algorithm': 'popularity'
+                    })
+                    seen_ids.add(ex.id)
+
+        # 5. 结果持久化与理由生成
+        results = []
+        # 清理该场景下的旧推荐
+        RecommendedExercise.objects.filter(user=user, algorithm__icontains=scenario if scenario != 'default' else 'hybrid').delete()
+        
+        reason_map = {
+            'dl_sequence': "根据您的练习序列预测",
+            'gnn_reasoning': "基于训练路径的逻辑进阶",
+            'rl_adaptive': "基于您的身体状态实时调节",
+            'ml_regression': "基于您的身体指标定制",
+            'cosine': "基于您相似的互动偏好",
+            'popularity': "社区高热度动作"
+        }
+
+        for i, item in enumerate(final_recs[:limit]):
+            # 记录推荐来源和场景标识，用于持久化过滤
+            algo_tag = f"{scenario}:{item['algorithm']}" if scenario != 'default' else item['algorithm']
             
             rec_obj = RecommendedExercise.objects.create(
                 user=user,
-                exercise=ex,
-                algorithm=algo_name[:20],
-                score=float(score),
-                rank=rank,
-                reason=reason_map.get(algo_name.split(' ')[0], "AI 为您推荐")
+                exercise=item['ex'],
+                algorithm=algo_tag[:20],
+                score=item['score'],
+                rank=i + 1,
+                reason=reason_map.get(item['algorithm'], "AI 智能推荐")
             )
-            processed_recs.append(rec_obj)
+            results.append(rec_obj)
             
-        return processed_recs
+        return results
