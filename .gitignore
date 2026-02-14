@@ -10,3 +10,12 @@ node_modules/
 .DS_Store
 .vscode/
 backend/media/
+
+# AI/ML weights and data
+*.pth
+*.pt
+backend/recommendations/weights/
+backend/recommendations/data/
+backend/chroma_db_data/
+backend/check_cuda.py
+backend/check_cuda.py.bak

@@ -21,19 +21,10 @@ class UserInteraction(models.Model):
         ordering = ['-timestamp']
 
 class RecommendedExercise(models.Model):
-    ALGO_CHOICES = [
-        ('cosine', '余弦相似度 (基于内容)'),
-        ('cf', '协同过滤 (基于用户)'),
-        ('ml_regression', '机器学习回归预测'),
-        ('dl_sequence', '深度学习序列推荐'),
-        ('rl_adaptive', '强化学习动态调整'),
-        ('gnn_reasoning', '图神经网络 (知识图谱分析)'),
-        ('popularity', '热门推荐 (冷启动)'),
-    ]
-
+    # 移除固定的 choices 以支持场景化的动态标识 (例如 discovery:cosine)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='recommendations')
     exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE)
-    algorithm = models.CharField(max_length=20, choices=ALGO_CHOICES)
+    algorithm = models.CharField(max_length=50, help_text="使用的推荐算法或场景标识")
     score = models.FloatField(default=0.0)
     rank = models.IntegerField(default=1)
     reason = models.CharField(max_length=255, blank=True, help_text="推荐理由")

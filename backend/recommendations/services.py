@@ -32,7 +32,8 @@ class KnowledgeGraphEngine(RecommendationEngine):
             return []
             
         # 2. 构造邻接矩阵 (归一化)
-        adj = torch.eye(num_nodes)
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        adj = torch.eye(num_nodes).to(device)
         for ex in exercises:
             for pre in ex.prerequisites.all():
                 if pre.id in ex_id_to_idx:
@@ -46,9 +47,19 @@ class KnowledgeGraphEngine(RecommendationEngine):
         adj_norm = d_mat_inv_sqrt.mm(adj).mm(d_mat_inv_sqrt)
         
         # 3. 初始化 GNN 模型并进行推理
-        # (实际生产中应加载预训练权重，这里展示实时特征传播过程)
-        model = KnowledgeGraphGNN(num_nodes=num_nodes, feature_dim=16)
-        x_indices = torch.arange(num_nodes)
+        model = KnowledgeGraphGNN(num_nodes=num_nodes, feature_dim=16).to(device)
+        
+        # 尝试加载预训练权重
+        import os
+        from django.conf import settings
+        weights_path = os.path.join(settings.BASE_DIR, 'recommendations', 'weights', 'gnn_model.pth')
+        if os.path.exists(weights_path):
+            try:
+                model.load_state_dict(torch.load(weights_path, map_location=device))
+            except Exception as e:
+                print(f"GNN weights load error: {e}")
+
+        x_indices = torch.arange(num_nodes).to(device)
         
         with torch.no_grad():
             embeddings = model(x_indices, adj_norm)
@@ -177,10 +188,10 @@ class MLEngine(RecommendationEngine):
         # 支持 BMI、体能等级、性别、年龄等动态权重计算
         level_map = {'beginner': 1, 'intermediate': 3, 'advanced': 5}
         user_feat = np.array([
-            profile.bmi / 30.0,  # 归一化 BMI
+            (profile.bmi or 22.0) / 30.0,  # 归一化 BMI (默认为健康值)
             level_map.get(profile.fitness_level, 1) / 5.0, # 归一化等级
             1.0 if profile.gender == 'male' else 0.0,
-            profile.age / 100.0
+            (profile.age or 25) / 100.0
         ])
         
         # 2. 权重矩阵 (基于专家经验训练后的静态模型权重)
@@ -365,10 +376,14 @@ class ColdStartEngine(RecommendationEngine):
                 
         # 4. 兜底策略：根据用户目标偏好补全基础动作
         if len(recs) < limit:
-            goal = profile.goal if profile else 'health'
+            # 兼容性处理：UserProfile 暂时没有 goal 字段，使用 fitness_level 兜底
+            goal = getattr(profile, 'goal', profile.fitness_level if profile else 'health')
             remaining = limit - len(recs)
             # 优先从符合用户健身目标的动作中随机抽取
+            # 如果没有找到匹配标签，则随机返回
             backups = available_exercises.filter(tags__contains=goal).order_by('?')[:remaining]
+            if not backups.exists():
+                backups = available_exercises.order_by('?')[:remaining]
             for ex in backups:
                 recs.append((ex, 0.6))
         
@@ -478,7 +493,7 @@ class HybridRecommender:
             rec_obj = RecommendedExercise.objects.create(
                 user=user,
                 exercise=item['ex'],
-                algorithm=algo_tag[:20],
+                algorithm=algo_tag, # 不再截断
                 score=item['score'],
                 rank=i + 1,
                 reason=reason_map.get(item['algorithm'], "AI 智能推荐")

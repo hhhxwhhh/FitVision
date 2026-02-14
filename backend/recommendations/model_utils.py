@@ -9,6 +9,7 @@ class DLModelManager:
     _model = None
     _id_to_idx = {}
     _idx_to_id = {}
+    _device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     def __new__(cls):
         if cls._instance is None:
@@ -27,18 +28,18 @@ class DLModelManager:
             return
 
         # 2. 初始化模型
-        self._model = ExerciseSequenceModel(num_exercises)
+        self._model = ExerciseSequenceModel(num_exercises).to(self._device)
         
         # 3. 尝试加载权重
         model_path = os.path.join(settings.BASE_DIR, 'recommendations', 'weights', 'sequence_model.pth')
         if os.path.exists(model_path):
             try:
-                self._model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
-                print("✅ 深度学习推荐模型权重加载成功")
+                self._model.load_state_dict(torch.load(model_path, map_location=self._device))
+                print(f"✅ 深度学习推荐模型权重加载成功 (设备: {self._device})")
             except Exception as e:
                 print(f"⚠️ 模型权重加载失败: {e}")
         else:
-            print("ℹ️ 未找到预训练权重，使用随机初始化模型")
+            print(f"ℹ️ 未找到预训练权重，使用随机初始化模型 (设备: {self._device})")
         
         self._model.eval()
 
@@ -51,7 +52,7 @@ class DLModelManager:
 
         # 转换为索引序列并 padding/截断
         indices = [self._id_to_idx.get(eid, 0) for eid in exercise_ids]
-        input_tensor = torch.LongTensor([indices])
+        input_tensor = torch.LongTensor([indices]).to(self._device)
         
         with torch.no_grad():
             logits = self._model(input_tensor)
