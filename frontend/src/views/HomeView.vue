@@ -11,6 +11,22 @@
       </div>
     </div>
 
+    <!-- 疲劳状态警告 -->
+    <el-alert
+      v-if="userStatus?.fatigue_level > 0.7"
+      title="AI 检测到您处于疲劳状态"
+      type="warning"
+      description="建议今天进行低强度恢复训练。我们已为您准备了专门的放松动作。"
+      show-icon
+      class="mb-6"
+    >
+      <template #default>
+        <div class="mt-2">
+          <el-button type="warning" size="small" @click="scenario = 'auto_adjust'; scrollToRecs()">查看恢复建议</el-button>
+        </div>
+      </template>
+    </el-alert>
+
     <!-- 快捷功能区 -->
     <section class="section">
       <h2 class="section-title">快捷入口</h2>
@@ -81,7 +97,7 @@
     </section>
 
     <!-- AI 推荐模块 -->
-    <AIRecommendations />
+    <AIRecommendations ref="recommendationsRef" />
   </div>
 </template>
 
@@ -95,11 +111,29 @@ const router = useRouter()
 const username = ref(localStorage.getItem('username') || '健身者')
 const loading = ref(false)
 const stats = ref<any>({})
+const userStatus = ref<any>(null)
+const recommendationsRef = ref<any>(null)
+
+const scrollToRecs = () => {
+  recommendationsRef.value?.$el.scrollIntoView({ behavior: 'smooth' })
+  if (userStatus.value?.fatigue_level > 0.7) {
+    recommendationsRef.value?.setScenario('auto_adjust')
+  }
+}
+
+const fetchUserStatus = async () => {
+  try {
+    const res = await apiClient.get('/recommendations/list/user_status/')
+    userStatus.value = res.data
+  } catch (err) {
+    console.error('Failed to fetch user status:', err)
+  }
+}
 
 const fetchTodayStats = async () => {
   loading.value = true
   try {
-    const res = await apiClient.get('analytics/daily-stats/today/')
+    const res = await apiClient.get('/analytics/daily-stats/today/')
     stats.value = res.data
   } catch (err) {
     console.error('Failed to fetch today stats:', err)
@@ -110,6 +144,7 @@ const fetchTodayStats = async () => {
 
 onMounted(() => {
   fetchTodayStats()
+  fetchUserStatus()
 })
 </script>
 

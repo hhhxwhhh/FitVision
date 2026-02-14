@@ -7,6 +7,7 @@
           <el-radio-button label="default">猜你喜欢</el-radio-button>
           <el-radio-button label="discovery">发现新鲜</el-radio-button>
           <el-radio-button label="daily_plan">进阶挑战</el-radio-button>
+          <el-radio-button label="auto_adjust">动态调整</el-radio-button>
         </el-radio-group>
       </div>
     </div>
@@ -62,7 +63,9 @@ const recommendations = ref<any[]>([])
 const fetchRecommendations = async () => {
   loading.value = true
   try {
-    const res = await apiClient.get(`/recommendations/list/get_personalized/?scenario=${scenario.value}`)
+    const res = await apiClient.get(`/recommendations/list/get_personalized/`, {
+      params: { scenario: scenario.value }
+    })
     recommendations.value = res.data
   } catch (err) {
     console.error('Failed to fetch recommendations:', err)
@@ -76,7 +79,7 @@ const getAlgoName = (algo: string) => {
     'cosine': '相似推荐',
     'ml_regression': '精准预测',
     'dl_sequence': '序列预测',
-    'rl_adaptive': '动态调整',
+    'rl_adaptive': '状态感知',
     'popularity': '热门精选'
   }
   return map[algo] || 'AI 推荐'
@@ -102,6 +105,15 @@ const handleFeedback = async (rec: any, action: string) => {
     ElMessage.error('操作失败')
   }
 }
+
+const setScenario = (newScenario: string) => {
+  scenario.value = newScenario
+  fetchRecommendations()
+}
+
+defineExpose({
+  setScenario
+})
 
 onMounted(() => {
   fetchRecommendations()
@@ -148,6 +160,8 @@ onMounted(() => {
 .algo-badge.cosine { background: #3b82f6; }
 .algo-badge.ml_regression { background: #8b5cf6; }
 .algo-badge.dl_sequence { background: #ec4899; }
+.algo-badge.rl_adaptive { background: #f59e0b; }
+.algo-badge.popularity { background: #10b981; }
 .algo-badge.rl_adaptive { background: #10b981; }
 
 .rec-image {

@@ -236,6 +236,13 @@
                                             ✅ 提交记录
                                         </el-button>
                                     </el-form>
+                                    
+                                    <!-- AI 连招建议 -->
+                                    <NextExerciseRecommendation 
+                                        v-if="sessionId && recordForm.exercise"
+                                        :last-exercise-id="recordForm.exercise" 
+                                        @select="handleSelectRecommended" 
+                                    />
                                 </div>
                             </el-collapse-item>
 
@@ -357,6 +364,7 @@ import { ElMessage } from 'element-plus'
 import { VideoCamera, InfoFilled, Trophy, Edit } from '@element-plus/icons-vue'
 import apiClient from '../api'
 import PosePreview from '../components/ai/PosePreview.vue'
+import NextExerciseRecommendation from '../components/NextExerciseRecommendation.vue'
 import { ArrowRight } from '@element-plus/icons-vue'
 import { CircleCheck, Timer, DataLine, Medal } from '@element-plus/icons-vue'
 
@@ -388,7 +396,7 @@ const sessionRecords = ref<any[]>([])
 const getFullGifUrl = (path: string | null) => {
     if (!path) return '';
     if (path.startsWith('http')) return path;
-    return `http://localhost:8000${path}`;
+    return `http://127.0.0.1:8000${path}`;
 }
 
 const handleAiReps = (count: number) => {
@@ -748,7 +756,7 @@ const fillRecordFromPlanExercise = (item: any) => {
 
     if (item.demo_gif) {
         if (!item.demo_gif.startsWith('http')) {
-            currentGifUrl.value = `http://localhost:8000${item.demo_gif}`;
+            currentGifUrl.value = `http://127.0.0.1:8000${item.demo_gif}`;
         } else {
             currentGifUrl.value = item.demo_gif;
         }
@@ -803,6 +811,20 @@ const resetAllState = () => {
         if (posePreviewRef.value.stopDetection) {
             posePreviewRef.value.stopDetection();
         }
+    }
+}
+
+const handleSelectRecommended = (ex: any) => {
+    recordForm.exercise = String(ex.id)
+    selectedExerciseName.value = ex.name
+    currentGifUrl.value = getFullGifUrl(ex.demo_gif || ex.image_url)
+    ElMessage.success({
+        message: `已切换至 AI 推荐动作: ${ex.name}`,
+        icon: Trophy
+    })
+    // 自动重置计数器
+    if (posePreviewRef.value) {
+        posePreviewRef.value.resetCount()
     }
 }
 

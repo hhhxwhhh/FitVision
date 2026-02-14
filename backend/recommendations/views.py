@@ -2,8 +2,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .models import RecommendedExercise, UserInteraction
-from .serializers import RecommendedExerciseSerializer, UserInteractionSerializer
+from .models import RecommendedExercise, UserInteraction, UserState
+from .serializers import RecommendedExerciseSerializer, UserInteractionSerializer, UserStateSerializer
 from .services import HybridRecommender
 
 class RecommendationViewSet(viewsets.ModelViewSet):
@@ -12,6 +12,13 @@ class RecommendationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return RecommendedExercise.objects.filter(user=self.request.user)
+
+    @action(detail=False, methods=['get'])
+    def user_status(self, request):
+        """获取用户当前推荐相关的状态"""
+        state, _ = UserState.objects.get_or_create(user=request.user)
+        serializer = UserStateSerializer(state)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def get_personalized(self, request):
