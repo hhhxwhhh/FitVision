@@ -1,8 +1,20 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import AIAnalysisSession, AIModelConfig
-from .serializers import AIAnalysisSessionSerializer, AIModelConfigSerializer
+from .models import AIAnalysisSession, AIModelConfig, PostureDiagnosis
+from .serializers import AIAnalysisSessionSerializer, AIModelConfigSerializer, PostureDiagnosisSerializer
+
+class PostureDiagnosisViewSet(viewsets.ModelViewSet):
+    """姿态诊断视图集"""
+    queryset = PostureDiagnosis.objects.all()
+    serializer_class = PostureDiagnosisSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return self.queryset.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
 class AIAnalysisSessionViewSet(viewsets.ModelViewSet):
     queryset = AIAnalysisSession.objects.all()

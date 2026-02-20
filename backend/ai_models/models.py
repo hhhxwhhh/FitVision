@@ -42,3 +42,34 @@ class AIModelConfig(models.Model):
 
     def __str__(self):
         return f"{self.exercise.name} - {self.model_version}"
+
+class PostureDiagnosis(models.Model):
+    """AI 姿态诊断模型"""
+    DIAGNOSIS_TYPES = [
+        ('front', '正面'),
+        ('side', '侧面'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='posture_diagnoses')
+    diagnosis_type = models.CharField("诊断类型", max_length=10, choices=DIAGNOSIS_TYPES, default='front')
+    
+    # 评分与结果
+    score = models.IntegerField("健康评分", default=100)
+    summary = models.CharField("核心结论", max_length=200, help_text="例如：轻微圆肩、盆骨前倾")
+    detailed_report = models.JSONField("详细分析报告", help_text="存储具体的角度、对称性等数据")
+    
+    # 图片/关键点数据
+    snapshot = models.ImageField("快照", upload_to='posture_snapshots/', null=True, blank=True)
+    landmarks_data = models.JSONField("关键点原始数据", null=True, blank=True)
+    
+    suggested_exercises = models.ManyToManyField(Exercise, blank=True, verbose_name="纠正性训练建议")
+    
+    created_at = models.DateTimeField("诊断时间", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "姿态诊断"
+        verbose_name_plural = "姿态诊断"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.get_diagnosis_type_display()}诊断 ({self.created_at.date()})"

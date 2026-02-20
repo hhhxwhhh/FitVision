@@ -385,7 +385,7 @@ const radarOption = computed(() => {
     radar: {
       indicator: [
         { name: '力量', max: 5000 },
-        { name: '耐力', max: 3000 },
+        { name: '耐力', max: 5000 },
         { name: '精准', max: 100 },
         { name: '频率', max: 100 },
         { name: '表现', max: 100 }
@@ -620,12 +620,19 @@ const handleSave = async () => {
         const errorData = err.response?.data
         console.error('Save profile failed:', errorData || err)
         let errorMsg = '保存失败，请检查网络或参数'
-        if (typeof errorData === 'object') {
+        if (errorData && typeof errorData === 'object') {
             errorMsg = Object.entries(errorData)
-                .map(([key, value]) => `${key}: ${value}`)
+                .map(([key, value]) => {
+                    const msg = Array.isArray(value) ? value.join(', ') : value
+                    return `${key}: ${msg}`
+                })
                 .join('; ')
         }
-        ElMessage.error(`保存失败: ${errorMsg}`)
+        ElMessage.error({
+            message: `保存失败: ${errorMsg}`,
+            duration: 5000,
+            showClose: true
+        })
     } finally {
       loading.value = false
     }

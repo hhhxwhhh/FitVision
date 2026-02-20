@@ -32,17 +32,17 @@
       <h2 class="section-title">快捷入口</h2>
       <el-row :gutter="20">
         <el-col :xs="24" :sm="12" :md="6">
-          <el-card class="feature-card" @click="router.push('/training?exercise_id=1')">
-            <div class="card-icon">🦵</div>
-            <h3>深蹲 AI 训练</h3>
-            <p>实时矫正动作，科学计数</p>
+          <el-card class="feature-card highlighted" @click="router.push('/posture-diagnosis')">
+            <div class="card-icon">🧘</div>
+            <h3>AI 姿态建模诊断</h3>
+            <p>实时扫描并分析体态风险</p>
           </el-card>
         </el-col>
         <el-col :xs="24" :sm="12" :md="6">
           <el-card class="feature-card" @click="router.push('/training')">
             <div class="card-icon">📋</div>
             <h3>完成训练计划</h3>
-            <p>执行今日安排的课程</p>
+            <p>执行今日安排的课程课程</p>
           </el-card>
         </el-col>
         <el-col :xs="24" :sm="12" :md="6">

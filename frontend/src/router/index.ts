@@ -64,6 +64,11 @@ const router = createRouter({
           path: 'exercises/graph',
           name: 'exercise-graph',
           component: () => import('../views/ExerciseGraphView.vue')
+        },
+        {
+          path: 'posture-diagnosis',
+          name: 'posture-diagnosis',
+          component: () => import('../views/PostureDiagnosisView.vue')
         }
       ]
     }

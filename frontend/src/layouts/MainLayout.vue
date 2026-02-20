@@ -16,6 +16,7 @@
                             <el-menu-item index="training">智能训练</el-menu-item>
                             <el-menu-item index="ai-plan">AI 计划</el-menu-item>
                             <el-menu-item index="exercises">动作百科</el-menu-item>
+                            <el-menu-item index="posture-diagnosis">姿态诊断</el-menu-item>
                             <el-menu-item index="exercise-graph">知识图谱</el-menu-item>
                             <el-menu-item index="analytics">数据中心</el-menu-item>
                         </el-menu>
@@ -98,6 +99,7 @@ watch(() => route.path, (path) => {
     else if (path.startsWith('/ai-plan')) activeMenu.value = 'ai-plan'
     else if (path === '/exercises/graph') activeMenu.value = 'exercise-graph'
     else if (path.startsWith('/exercises')) activeMenu.value = 'exercises'
+    else if (path === '/posture-diagnosis') activeMenu.value = 'posture-diagnosis'
     else if (path.startsWith('/analytics')) activeMenu.value = 'analytics'
     else if (path.startsWith('/profile')) activeMenu.value = 'profile'
 }, { immediate: true })
@@ -108,6 +110,7 @@ const handleMenuSelect = (index: string) => {
         case 'training': router.push('/training'); break
         case 'ai-plan': router.push('/ai-plan'); break
         case 'exercises': router.push('/exercises'); break
+        case 'posture-diagnosis': router.push('/posture-diagnosis'); break
         case 'exercise-graph': router.push('/exercises/graph'); break
         case 'analytics': router.push('/analytics'); break
         case 'profile': router.push('/profile'); break
