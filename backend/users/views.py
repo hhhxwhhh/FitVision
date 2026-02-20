@@ -54,10 +54,14 @@ class MeView(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
+        profile = getattr(request.user, 'profile', None)
+        avatar_url = request.build_absolute_uri(profile.avatar.url) if profile and profile.avatar else ""
         return Response({
             'id': request.user.id,
             'username': request.user.username,
-            'email': request.user.email
+            'nickname': profile.nickname if profile else "",
+            'email': request.user.email,
+            'avatar': avatar_url
         })
 
 class TrainingLogView(generics.ListCreateAPIView):

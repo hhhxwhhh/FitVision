@@ -14,6 +14,7 @@ class UserProfile(models.Model):
     ]
     
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    avatar = models.ImageField("头像", upload_to='avatars/', null=True, blank=True)
     nickname = models.CharField("昵称", max_length=50, blank=True)
     gender = models.CharField("性别", max_length=10, choices=[('male', '男'), ('female', '女')], default='male')
     age = models.IntegerField("年龄", default=20)

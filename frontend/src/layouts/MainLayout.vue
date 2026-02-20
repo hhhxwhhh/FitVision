@@ -24,9 +24,9 @@
                     <div class="user-section">
                         <el-dropdown @command="handleUserCommand" trigger="click">
                             <div class="user-profile-badge">
-                                <el-avatar :size="32" :src="userAvatarUrl" :icon="UserFilled"
+                                <el-avatar :size="32" :src="userStore.userAvatar" :icon="UserFilled"
                                     class="user-avatar" />
-                                <span class="username">{{ username }}</span>
+                                <span class="username">{{ userStore.userName }}</span>
                                 <el-icon class="el-icon--right">
                                     <arrow-down />
                                 </el-icon>
@@ -73,18 +73,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { UserFilled, User, SwitchButton, ArrowDown } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
+import { useUserStore } from '@/stores/userStore'
 
 const router = useRouter()
 const route = useRoute()
-const username = ref(localStorage.getItem('username') || 'FitUser')
+const userStore = useUserStore()
+
 const activeMenu = ref('home')
 
-const userAvatarUrl = computed(() => {
-    return '' // 可以替换为真实头像 URL
+onMounted(async () => {
+    // 首次加载或刷新，尝试拉取用户信息
+    if (!userStore.user) {
+        await userStore.fetchUser()
+    }
 })
 
 watch(() => route.path, (path) => {
@@ -116,8 +121,7 @@ const handleUserCommand = (command: string) => {
             cancelButtonText: '取消',
             type: 'warning'
         }).then(() => {
-            localStorage.removeItem('jwt_token')
-            localStorage.removeItem('username')
+            userStore.logout()
             router.push('/login')
             ElMessage.success('已安全退出')
         })

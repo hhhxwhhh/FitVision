@@ -2,7 +2,13 @@
   <div class="page-container">
     <div class="profile-hero">
       <div class="hero-left">
-        <el-avatar :size="80" :icon="UserFilled" class="hero-avatar" />
+        <div class="avatar-upload-container">
+          <el-avatar :size="80" :src="form.avatar" :icon="UserFilled" class="hero-avatar" />
+          <div class="avatar-overlay" @click="triggerUpload">
+            <el-icon><Edit /></el-icon>
+          </div>
+          <input type="file" ref="fileInput" class="hidden-input" accept="image/*" @change="handleFileChange" />
+        </div>
         <div class="hero-info">
           <h1 class="username-display">{{ form.nickname || '未设置昵称' }}</h1>
           <p class="account-id">ID: {{ form.username }}</p>
@@ -17,6 +23,9 @@
         </div>
       </div>
       <div class="hero-right">
+        <el-button @click="handleLogout" class="logout-btn">
+          退出登录
+        </el-button>
         <el-button type="primary" size="large" @click="handleSave" :loading="loading" :disabled="!isFormChanged" class="save-btn shadow-btn">
           保存修改
         </el-button>
@@ -56,6 +65,30 @@
           </div>
        </div>
     </div>
+
+    <!-- Activity Heatmap Section -->
+    <el-card class="heatmap-card mb-6" shadow="never">
+       <div class="card-title-bar">
+          <div class="title-with-extra">
+             <h3>📊 训练热力图</h3>
+             <div class="heatmap-legend">
+                <span>较少</span>
+                <div class="legend-scale">
+                   <div class="scale-item level-0"></div>
+                   <div class="scale-item level-1"></div>
+                   <div class="scale-item level-2"></div>
+                   <div class="scale-item level-3"></div>
+                   <div class="scale-item level-4"></div>
+                </div>
+                <span>较多</span>
+             </div>
+          </div>
+          <small>每一份努力都将被记录，加油！</small>
+       </div>
+       <div class="heatmap-container" v-loading="heatmapLoading">
+          <v-chart class="chart-heatmap" :option="heatmapOption" autoresize />
+       </div>
+    </el-card>
 
     <el-row :gutter="24">
       <el-col :md="24" :lg="16" class="col-left">
@@ -168,6 +201,17 @@
       </el-col>
 
       <el-col :md="24" :lg="8" class="col-right">
+        <!-- AI 能力分析雷达图 -->
+        <el-card class="radar-card mb-4" shadow="never">
+          <div class="card-title-bar slim">
+             <h3>🧠 能力评估</h3>
+             <small>AI 根据历史表现分析你的体能偏向</small>
+          </div>
+          <div class="radar-container">
+             <v-chart class="chart-radar" :option="radarOption" autoresize />
+          </div>
+        </el-card>
+
         <!-- Body Metrics Card -->
         <el-card class="metrics-card">
           <div class="metrics-header">
@@ -231,14 +275,52 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch, computed } from 'vue'
-import { ElMessage } from 'element-plus'
-import { User, UserFilled, Calendar, Medal, Timer, Chicken, TrendCharts, Message } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { useUserStore } from '@/stores/userStore'
+import { 
+  User, UserFilled, Calendar, Medal, Timer, Chicken, 
+  TrendCharts, Message, Location, Promotion, Edit, Delete
+} from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
 import dayjs from 'dayjs'
-import apiClient from '../api'
+import apiClient from '@/api'
+
+const router = useRouter()
+const userStore = useUserStore()
+
+// ECharts for Heatmap
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { HeatmapChart, ScatterChart, RadarChart } from 'echarts/charts'
+import {
+  TitleComponent,
+  TooltipComponent,
+  VisualMapComponent,
+  CalendarComponent,
+  GridComponent,
+  LegendComponent
+} from 'echarts/components'
+import VChart from 'vue-echarts'
+
+use([
+  CanvasRenderer,
+  HeatmapChart,
+  ScatterChart,
+  RadarChart,
+  TitleComponent,
+  TooltipComponent,
+  VisualMapComponent,
+  CalendarComponent,
+  GridComponent,
+  LegendComponent
+])
 
 const loading = ref(false)
+const heatmapLoading = ref(false)
 const formRef = ref<FormInstance>()
+const fileInput = ref<HTMLInputElement>()
+const avatarFile = ref<File | null>(null)
 const isFormChanged = ref(false)
 const stats = reactive({
   total_trainings: 0,
@@ -248,6 +330,118 @@ const stats = reactive({
   best_accuracy_score: 0,
 })
 
+const heatmapData = ref<any[]>([])
+
+const heatmapOption = computed(() => {
+  const currentYear = new Date().getFullYear()
+  return {
+    tooltip: {
+      position: 'top',
+      formatter: (p: any) => {
+        const val = p.data[1]
+        return `${p.data[0]}: ${val > 0 ? `训练消耗 ${val.toFixed(0)} kcal` : '休息日'}`
+      }
+    },
+    visualMap: {
+      min: 0,
+      max: 500,
+      type: 'piecewise',
+      orient: 'horizontal',
+      left: 'center',
+      top: 0,
+      show: false,
+      pieces: [
+        { min: 0, max: 0, color: '#ebedf0' },
+        { min: 1, max: 150, color: '#c6e48b' },
+        { min: 151, max: 300, color: '#7bc96f' },
+        { min: 301, max: 450, color: '#239a3b' },
+        { min: 451, color: '#196127' }
+      ]
+    },
+    calendar: {
+      top: 30,
+      left: 30,
+      right: 30,
+      cellSize: ['auto', 13],
+      range: currentYear,
+      itemStyle: {
+        borderWidth: 0.5,
+        borderColor: '#fff'
+      },
+      yearLabel: { show: false },
+      dayLabel: { firstDay: 1, nameMap: 'cn', color: '#94a3b8', fontSize: 10 },
+      monthLabel: { nameMap: 'cn', color: '#94a3b8', fontSize: 10 }
+    },
+    series: {
+      type: 'heatmap',
+      coordinateSystem: 'calendar',
+      data: heatmapData.value
+    }
+  }
+})
+
+const radarOption = computed(() => {
+  return {
+    radar: {
+      indicator: [
+        { name: '力量', max: 5000 },
+        { name: '耐力', max: 3000 },
+        { name: '精准', max: 100 },
+        { name: '频率', max: 100 },
+        { name: '表现', max: 100 }
+      ],
+      shape: 'polygon',
+      splitNumber: 5,
+      axisName: {
+        color: '#94a3b8',
+        fontSize: 10
+      },
+      splitLine: {
+        lineStyle: {
+          color: 'rgba(148, 163, 184, 0.1)'
+        }
+      },
+      splitArea: {
+        show: false
+      },
+      axisLine: {
+        lineStyle: {
+          color: 'rgba(148, 163, 184, 0.1)'
+        }
+      }
+    },
+    series: [
+      {
+        name: '能力概览',
+        type: 'radar',
+        data: [
+          {
+            value: [
+               stats.total_calories_burned || 0,
+               stats.total_training_time || 0,
+               stats.best_accuracy_score || 0,
+               stats.total_trainings || 0,
+               stats.total_training_days || 0
+            ],
+            name: '当前表现',
+            symbol: 'none',
+            itemStyle: {
+              color: '#3b82f6'
+            },
+            areaStyle: {
+              color: 'rgba(59, 130, 246, 0.2)'
+            },
+            lineStyle: {
+                width: 2,
+                color: '#3b82f6'
+            }
+          }
+        ]
+      }
+    ]
+  }
+})
+
 const formatDate = (date: string) => {
     return date ? dayjs(date).format('YYYY-MM-DD HH:mm') : ''
 }
@@ -255,6 +449,7 @@ const formatDate = (date: string) => {
 const form = reactive({
   username: '',
   email: '',
+  avatar: '',
   nickname: '',
   gender: 'male' as 'male' | 'female',
   age: 25,
@@ -326,26 +521,56 @@ const getBMIText = (bmi: number) => {
 }
 
 watch(form, () => {
-  isFormChanged.value = JSON.stringify(form) !== originalFormStr
+  isFormChanged.value = JSON.stringify(form) !== originalFormStr || !!avatarFile.value
 }, { deep: true })
 
 onMounted(async () => {
   loading.value = true
+  heatmapLoading.value = true
   try {
-    const [profileRes, statsRes] = await Promise.all([
+    const [profileRes, statsRes, heatmapRes] = await Promise.all([
       apiClient.get('auth/profile/'),
-      apiClient.get('auth/stats/')
+      apiClient.get('auth/stats/'),
+      apiClient.get('analytics/daily-stats/summary/?days=365')
     ])
     Object.assign(form, profileRes.data)
     Object.assign(stats, statsRes.data)
+    
+    // Prepare heatmap data
+    if (heatmapRes.data?.daily_breakdown) {
+      heatmapData.value = heatmapRes.data.daily_breakdown.map((i: any) => [
+        i.date, 
+        i.total_calories_burned || 0
+      ])
+    }
+    
     originalFormStr = JSON.stringify(form)
     isFormChanged.value = false
   } catch (err: any) {
     ElMessage.error(err.response?.data?.error || '无法获取个人资料')
   } finally {
     loading.value = false
+    heatmapLoading.value = false
   }
 })
+
+const triggerUpload = () => {
+    fileInput.value?.click()
+}
+
+const handleFileChange = (e: Event) => {
+    const target = e.target as HTMLInputElement
+    if (target.files && target.files[0]) {
+        const file = target.files[0]
+        avatarFile.value = file
+        // Preview
+        const reader = new FileReader()
+        reader.onload = (re) => {
+            form.avatar = re.target?.result as string
+        }
+        reader.readAsDataURL(file)
+    }
+}
 
 const handleSave = async () => {
   if (!formRef.value) return
@@ -355,17 +580,68 @@ const handleSave = async () => {
     
     loading.value = true
     try {
-      const res = await apiClient.put('auth/profile/', form)
+      const formData = new FormData()
+      
+      // 只发送需要更新的字段，过滤掉只读字段和无效的 null 值
+      const updateFields = [
+        'nickname', 'gender', 'age', 'height', 'weight', 
+        'fitness_level', 'injury_history', 'activity_level', 
+        'target_weight', 'email'
+      ]
+      
+      updateFields.forEach(key => {
+          const val = (form as any)[key]
+          if (val !== undefined && val !== null && val !== '') {
+              formData.append(key, val)
+          }
+      })
+      
+      // Avatar file specifically
+      if (avatarFile.value) {
+          formData.append('avatar', avatarFile.value)
+      }
+
+      const res = await apiClient.put('auth/profile/', formData, {
+          headers: {
+              'Content-Type': 'multipart/form-data'
+          }
+      })
+      
       Object.assign(form, res.data)
       originalFormStr = JSON.stringify(form)
+      avatarFile.value = null
       isFormChanged.value = false
+      
+      // 更新全局 store，使 Header 的头像和昵称立即更新
+      await userStore.fetchUser()
+      
       ElMessage.success('保存成功！AI 已更新你的身体参数')
     } catch (err: any) {
-      ElMessage.error('保存失败，请重试')
+        const errorData = err.response?.data
+        console.error('Save profile failed:', errorData || err)
+        let errorMsg = '保存失败，请检查网络或参数'
+        if (typeof errorData === 'object') {
+            errorMsg = Object.entries(errorData)
+                .map(([key, value]) => `${key}: ${value}`)
+                .join('; ')
+        }
+        ElMessage.error(`保存失败: ${errorMsg}`)
     } finally {
       loading.value = false
     }
   })
+}
+
+const handleLogout = () => {
+  ElMessageBox.confirm('确定要退出登录吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(() => {
+    userStore.logout()
+    router.push('/login')
+    ElMessage.success('已退出登录')
+  }).catch(() => {})
 }
 </script>
 
@@ -392,6 +668,39 @@ const handleSave = async () => {
     display: flex;
     align-items: center;
     gap: 24px;
+}
+
+.avatar-upload-container {
+    position: relative;
+    cursor: pointer;
+    border-radius: 50%;
+    overflow: hidden;
+    width: 80px;
+    height: 80px;
+}
+
+.avatar-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 20px;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.avatar-upload-container:hover .avatar-overlay {
+    opacity: 1;
+}
+
+.hidden-input {
+    display: none;
 }
 
 .hero-avatar {
@@ -574,6 +883,24 @@ const handleSave = async () => {
     line-height: 1.2;
 }
 
+.hero-right {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+}
+
+.logout-btn {
+    border: 1px solid #e2e8f0;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.logout-btn:hover {
+    background-color: #fef2f2;
+    color: #ef4444;
+    border-color: #fee2e2;
+}
+
 .save-btn {
     font-weight: 600;
 }
@@ -584,12 +911,13 @@ const handleSave = async () => {
 
 /* Right Col Metrics */
 .metrics-card {
-   background: linear-gradient(135deg, #1e293b 0%, #334155 100%); 
-   color: white;
+   background: white; 
+   color: #1e293b;
    border: none;
    border-radius: 20px;
    position: sticky;
    top: 24px;
+   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
 }
 
 .metrics-header {
@@ -602,13 +930,13 @@ const handleSave = async () => {
 .metrics-header h3 {
     margin: 0;
     font-size: 18px;
-    font-weight: 600;
-    color: #f8fafc;
+    font-weight: 700;
+    color: #1e293b;
 }
 
 .last-update {
     font-size: 11px;
-    color: #64748b;
+    color: #94a3b8;
     display: block;
     margin-top: 4px;
 }
@@ -618,15 +946,15 @@ const handleSave = async () => {
 }
 
 .highlight-metric {
-    background: rgba(255, 255, 255, 0.05);
+    background: #f8fafc;
     padding: 16px;
     border-radius: 12px;
-    border-left: 3px solid #60a5fa;
+    border-left: 4px solid #60a5fa;
 }
 
 .metric-label {
     font-size: 13px;
-    color: #94a3b8;
+    color: #64748b;
     margin-bottom: 8px;
     display: block;
 }
@@ -641,12 +969,12 @@ const handleSave = async () => {
 .metric-value {
     font-size: 32px;
     font-weight: 700;
-    color: #f8fafc;
+    color: #1e293b;
     line-height: 1;
 }
 
 .metric-value.colored {
-    color: #60a5fa;
+    color: #3b82f6;
 }
 
 .metric-value .unit {
@@ -660,20 +988,20 @@ const handleSave = async () => {
     font-size: 12px;
     padding: 2px 8px;
     border-radius: 4px;
-    background: rgba(34, 197, 94, 0.1);
-    color: #4ade80;
+    background: #f0fdf4;
+    color: #16a34a;
 }
 
 .metric-desc {
     font-size: 12px;
-    color: #cbd5e1;
+    color: #64748b;
     margin-top: 10px;
     line-height: 1.6;
 }
 
 .metric-divider {
     height: 1px;
-    background: rgba(255, 255, 255, 0.08);
+    background: #f1f5f9;
     margin: 20px 0;
 }
 
@@ -684,7 +1012,7 @@ const handleSave = async () => {
 }
 
 .data-badge {
-    background: rgba(255, 255, 255, 0.1);
+    background: #f1f5f9;
     padding: 8px 12px;
     border-radius: 8px;
     display: flex;
@@ -694,11 +1022,98 @@ const handleSave = async () => {
 
 .badge-text {
     font-size: 13px;
-    color: #e2e8f0;
+    color: #475569;
 }
 
 .mt-2 {
     margin-top: 12px;
+}
+
+.mb-6 {
+    margin-bottom: 24px;
+}
+
+/* Heatmap Section */
+.heatmap-card {
+    border-radius: 20px;
+    border: none;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    background: white;
+}
+
+.heatmap-card :deep(.el-card__body) {
+    padding: 24px;
+}
+
+.title-with-extra {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.heatmap-legend {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.legend-scale {
+    display: flex;
+    gap: 3px;
+}
+
+.scale-item {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+}
+
+.scale-item.level-0 { background: #ebedf0; }
+.scale-item.level-1 { background: #c6e48b; }
+.scale-item.level-2 { background: #7bc96f; }
+.scale-item.level-3 { background: #239a3b; }
+.scale-item.level-4 { background: #196127; }
+
+.heatmap-container {
+    height: 200px;
+    width: 100%;
+}
+
+.chart-heatmap {
+    height: 100%;
+    width: 100%;
+}
+
+.mb-4 {
+    margin-bottom: 32px;
+}
+
+/* Radar Section */
+.radar-card {
+    border-radius: 20px;
+    border: none;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.radar-card :deep(.el-card__body) {
+    padding: 20px;
+}
+
+.card-title-bar.slim {
+    padding-bottom: 12px;
+}
+
+.radar-container {
+    height: 250px;
+    width: 100%;
+}
+
+.chart-radar {
+    height: 100%;
+    width: 100%;
 }
 
 .col-right {

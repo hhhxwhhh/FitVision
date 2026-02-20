@@ -5,7 +5,9 @@ import apiClient from '@/api'
 interface User {
   id: number
   username: string
+  nickname: string
   email: string
+  avatar: string
 }
 
 export const useUserStore = defineStore('user', {
@@ -17,10 +19,27 @@ export const useUserStore = defineStore('user', {
   }),
   
   getters: {
-    userName: (state) => state.user?.username || ''
+    userName: (state) => state.user?.nickname || state.user?.username || '',
+    userAvatar: (state) => state.user?.avatar || ''
   },
   
   actions: {
+    async fetchUser() {
+        try {
+            const userRes = await apiClient.get('/auth/me/')
+            this.user = userRes.data
+            this.isAuthenticated = true
+            // 同步一下 localStorage 给非 store 场景用
+            localStorage.setItem('username', this.userName)
+            if (this.userAvatar) {
+                localStorage.setItem('user_avatar', this.userAvatar)
+            }
+        } catch (error) {
+            this.isAuthenticated = false
+            console.error('Fetch user failed', error)
+        }
+    },
+
     async login(credentials: { username: string; password: string }) {
       this.loading = true
       this.error = null

@@ -28,13 +28,22 @@ class UserRegisterSerializer(serializers.ModelSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
     email = serializers.EmailField(source='user.email', required=False)
+    avatar = serializers.ImageField(required=False, allow_null=True)
     
     class Meta:
         model = UserProfile
-        fields = ('username', 'email', 'nickname', 'gender', 'age', 'height', 'weight', 
+        fields = ('username', 'email', 'avatar', 'nickname', 'gender', 'age', 'height', 'weight', 
                   'injury_history', 'fitness_level', 'activity_level', 'target_weight',
                   'target_date', 'daily_calorie_intake', 'daily_calorie_burn', 'bmi', 'bmr')
         read_only_fields = ('bmi', 'bmr')
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop('user', {})
+        email = user_data.get('email')
+        if email:
+            instance.user.email = email
+            instance.user.save()
+        return super().update(instance, validated_data)
 
 class TrainingLogSerializer(serializers.ModelSerializer):
     class Meta:
