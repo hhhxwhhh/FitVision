@@ -20,15 +20,37 @@
       <div v-if="isUpdating" class="pose-overlay">
         <div class="stats">
           <div class="stat-item">
-            <span class="label">当前动作</span>
+            <span class="label">当前模式</span>
             <span class="value-sm">{{ exerciseModeMap[exerciseMode] }}</span>
           </div>
-          <div class="stat-item" style="margin-top: 10px;">
+          
+          <div v-if="exerciseMode === 'plank'" class="stat-item" style="margin-top: 10px;">
+            <span class="label">持续时长</span>
+            <span class="value">{{ duration }}s</span>
+          </div>
+          <div v-else class="stat-item" style="margin-top: 10px;">
             <span class="label">计数</span>
             <span class="value">{{ repCount }}</span>
           </div>
         </div>
-        <div class="feedback">{{ feedback }}</div>
+        
+        <div class="progress-ring-box">
+             <el-progress 
+                type="dashboard" 
+                :percentage="repProgress" 
+                :stroke-width="8" 
+                :width="80" 
+                :color="lastScore > 80 ? '#10b981' : '#f59e0b'"
+              >
+                <template #default="{ percentage }">
+                  <span class="progress-text">{{ percentage }}%</span>
+                </template>
+              </el-progress>
+        </div>
+
+        <div class="feedback-box" :class="{ 'warning': feedback.includes('⚠️') }">
+          {{ feedback }}
+        </div>
       </div>
 
       <div v-if="!isUpdating" class="standby-overlay">
@@ -89,6 +111,8 @@ const {
   feedback,
   exerciseMode,
   lastScore,
+  repProgress,
+  duration,
   initPose,
   stopPose,
   resetCount
@@ -99,17 +123,16 @@ const exerciseModeMap: Record<string, string> = {
   'squat': '深蹲',
   'pushup': '俯卧撑',
   'jumping_jack': '开合跳',
-  'lunge': '弓步蹲',
   'plank': '平板支撑'
 }
 
 // 关键词映射逻辑
-const mapExerciseToMode = (name: string) => {
+const mapExerciseToMode = (name: string): any => {
   if (!name) return 'squat'
   if (name.includes('深蹲')) return 'squat'
   if (name.includes('俯卧撑')) return 'pushup'
   if (name.includes('开合跳')) return 'jumping_jack'
-  // 默认 fallback
+  if (name.includes('平板支撑') || name.includes('Plank')) return 'plank'
   return 'squat'
 }
 
@@ -264,34 +287,98 @@ defineExpose({
 /* --- 运行时样式 --- */
 .pose-overlay {
   position: absolute;
-  top: 16px; left: 16px; right: 16px;
-  display: flex;
-  justify-content: space-between;
+  top: 0; left: 0; width: 100%; height: 100%;
   pointer-events: none;
+  z-index: 10;
 }
 
 .stats {
-  background: rgba(15, 23, 42, 0.8);
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
   padding: 12px 20px;
   border-radius: 12px;
+  border-left: 4px solid #3b82f6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.progress-ring-box {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(8px);
+  padding: 12px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(4px);
 }
 
 .stat-item {
-  display: flex; flex-direction: column; align-items: flex-start;
+  display: flex; 
+  flex-direction: column; 
+  align-items: flex-start;
 }
 
 .stat-item .label {
-  font-size: 11px; text-transform: uppercase; color: #94a3b8; margin-bottom: 2px;
+  font-size: 10px; 
+  text-transform: uppercase; 
+  color: #94a3b8; 
+  margin-bottom: 2px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
 }
 
 .stat-item .value {
-  font-size: 28px; font-weight: 800; color: #4ade80; line-height: 1;
+  font-size: 32px; 
+  font-weight: 900; 
+  color: #ffffff; 
+  line-height: 1;
 }
 
 .stat-item .value-sm {
-  font-size: 15px; font-weight: 700; color: white;
+  font-size: 16px; 
+  font-weight: 700; 
+  color: #60a5fa;
+}
+
+.progress-text {
+  color: white;
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.feedback-box {
+  position: absolute;
+  bottom: 25px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.9);
+  padding: 10px 24px;
+  border-radius: 99px;
+  color: #f8fafc;
+  font-weight: 600;
+  font-size: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
+  animation: slideUp 0.3s ease-out;
+  pointer-events: none;
+}
+
+.feedback-box.warning {
+  border-color: #f43f5e;
+  color: #fb7185;
+  background: rgba(157, 23, 77, 0.9);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translate(-50%, 20px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
 }
 
 .feedback {

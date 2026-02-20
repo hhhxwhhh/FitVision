@@ -1,35 +1,58 @@
 import { ref, onUnmounted } from 'vue';
-import { Pose, type Results } from '@mediapipe/pose';
+import { Pose, type Results, POSE_CONNECTIONS } from '@mediapipe/pose';
 import { Camera } from '@mediapipe/camera_utils';
 import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
-import { POSE_CONNECTIONS } from '@mediapipe/pose';
+import { calculateAngle, OneEuroFilter, normalizeLandmarks, matchPoseSignature } from '@/utils/poseMatching';
 
 export function usePoseDetection() {
   const MEDIAPIPE_POSE_VERSION = '0.5.1675469404';
   const MEDIAPIPE_BASE_URL =
     (import.meta as any).env?.VITE_MEDIAPIPE_BASE ||
     `https://cdn.jsdelivr.net/npm/@mediapipe/pose@${MEDIAPIPE_POSE_VERSION}`;
-  const normalizedMediaPipeBaseUrl = MEDIAPIPE_BASE_URL.replace(/\/+$/, '');
+  
   const getMediaPipeAssetUrl = (file: string) => {
+    const normalizedBase = MEDIAPIPE_BASE_URL.replace(/\/+$/, '');
     const normalizedFile = file.replace(/^\/+/, '');
-    return `${normalizedMediaPipeBaseUrl}/${normalizedFile}`;
+    return `${normalizedBase}/${normalizedFile}`;
   };
+
+  // 补丁：关键点。解决 MediaPipe 在 Web / Vite 环境下特定的 Aborted(Module.arguments) 报错
+  if (typeof window !== 'undefined' && !(window as any).arguments) {
+    (window as any).arguments = [];
+  }
+
   const videoElement = ref<HTMLVideoElement | null>(null);
   const canvasElement = ref<HTMLCanvasElement | null>(null);
   const isUpdating = ref(false);
   const isLoaded = ref(false);
   const error = ref<string | null>(null);
+  
   const repCount = ref(0);
   const feedback = ref('请就位');
-  const exerciseMode = ref<'squat' | 'pushup' | 'jumping_jack'>('squat');
+  const repProgress = ref(0); 
+  const exerciseMode = ref<'squat' | 'pushup' | 'jumping_jack' | 'plank'>('squat');
   const lastScore = ref(0);
+  const duration = ref(0); // 持续时间，用于平板支撑等
+
+  // 1. 坐标平滑滤波器组 (为 33 个关键点的 X, Y, Z 分别创建滤波器)
+  const landmarkFilters = Array.from({ length: 33 }, () => ({
+    x: new OneEuroFilter(1.0, 0.05),
+    y: new OneEuroFilter(1.0, 0.05),
+    z: new OneEuroFilter(1.0, 0.05)
+  }));
+  const angleFilter = new OneEuroFilter(1.5, 0.1);
+  const progressFilter = new OneEuroFilter(0.5, 0.0);
+
+  let state: 'UP' | 'DOWN' = 'UP';
   let lastStateChange = Date.now();
   let coachTimer: number | null = null;
-  
-  // 语音合成
+  let plankStartTime: number | null = null;
+  let pose: Pose | null = null;
+  let camera: Camera | null = null;
+
   const speak = (text: string) => {
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel(); // 取消之前的语音
+      window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'zh-CN';
       utterance.rate = 1.3;
@@ -48,250 +71,158 @@ export function usePoseDetection() {
     clearCoachTimer();
     coachTimer = window.setInterval(() => {
       const idleTime = Date.now() - lastStateChange;
-      if (idleTime > 7000) { 
-        if (state === 'UP') {
-          speak('加油，再来一个！');
-        } else {
-          speak('坚持住，你可以的！');
-        }
-        lastStateChange = Date.now(); 
+      if (idleTime > 8000 && isUpdating.value) {
+        speak(state === 'UP' ? '加油，动作快一点！' : '坚持住，慢慢起来！');
+        lastStateChange = Date.now();
       }
     }, 1000);
   };
 
-  // 运动状态机
-  let state: 'UP' | 'DOWN' = 'UP';
-  const SQUAT_THRESHOLD_DOWN = 100;
-  const SQUAT_THRESHOLD_UP = 150;
-  
-  const PUSHUP_THRESHOLD_DOWN = 90;
-  const PUSHUP_THRESHOLD_UP = 150;
-
-  let pose: Pose | null = null;
-  let camera: Camera | null = null;
-
-  const ensureMediaSupport = () => {
-    if (!navigator?.mediaDevices?.getUserMedia) {
-      throw new Error('当前浏览器不支持摄像头访问');
-    }
-    if (!window.isSecureContext && location.hostname !== 'localhost') {
-      throw new Error('请在 HTTPS 或 localhost 环境下使用摄像头');
-    }
-  };
-
-  const waitForVideoReady = (video: HTMLVideoElement, timeoutMs = 5000) => {
-    return new Promise<void>((resolve, reject) => {
-      if (video.readyState >= 2) {
-        resolve();
-        return;
-      }
-
-      let timeoutId: number | undefined;
-      const onReady = () => {
-        cleanup();
-        resolve();
-      };
-      const onError = () => {
-        cleanup();
-        reject(new Error('摄像头视频流不可用'));
-      };
-      const cleanup = () => {
-        video.removeEventListener('loadeddata', onReady);
-        video.removeEventListener('error', onError);
-        if (timeoutId) window.clearTimeout(timeoutId);
-      };
-
-      video.addEventListener('loadeddata', onReady, { once: true });
-      video.addEventListener('error', onError, { once: true });
-      timeoutId = window.setTimeout(() => {
-        cleanup();
-        reject(new Error('摄像头初始化超时'));
-      }, timeoutMs);
-    });
-  };
-
-  // 计算三点之间的角度
-  const calculateAngle = (a: any, b: any, c: any) => {
-    if (!a || !b || !c || a.visibility < 0.5 || b.visibility < 0.5 || c.visibility < 0.5) return null;
-    const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
-    let angle = Math.abs(radians * 180.0 / Math.PI);
-    if (angle > 180.0) angle = 360 - angle;
-    return angle;
-  };
-
   const onResults = (results: Results) => {
     if (!canvasElement.value || !videoElement.value) return;
-
     const canvasCtx = canvasElement.value.getContext('2d');
     if (!canvasCtx) return;
 
     canvasCtx.save();
-    if (results.image) {
-      const imageSource = results.image as unknown as {
-        videoWidth?: number;
-        videoHeight?: number;
-        width?: number;
-        height?: number;
-      };
-      const imageWidth = imageSource.videoWidth || imageSource.width || canvasElement.value.width;
-      const imageHeight = imageSource.videoHeight || imageSource.height || canvasElement.value.height;
-      if (canvasElement.value.width !== imageWidth || canvasElement.value.height !== imageHeight) {
-        canvasElement.value.width = imageWidth;
-        canvasElement.value.height = imageHeight;
-      }
-    }
-
     canvasCtx.clearRect(0, 0, canvasElement.value.width, canvasElement.value.height);
-    
-    // Draw the video frame
-    canvasCtx.drawImage(
-      results.image, 0, 0, canvasElement.value.width, canvasElement.value.height
-    );
+    canvasCtx.drawImage(results.image, 0, 0, canvasElement.value.width, canvasElement.value.height);
 
-    // Draw Pose landmarks
     if (results.poseLandmarks) {
-      drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS,
-        { color: '#00FF00', lineWidth: 4 });
-      drawLandmarks(canvasCtx, results.poseLandmarks,
-        { color: '#FF0000', lineWidth: 2 });
+      const now = Date.now();
+      
+      // 1. 坐标级平滑 (Coordinate-level Smoothing)
+      // 这里的优化点在于对每个关节的三维坐标进行物理级滤波，使得骨骼渲染极其稳定
+      const smoothedLandmarks = results.poseLandmarks.map((lm, i) => {
+        if (i >= 33) return lm;
+        return {
+          ...lm,
+          x: landmarkFilters[i].x.filter(lm.x, now),
+          y: landmarkFilters[i].y.filter(lm.y, now),
+          z: landmarkFilters[i].z.filter(lm.z, now),
+        };
+      });
 
+      // 2. 动态着色渲染：根据最后一次动作得分改变骨骼颜色
+      const skeletonColor = lastScore.value > 88 ? 'rgba(0, 255, 100, 0.6)' : 'rgba(255, 165, 0, 0.6)';
+      drawConnectors(canvasCtx, smoothedLandmarks, POSE_CONNECTIONS, { color: skeletonColor, lineWidth: 5 });
+      drawLandmarks(canvasCtx, smoothedLandmarks, { 
+        color: '#FFFFFF', 
+        lineWidth: 1, 
+        radius: (data: any) => (data.index > 10 ? 3 : 1) 
+      });
+
+      // 3. 增强版运动学判定逻辑 (Kinematics with Signature Matching)
       if (exerciseMode.value === 'squat') {
-        const hip = results.poseLandmarks[24];
-        const knee = results.poseLandmarks[26];
-        const ankle = results.poseLandmarks[28];
+        const angle = calculateAngle(smoothedLandmarks[24], smoothedLandmarks[26], smoothedLandmarks[28]);
+        if (angle) {
+          const smoothedAngle = angleFilter.filter(angle, now);
+          repProgress.value = Math.floor(progressFilter.filter(Math.max(0, Math.min(100, (170 - smoothedAngle) / 80 * 100)), now));
 
-        const angle = calculateAngle(hip, knee, ankle);
-        if (angle !== null) {
-          if (angle < SQUAT_THRESHOLD_DOWN) {
-            if (state === 'UP') {
-              feedback.value = '就是这样！再深一点';
-              if (angle < 85) speak('漂亮！');
-              lastScore.value = Math.min(100, Math.max(60, 100 - (angle - 80)));
-              state = 'DOWN';
-              lastStateChange = Date.now();
-            }
-          }
-          if (angle > SQUAT_THRESHOLD_UP && state === 'DOWN') {
+          if (smoothedAngle < 105 && state === 'UP') {
+            state = 'DOWN';
+            feedback.value = '下沉到位！';
+            lastStateChange = now;
+            
+            // 使用 SOTA 签名匹配进行实时打分 (Signature Match)
+            const signatureScore = matchPoseSignature(smoothedLandmarks, 'squat_down');
+            lastScore.value = Math.round(signatureScore * 100);
+          } else if (smoothedAngle > 155 && state === 'DOWN') {
             state = 'UP';
-            lastStateChange = Date.now();
             repCount.value++;
-            feedback.value = `完成 ${repCount.value} 个深蹲`;
             speak(String(repCount.value));
+            feedback.value = lastScore.value > 90 ? '完美动作！' : '保持呼吸';
+            lastStateChange = now;
           }
-        } else {
-          feedback.value = '请露出下半身';
         }
       } else if (exerciseMode.value === 'pushup') {
-        const shoulder = results.poseLandmarks[12];
-        const elbow = results.poseLandmarks[14];
-        const wrist = results.poseLandmarks[16];
-
-        const angle = calculateAngle(shoulder, elbow, wrist);
-        if (angle !== null) {
-          if (angle < PUSHUP_THRESHOLD_DOWN) {
-            if (state === 'UP') {
-              feedback.value = '下沉到位！好样的';
-              if (angle < 75) speak('给力！');
-              lastScore.value = Math.min(100, Math.max(60, 100 - (angle - 60)));
-              state = 'DOWN';
-              lastStateChange = Date.now();
+          const angle = calculateAngle(smoothedLandmarks[12], smoothedLandmarks[14], smoothedLandmarks[16]);
+          if (angle) {
+            const smoothed = angleFilter.filter(angle, now);
+            repProgress.value = Math.floor(progressFilter.filter(Math.max(0, Math.min(100, (160 - smoothed) / 85 * 100)), now));
+            
+            if (smoothed < 95 && state === 'UP') {
+                state = 'DOWN';
+                feedback.value = '准备撑起！';
+                lastStateChange = now;
+                const signatureScore = matchPoseSignature(smoothedLandmarks, 'pushup_down');
+                lastScore.value = Math.round(signatureScore * 100);
+            } else if (smoothed > 150 && state === 'DOWN') {
+                state = 'UP';
+                repCount.value++;
+                speak(String(repCount.value));
+                lastStateChange = now;
             }
           }
-          if (angle > PUSHUP_THRESHOLD_UP && state === 'DOWN') {
-            state = 'UP';
-            lastStateChange = Date.now();
-            repCount.value++;
-            feedback.value = `完成 ${repCount.value} 个俯卧撑`;
-            speak(String(repCount.value));
-          }
-        } else {
-          feedback.value = '请侧对镜头，露出手臂';
-        }
-      } else if (exerciseMode.value === 'jumping_jack') {
-        const leftHand = results.poseLandmarks[15];
-        const rightHand = results.poseLandmarks[16];
-        const head = results.poseLandmarks[0];
-
-        if (leftHand && rightHand && head) {
-          const handsHigh = leftHand.y < head.y && rightHand.y < head.y;
-          if (handsHigh) {
-            if (state === 'UP') {
-              state = 'DOWN';
-              lastStateChange = Date.now();
-              lastScore.value = 100;
-              speak('跳！');
-            }
+      } else if (exerciseMode.value === 'plank') {
+          // 平板支撑：利用 Signature 评估姿态稳定性与准确度 (SOTA Approach)
+          const signatureScore = matchPoseSignature(smoothedLandmarks, 'plank');
+          lastScore.value = Math.round(signatureScore * 100);
+          
+          if (lastScore.value > 85) {
+              if (!plankStartTime) plankStartTime = now;
+              duration.value = Math.floor((now - plankStartTime) / 1000);
+              feedback.value = `坚持住！稳定性: ${lastScore.value}%`;
+              repProgress.value = 100;
           } else {
-            if (state === 'DOWN') {
-              state = 'UP';
-              lastStateChange = Date.now();
-              repCount.value++;
-              feedback.value = `累计 ${repCount.value} 个开合跳`;
-              speak(String(repCount.value));
-            }
+              plankStartTime = null;
+              feedback.value = '⚠️ 请保持身体平直';
+              repProgress.value = lastScore.value;
           }
-        }
+      } else if (exerciseMode.value === 'jumping_jack') {
+          const score = matchPoseSignature(smoothedLandmarks, 'jumping_jack_up');
+          // 开合跳：手部超过头部的同时也检查整体签名
+          const avgHandY = (smoothedLandmarks[15].y + smoothedLandmarks[16].y) / 2;
+          const headY = smoothedLandmarks[0].y;
+          
+          if (avgHandY < headY && score > 0.7 && state === 'UP') {
+              state = 'DOWN';
+              lastStateChange = now;
+              lastScore.value = Math.round(score * 100);
+          } else if (avgHandY > headY + 0.2 && state === 'DOWN') {
+              state = 'UP';
+              repCount.value++;
+              speak(String(repCount.value));
+              feedback.value = lastScore.value > 85 ? '漂亮！' : '动作幅度再大点';
+              lastStateChange = now;
+          }
       }
     }
     canvasCtx.restore();
 
     if (!isLoaded.value) {
       isLoaded.value = true;
-    lastStateChange = Date.now();
-    startCoachTimer();
+      startCoachTimer();
     }
   };
 
   const initPose = async (video: HTMLVideoElement, canvas: HTMLCanvasElement) => {
     videoElement.value = video;
     canvasElement.value = canvas;
-    repCount.value = 0; // 重置计数
-    state = 'UP';
+    error.value = null;
+    isLoaded.value = false;
+    
     try {
-      error.value = null;
-      isLoaded.value = false;
-      ensureMediaSupport();
-
-      if (isUpdating.value) {
-        stopPose();
-      }
-
-      pose = new Pose({
-        locateFile: (file) => {
-          return getMediaPipeAssetUrl(file);
-        }
-      });
-
+      pose = new Pose({ locateFile: (file) => getMediaPipeAssetUrl(file) });
       pose.setOptions({
         modelComplexity: 1,
         smoothLandmarks: true,
-        enableSegmentation: false,
-        smoothSegmentation: false,
         minDetectionConfidence: 0.5,
         minTrackingConfidence: 0.5
       });
-
       pose.onResults(onResults);
 
-      camera = new Camera(videoElement.value, {
+      camera = new Camera(video, {
         onFrame: async () => {
-          if (videoElement.value) {
-            await pose?.send({ image: videoElement.value });
-          }
+          if (isUpdating.value) await pose?.send({ image: video });
         },
-        width: 640,
-        height: 480
+        width: 1280, // 高清模式提升识别精度
+        height: 720
       });
-
+      
       await camera.start();
-      await waitForVideoReady(videoElement.value);
       isUpdating.value = true;
-      if (!isLoaded.value) {
-        isLoaded.value = true;
-      }
     } catch (err: any) {
-      isUpdating.value = false;
-      error.value = `MediaPipe 启动失败: ${err?.message || '未知错误'}`;
+      error.value = `启动失败: ${err.message}`;
       console.error(err);
     }
   };
@@ -301,26 +232,11 @@ export function usePoseDetection() {
     clearCoachTimer();
     camera?.stop();
     pose?.close();
-
-    if (videoElement.value?.srcObject) {
-      const stream = videoElement.value.srcObject as MediaStream;
-      stream.getTracks().forEach((track) => track.stop());
-      videoElement.value.srcObject = null;
-    }
-
     camera = null;
     pose = null;
   };
 
-  const resetCount = () => {
-    repCount.value = 0;
-    state = 'UP';
-    feedback.value = '请就位';
-  };
-
-  onUnmounted(() => {
-    stopPose();
-  });
+  onUnmounted(stopPose);
 
   return {
     isLoaded,
@@ -328,10 +244,18 @@ export function usePoseDetection() {
     error,
     repCount,
     feedback,
+    repProgress,
     exerciseMode,
     lastScore,
+    duration,
     initPose,
     stopPose,
-    resetCount
+    resetCount: () => {
+      repCount.value = 0;
+      duration.value = 0;
+      plankStartTime = null;
+      state = 'UP';
+      feedback.value = '请就位';
+    }
   };
 }
