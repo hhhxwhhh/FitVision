@@ -30,11 +30,13 @@
             <el-button type="primary" @click="handleLogin" :loading="loading.login" class="full-width-btn shadow-btn">
               登录
             </el-button>
-            <el-button @click="handleRegister" :loading="loading.register" class="full-width-btn" plain>
-              注册新账号
-            </el-button>
           </div>
         </el-form>
+
+        <div class="form-footer">
+          <span class="footer-text">还没有账号？</span>
+          <el-link type="primary" :underline="false" @click="goRegister">立即注册</el-link>
+        </div>
 
         <transition name="el-fade-in">
           <el-alert v-if="message" :title="message" :type="msgType" show-icon class="mt-4" @close="message = ''" />
@@ -77,8 +79,7 @@ const rules = reactive<FormRules>({
 const message = ref('')
 const msgType = ref<'success' | 'error' | 'info' | 'warning'>('info')
 const loading = reactive({
-  login: false,
-  register: false
+  login: false
 })
 
 const API_BASE = 'http://127.0.0.1:8000/api/auth'
@@ -109,32 +110,8 @@ const handleLogin = async () => {
   }
 }
 
-const handleRegister = async () => {
-  if (!formRef.value) return
-
-  const valid = await formRef.value.validate().catch(() => false)
-  if (!valid) return
-
-  loading.register = true
-  message.value = ''
-  try {
-    await axios.post(`${API_BASE}/register/`, form)
-    message.value = '注册成功！请直接点击登录'
-    msgType.value = 'success'
-
-    // 清空密码字段
-    form.password = ''
-  } catch (err: any) {
-    const errorData = err.response?.data
-    if (typeof errorData === 'object') {
-      message.value = Object.values(errorData)[0] as string || '注册失败'
-    } else {
-      message.value = errorData || '注册失败'
-    }
-    msgType.value = 'error'
-  } finally {
-    loading.register = false
-  }
+const goRegister = () => {
+  router.push('/register')
 }
 </script>
 
@@ -269,6 +246,17 @@ const handleRegister = async () => {
 
 .mt-4 {
   margin-top: 16px;
+}
+
+.form-footer {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.footer-text {
+  color: #94a3b8;
+  margin-right: 4px;
 }
 
 .footer-copyright {
