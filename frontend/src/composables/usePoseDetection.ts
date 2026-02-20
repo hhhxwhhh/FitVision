@@ -8,7 +8,12 @@ export function usePoseDetection() {
   const MEDIAPIPE_POSE_VERSION = '0.5.1675469404';
   const MEDIAPIPE_BASE_URL =
     (import.meta as any).env?.VITE_MEDIAPIPE_BASE ||
-    `https://unpkg.com/@mediapipe/pose@${MEDIAPIPE_POSE_VERSION}`;
+    `https://cdn.jsdelivr.net/npm/@mediapipe/pose@${MEDIAPIPE_POSE_VERSION}`;
+  const normalizedMediaPipeBaseUrl = MEDIAPIPE_BASE_URL.replace(/\/+$/, '');
+  const getMediaPipeAssetUrl = (file: string) => {
+    const normalizedFile = file.replace(/^\/+/, '');
+    return `${normalizedMediaPipeBaseUrl}/${normalizedFile}`;
+  };
   const videoElement = ref<HTMLVideoElement | null>(null);
   const canvasElement = ref<HTMLCanvasElement | null>(null);
   const isUpdating = ref(false);
@@ -98,8 +103,14 @@ export function usePoseDetection() {
 
     canvasCtx.save();
     if (results.image) {
-      const imageWidth = (results.image as HTMLVideoElement).videoWidth || canvasElement.value.width;
-      const imageHeight = (results.image as HTMLVideoElement).videoHeight || canvasElement.value.height;
+      const imageSource = results.image as unknown as {
+        videoWidth?: number;
+        videoHeight?: number;
+        width?: number;
+        height?: number;
+      };
+      const imageWidth = imageSource.videoWidth || imageSource.width || canvasElement.value.width;
+      const imageHeight = imageSource.videoHeight || imageSource.height || canvasElement.value.height;
       if (canvasElement.value.width !== imageWidth || canvasElement.value.height !== imageHeight) {
         canvasElement.value.width = imageWidth;
         canvasElement.value.height = imageHeight;
@@ -213,7 +224,7 @@ export function usePoseDetection() {
 
       pose = new Pose({
         locateFile: (file) => {
-          return `${MEDIAPIPE_BASE_URL}/${file}`;
+          return getMediaPipeAssetUrl(file);
         }
       });
 

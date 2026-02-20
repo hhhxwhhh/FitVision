@@ -361,7 +361,7 @@
 import { reactive, ref, watch, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { VideoCamera, InfoFilled, Trophy, Edit } from '@element-plus/icons-vue'
+import { VideoCamera, InfoFilled, Trophy, Edit, MagicStick } from '@element-plus/icons-vue'
 import apiClient from '../api'
 import PosePreview from '../components/ai/PosePreview.vue'
 import NextExerciseRecommendation from '../components/NextExerciseRecommendation.vue'

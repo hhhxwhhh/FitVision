@@ -186,7 +186,7 @@
                   {{ getBMIText(computedBMI) }}
                </el-tag>
             </div>
-            <el-progress :percentage="Math.min(computedBMI * 2.5, 100)" :color="getBMIColor(computedBMI)" :show-text="false" stroke-width="8" class="mt-2" />
+            <el-progress :percentage="Math.min(computedBMI * 2.5, 100)" :color="getBMIColor(computedBMI)" :show-text="false" :stroke-width="8" class="mt-2" />
           </div>
 
           <div class="metric-divider"></div>
