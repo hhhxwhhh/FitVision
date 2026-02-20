@@ -23,6 +23,8 @@ export function usePoseDetection() {
   const feedback = ref('请就位');
   const exerciseMode = ref<'squat' | 'pushup' | 'jumping_jack'>('squat');
   const lastScore = ref(0);
+  let lastStateChange = Date.now();
+  let coachTimer: number | null = null;
   
   // 语音合成
   const speak = (text: string) => {
@@ -30,9 +32,31 @@ export function usePoseDetection() {
       window.speechSynthesis.cancel(); // 取消之前的语音
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'zh-CN';
-      utterance.rate = 1.2;
+      utterance.rate = 1.3;
       window.speechSynthesis.speak(utterance);
     }
+  };
+
+  const clearCoachTimer = () => {
+    if (coachTimer) {
+      window.clearInterval(coachTimer);
+      coachTimer = null;
+    }
+  };
+
+  const startCoachTimer = () => {
+    clearCoachTimer();
+    coachTimer = window.setInterval(() => {
+      const idleTime = Date.now() - lastStateChange;
+      if (idleTime > 7000) { 
+        if (state === 'UP') {
+          speak('加油，再来一个！');
+        } else {
+          speak('坚持住，你可以的！');
+        }
+        lastStateChange = Date.now(); 
+      }
+    }, 1000);
   };
 
   // 运动状态机
@@ -140,14 +164,16 @@ export function usePoseDetection() {
         if (angle !== null) {
           if (angle < SQUAT_THRESHOLD_DOWN) {
             if (state === 'UP') {
-              feedback.value = '蹲得好！';
-              // 评分：蹲得越深（角度越小）分数越高，假设80度是100分
+              feedback.value = '就是这样！再深一点';
+              if (angle < 85) speak('漂亮！');
               lastScore.value = Math.min(100, Math.max(60, 100 - (angle - 80)));
+              state = 'DOWN';
+              lastStateChange = Date.now();
             }
-            state = 'DOWN';
           }
           if (angle > SQUAT_THRESHOLD_UP && state === 'DOWN') {
             state = 'UP';
+            lastStateChange = Date.now();
             repCount.value++;
             feedback.value = `完成 ${repCount.value} 个深蹲`;
             speak(String(repCount.value));
@@ -164,13 +190,16 @@ export function usePoseDetection() {
         if (angle !== null) {
           if (angle < PUSHUP_THRESHOLD_DOWN) {
             if (state === 'UP') {
-              feedback.value = '下沉到位！';
+              feedback.value = '下沉到位！好样的';
+              if (angle < 75) speak('给力！');
               lastScore.value = Math.min(100, Math.max(60, 100 - (angle - 60)));
+              state = 'DOWN';
+              lastStateChange = Date.now();
             }
-            state = 'DOWN';
           }
           if (angle > PUSHUP_THRESHOLD_UP && state === 'DOWN') {
             state = 'UP';
+            lastStateChange = Date.now();
             repCount.value++;
             feedback.value = `完成 ${repCount.value} 个俯卧撑`;
             speak(String(repCount.value));
@@ -187,12 +216,15 @@ export function usePoseDetection() {
           const handsHigh = leftHand.y < head.y && rightHand.y < head.y;
           if (handsHigh) {
             if (state === 'UP') {
-              state = 'DOWN'; // 使用 DOWN 表示跳起击掌
+              state = 'DOWN';
+              lastStateChange = Date.now();
               lastScore.value = 100;
+              speak('跳！');
             }
           } else {
             if (state === 'DOWN') {
               state = 'UP';
+              lastStateChange = Date.now();
               repCount.value++;
               feedback.value = `累计 ${repCount.value} 个开合跳`;
               speak(String(repCount.value));
@@ -205,6 +237,8 @@ export function usePoseDetection() {
 
     if (!isLoaded.value) {
       isLoaded.value = true;
+    lastStateChange = Date.now();
+    startCoachTimer();
     }
   };
 
@@ -264,6 +298,7 @@ export function usePoseDetection() {
 
   const stopPose = () => {
     isUpdating.value = false;
+    clearCoachTimer();
     camera?.stop();
     pose?.close();
 
