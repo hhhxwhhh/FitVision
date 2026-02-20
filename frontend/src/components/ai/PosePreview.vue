@@ -82,9 +82,15 @@
       </el-button>
       
       <div v-else class="active-controls">
+        <el-button type="primary" :loading="isAnalyzingVlm" @click="handleVlmAnalyze">AI深度分析</el-button>
         <el-button type="danger" @click="stopDetection">关闭摄像头</el-button>
         <el-button type="warning" @click="resetCount">重新计数</el-button>
       </div>
+    </div>
+
+    <div v-if="vlmAdvice" class="vlm-advice-box">
+      <div class="vlm-advice-title">国产视觉大模型建议</div>
+      <div class="vlm-advice-content">{{ vlmAdvice }}</div>
     </div>
   </div>
 </template>
@@ -113,7 +119,10 @@ const {
   lastScore,
   repProgress,
   duration,
+  isAnalyzingVlm,
+  vlmAdvice,
   initPose,
+  analyzeWithVisionModel,
   stopPose,
   resetCount
 } = usePoseDetection();
@@ -164,9 +173,14 @@ const stopDetection = () => {
   stopPose();
 };
 
+const handleVlmAnalyze = async () => {
+  await analyzeWithVisionModel();
+};
+
 defineExpose({
   startDetection,
   stopDetection,
+  handleVlmAnalyze,
   resetCount
 });
 </script>
@@ -402,6 +416,27 @@ defineExpose({
 
 .active-controls {
   display: flex; gap: 12px;
+}
+
+.vlm-advice-box {
+  margin: 0 16px 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #0b1328;
+  border: 1px solid #1d4ed8;
+}
+
+.vlm-advice-title {
+  color: #93c5fd;
+  font-size: 12px;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+
+.vlm-advice-content {
+  color: #e2e8f0;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .loading-overlay {

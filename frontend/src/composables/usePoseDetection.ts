@@ -3,6 +3,7 @@ import { Pose, type Results, POSE_CONNECTIONS } from '@mediapipe/pose';
 import { Camera } from '@mediapipe/camera_utils';
 import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
 import { calculateAngle, OneEuroFilter, normalizeLandmarks, matchPoseSignature } from '@/utils/poseMatching';
+import apiClient from '@/api';
 
 export function usePoseDetection() {
   const MEDIAPIPE_POSE_VERSION = '0.5.1675469404';
@@ -33,6 +34,9 @@ export function usePoseDetection() {
   const exerciseMode = ref<'squat' | 'pushup' | 'jumping_jack' | 'plank'>('squat');
   const lastScore = ref(0);
   const duration = ref(0); // 持续时间，用于平板支撑等
+  const isAnalyzingVlm = ref(false);
+  const vlmAdvice = ref('');
+  const latestLandmarks = ref<any[] | null>(null);
 
   // 1. 坐标平滑滤波器组 (为 33 个关键点的 X, Y, Z 分别创建滤波器)
   const landmarkFilters = Array.from({ length: 33 }, () => ({
@@ -101,6 +105,7 @@ export function usePoseDetection() {
           z: landmarkFilters[i].z.filter(lm.z, now),
         };
       });
+      latestLandmarks.value = smoothedLandmarks;
 
       // 2. 动态着色渲染：根据最后一次动作得分改变骨骼颜色
       const skeletonColor = lastScore.value > 88 ? 'rgba(0, 255, 100, 0.6)' : 'rgba(255, 165, 0, 0.6)';
@@ -195,6 +200,53 @@ export function usePoseDetection() {
     }
   };
 
+  const captureFrameBase64 = (): string | null => {
+    if (!videoElement.value) return null;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = videoElement.value.videoWidth || 640;
+    tempCanvas.height = videoElement.value.videoHeight || 480;
+    const tempCtx = tempCanvas.getContext('2d');
+    if (!tempCtx) return null;
+    tempCtx.drawImage(videoElement.value, 0, 0, tempCanvas.width, tempCanvas.height);
+    return tempCanvas.toDataURL('image/jpeg', 0.85);
+  };
+
+  const analyzeWithVisionModel = async () => {
+    if (!isUpdating.value) {
+      feedback.value = '请先开启摄像头';
+      return;
+    }
+    const image = captureFrameBase64();
+    if (!image || !latestLandmarks.value) {
+      feedback.value = '画面或关键点未准备好，请稍后重试';
+      return;
+    }
+
+    isAnalyzingVlm.value = true;
+    try {
+      const response = await apiClient.post('/ai/vlm-analysis/', {
+        image_base64: image,
+        exercise_type: exerciseMode.value,
+        landmarks: latestLandmarks.value,
+        motion_metrics: {
+          rep_progress: repProgress.value,
+          last_score: lastScore.value,
+          rep_count: repCount.value,
+        },
+      });
+
+      const advice = response.data?.advice || '已完成分析，请继续保持训练节奏';
+      vlmAdvice.value = advice;
+      feedback.value = `🤖 ${advice}`;
+      speak(advice);
+    } catch (err: any) {
+      const message = err?.response?.data?.detail || '视觉大模型分析失败，请稍后重试';
+      feedback.value = `⚠️ ${message}`;
+    } finally {
+      isAnalyzingVlm.value = false;
+    }
+  };
+
   const initPose = async (video: HTMLVideoElement, canvas: HTMLCanvasElement) => {
     videoElement.value = video;
     canvasElement.value = canvas;
@@ -248,7 +300,10 @@ export function usePoseDetection() {
     exerciseMode,
     lastScore,
     duration,
+    isAnalyzingVlm,
+    vlmAdvice,
     initPose,
+    analyzeWithVisionModel,
     stopPose,
     resetCount: () => {
       repCount.value = 0;
@@ -256,6 +311,7 @@ export function usePoseDetection() {
       plankStartTime = null;
       state = 'UP';
       feedback.value = '请就位';
+      vlmAdvice.value = '';
     }
   };
 }

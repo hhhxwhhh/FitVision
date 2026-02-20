@@ -3,7 +3,7 @@ import axios from 'axios'
 // 创建 axios 实例
 const apiClient = axios.create({
   baseURL: 'http://127.0.0.1:8000/api', // 统一使用 127.0.0.1，并去掉末尾斜杠
-  timeout: 10000,
+  timeout: 60000, // 增加到 60 秒以支持 VLM 分析
   headers: {
     'Content-Type': 'application/json',
   }
