@@ -37,6 +37,9 @@ export function usePoseDetection() {
   const isAnalyzingVlm = ref(false);
   const vlmAdvice = ref('');
   const latestLandmarks = ref<any[] | null>(null);
+  let lastVlmCallTime = 0; // VLM 自动触发的时间戳
+  const VLM_AUTO_THRESHOLD = 60; // 自动触发的分数阈值
+  const VLM_COOLDOWN = 25000; // 25秒冷却时间，防止频繁开销
 
   // 1. 坐标平滑滤波器组 (为 33 个关键点的 X, Y, Z 分别创建滤波器)
   const landmarkFilters = Array.from({ length: 33 }, () => ({
@@ -192,6 +195,17 @@ export function usePoseDetection() {
           }
       }
     }
+    
+    // 🔥 VLM 智能自动纠错机制：如果分数长期低于阈值且冷却已过，自动请求深度分析
+    const now = Date.now();
+    if (isUpdating.value && !isAnalyzingVlm.value && lastScore.value > 0 && lastScore.value < VLM_AUTO_THRESHOLD) {
+      if (now - lastVlmCallTime > VLM_COOLDOWN) {
+        lastVlmCallTime = now;
+        console.log("Detecting bad posture, auto-triggering VLM...");
+        analyzeWithVisionModel();
+      }
+    }
+    
     canvasCtx.restore();
 
     if (!isLoaded.value) {
@@ -235,10 +249,30 @@ export function usePoseDetection() {
         },
       });
 
-      const advice = response.data?.advice || '已完成分析，请继续保持训练节奏';
-      vlmAdvice.value = advice;
-      feedback.value = `🤖 ${advice}`;
-      speak(advice);
+      // 优化后的结构化数据处理
+      const { advice, tts_alert, safety_risks, score_vlm } = response.data;
+      
+      vlmAdvice.value = advice || '分析完成';
+      
+      // 优先显示安全警告，否则显示建议
+      if (safety_risks) {
+        feedback.value = `🛑 警告: ${safety_risks}`;
+      } else {
+        feedback.value = `🤖 ${advice}`;
+      }
+
+      // 如果有 VLM 评分，可以选择同步更新 UI（可选）
+      if (score_vlm) {
+        lastScore.value = Math.round(Number(score_vlm));
+      }
+
+      // 关键优化：使用专用极简语音播报字段，提升实时交互体验
+      if (tts_alert) {
+        speak(tts_alert);
+      } else if (advice) {
+        // 兜底：如果没拿到极简播报，播放截断后的建议
+        speak(advice.substring(0, 30));
+      }
     } catch (err: any) {
       const message = err?.response?.data?.detail || '视觉大模型分析失败，请稍后重试';
       feedback.value = `⚠️ ${message}`;

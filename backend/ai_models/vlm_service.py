@@ -1,118 +1,195 @@
-import os
+﻿import os
 import logging
-from typing import Any
-import requests
-from openai import OpenAI  # 使用 OpenAI SDK 以提高稳定性
+import json
+import time
+from typing import Any, Optional
+from openai import OpenAI, AsyncOpenAI
 
-# 设置简单的日志记录，方便开发者在控制台看到具体报错
+# 设置简单的日志记录
 logger = logging.getLogger(__name__)
 
 class ChinaVLMService:
-    def __init__(self) -> None:
-        # 默认使用 OpenKey 平台调用的豆包 (Doubao) 模型
-        self.api_key = os.getenv('CN_VLM_API_KEY')
-        # 更新为更通用的 1.5 Pro Vision 版本
-        self.model = os.getenv('CN_VLM_MODEL', 'doubao-1.5-vision-pro-250328')
-        # OpenKey 的 OpenAI 兼容模式基础 URL 应该到 /v1
-        base_url = os.getenv('CN_VLM_BASE_URL', 'https://openkey.cloud/v1')
-        
-        # 初始化 OpenAI 客户端
-        self.client = None
-        if self.api_key:
-            self.client = OpenAI(
-                api_key=self.api_key,
-                base_url=base_url
-            )
+    """
+    针对 FitVision 优化的视觉语言模型 (VLM) 服务类。
+    支持同步与异步调用，并强制结构化 JSON 输出。
+    """
+    _instance: Optional['ChinaVLMService'] = None
 
-    def analyze_pose(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def __new__(cls, *args, **kwargs) -> 'ChinaVLMService':
+        if cls._instance is None:
+            cls._instance = super(ChinaVLMService, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+
+    def __init__(self) -> None:
+        if getattr(self, '_initialized', False):
+            return
+            
+        # 环境配置
+        self.api_key = os.getenv('CN_VLM_API_KEY')
+        self.model = os.getenv('CN_VLM_MODEL', 'doubao-1.5-vision-pro-250328')
+        self.base_url = os.getenv('CN_VLM_BASE_URL', 'https://openkey.cloud/v1')
+        
+        # 初始化客户端（同步与异步）
+        self.client = None
+        self.async_client = None
+        if self.api_key:
+            try:
+                self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+                self.async_client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
+            except Exception as e:
+                logger.error(f"Failed to initialize OpenAI clients: {e}")
+            
+        self._initialized = True
+        logger.info(f"VLM Service initialized with model: {self.model}")
+
+    def _get_system_prompt(self, exercise_type: str) -> str:
+        """根据训练科目生成系统提示词，引导 JSON 结构化输出"""
+        return (
+            f"你是一位资深健身教练，擅长通过视觉分析{exercise_type}动作。\n"
+            "请分析图片中的人体姿态，并返回严格的 JSON 格式。\n"
+            "JSON 必须包含：\n"
+            "1. 'advice': 针对当前帧的实时纠错建议 (string)；\n"
+            "2. 'tts_alert': 3-8 字的极简指令，用于语音实时播报 (string)；\n"
+            "3. 'score_vlm': 你对该动作标准度的评分 0-100 (number)；\n"
+            "4. 'safety_risks': 潜在受伤风险描述，若无则为空 (string)；\n"
+            "5. 'visual_focus': 你在图中观察到的关键异常点 (string)。"
+        )
+
+    def _prepare_image_url(self, image_base64: str) -> str:
+        """规范化 Base64 图片格式"""
+        image_url = image_base64.strip()
+        if not image_url.startswith('data:image'):
+            # 默认为 jpeg
+            image_url = f'data:image/jpeg;base64,{image_url}'
+        return image_url
+
+    async def async_analyze_pose(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """异步接口：适用于实时性要求高、并发大的场景"""
+        if not self.async_client:
+            return self._get_fallback_response(payload, "API Client not configured")
+
         image_base64 = payload.get('image_base64', '')
         exercise_type = payload.get('exercise_type', 'general')
         landmarks = payload.get('landmarks', [])
         motion_metrics = payload.get('motion_metrics', {})
 
-        if not self.client:
-            logger.warning("VLM API Key not found, using fallback advice.")
-            return {
-                'advice': self._fallback_advice(exercise_type, motion_metrics),
-                'provider': 'fallback',
-                'model': 'rule-engine',
-            }
+        image_url = self._prepare_image_url(image_base64)
+        prompt = self._build_user_prompt(exercise_type, landmarks, motion_metrics)
+        start_time = time.time()
 
-        # 处理图片 URL，确保不包含重复头，并整理格式
-        image_url = image_base64.strip()
-        if not image_url.startswith('data:image'):
-            image_url = f'data:image/jpeg;base64,{image_url}'
-
-        prompt = self._build_prompt(exercise_type, landmarks, motion_metrics)
-        
         try:
-            # 使用 SDK 调用聊天接口（包含视觉消息）
-            response = self.client.chat.completions.create(
+            response = await self.async_client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {
-                        "role": "system",
-                        "content": "你是一位拥有运动人体科学基础的精英健身教练。请对当前这一帧的训练姿态进行深度解析，给予用户具备指导价值的微型纠错建议。"
-                    },
+                    {"role": "system", "content": self._get_system_prompt(exercise_type)},
                     {
                         "role": "user",
                         "content": [
                             {"type": "text", "text": prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": image_url,
-                                    "detail": "low"  # low 模式对姿态分析够用了，速度更快
-                                }
-                            }
+                            {"type": "image_url", "image_url": {"url": image_url, "detail": "low"}}
                         ]
                     }
                 ],
                 temperature=0.1,
-                max_tokens=450,
-                timeout=55.0  # 为模型推理留足 55s，彻底避免 502/504
+                max_tokens=600,
+                response_format={"type": "json_object"},
+                timeout=45.0
             )
 
-            # 获取解析建议
-            message = response.choices[0].message.content
+            latency = (time.time() - start_time) * 1000
+            content = response.choices[0].message.content
             
-            return {
-                'advice': message.strip() if message else "分析完成，动作节奏非常稳定，请继续保持。",
-                'provider': 'OpenKey-Doubao',
-                'model': self.model,
-            }
-        except Exception as e:
-            logger.error(f"VLM Analysis Error: {str(e)}")
-            raise
+            try:
+                result = json.loads(content) if content else {}
+            except json.JSONDecodeError:
+                result = {"advice": content, "tts_alert": "请注意修正动作"}
 
-    def _build_prompt(self, exercise_type: str, landmarks: list[Any], motion_metrics: dict[str, Any]) -> str:
-        rep_progress = motion_metrics.get('rep_progress', 0)
-        last_score = motion_metrics.get('last_score', 0)
-        rep_count = motion_metrics.get('rep_count', 0)
+            result.update({
+                'model': self.model,
+                'latency_ms': round(latency, 2),
+                'usage': {
+                    'total_tokens': response.usage.total_tokens
+                }
+            })
+            return result
+
+        except Exception as e:
+            logger.error(f"VLM Async Error: {str(e)}")
+            return self._get_fallback_response(payload, str(e))
+
+    def analyze_pose(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """同步接口：保持现有项目逻辑兼容"""
+        if not self.client:
+            return self._get_fallback_response(payload, "No Client")
+
+        image_base64 = payload.get('image_base64', '')
+        exercise_type = payload.get('exercise_type', 'general')
+        image_url = self._prepare_image_url(image_base64)
+        prompt = self._build_user_prompt(exercise_type, payload.get('landmarks', []), payload.get('motion_metrics', {}))
         
-        # 结构化 Prompt 引导，增加对 MediaPipe 关键点的语义说明
+        start_time = time.time()
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": self._get_system_prompt(exercise_type)},
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": image_url, "detail": "low"}}
+                        ]
+                    }
+                ],
+                temperature=0.1,
+                max_tokens=600,
+                response_format={"type": "json_object"},
+                timeout=55.0
+            )
+            
+            latency_ms = (time.time() - start_time) * 1000
+            content = response.choices[0].message.content
+            result = json.loads(content) if content else {}
+            result['latency_ms'] = round(latency_ms, 2)
+            result['model'] = self.model
+            return result
+        except Exception as e:
+            logger.error(f"VLM Sync Error: {str(e)}")
+            return self._get_fallback_response(payload, str(e))
+
+    def _build_user_prompt(self, exercise_type: str, landmarks: list[Any], metrics: dict[str, Any]) -> str:
+        rep_progress = metrics.get('rep_progress', 0)
+        last_score = metrics.get('last_score', 0)
+        
         return (
-            f"请针对这张画面中的动作姿态进行分析并给出语音纠正建议。\n"
-            f"- 训练科目: {exercise_type}\n"
-            f"- 动作进度: {rep_progress}% (接近 100% 为动作顶点)\n"
-            f"- 算法评分: {last_score}/100\n"
-            f"- 累计计数: {rep_count}\n"
-            f"- 数据特征: 已检测到 {len(landmarks)} 个姿态核心锚点\n\n"
-            "输出准则：\n"
-            "1. 用一句话肯定表现（如稳定性、幅度等）；\n"
-            "2. 给出 2 条最急需改进的具体动作细节（针对画面中的姿势）；\n"
-            "3. 给 1 条安全警告（防止受伤）；\n"
-            "4. 总字数压缩在 150 字以内，语气要果断、专业。"
+            f"你是 FitVision AI 健身系统的核心视觉诊断引擎。请实时分析当前这一帧图像：\n"
+            f"1. 训练科目: {exercise_type}\n"
+            f"2. 当前动作阶段: {rep_progress}% (接近 100% 表示接近顶点)\n"
+            f"3. MediaPipe 预判分数: {last_score}/100 (分数较低可能意味着姿态异常)\n\n"
+            "诊断指令：\n"
+            "- 如果发现身体倾斜、关节位置不对称或过载迹象，请给出具体的矫正建议。\n"
+            "- 'tts_alert' 字段必须极短，以便于语音实时播报（如：'背部挺直'、'臀部下压'）。\n"
+            "- 确保 JSON 格式合法且精简。"
         )
 
-    def _fallback_advice(self, exercise_type: str, motion_metrics: dict[str, Any]) -> str:
-        score = int(motion_metrics.get('last_score', 0))
+    def _get_fallback_response(self, payload: dict[str, Any], error_msg: str) -> dict[str, Any]:
+        exercise_type = payload.get('exercise_type', 'general')
+        metrics = payload.get('motion_metrics', {})
+        return {
+            'advice': self._fallback_advice(exercise_type, metrics),
+            'tts_alert': "请继续保持专注",
+            'score_vlm': metrics.get('last_score', 50),
+            'safety_risks': "",
+            'visual_focus': "本地分析模式",
+            'provider': 'fallback',
+            'error': error_msg
+        }
+
+    def _fallback_advice(self, exercise_type: str, metrics: dict[str, Any]) -> str:
+        score = int(metrics.get('last_score', 0))
         if exercise_type == 'squat':
-            if score < 70:
-                return '深蹲时重心稍靠后，膝盖朝脚尖方向，下蹲到大腿接近平行再起身。'
-            return '深蹲动作较稳定，继续保持核心收紧与膝盖轨迹一致。'
+            return '下蹲时膝盖不要内扣，核心收紧。' if score < 70 else '深蹲幅度很好，注意节奏。'
         if exercise_type == 'pushup':
-            return '俯卧撑注意身体保持一条直线，下降时肘部约45度，避免塌腰。'
-        if exercise_type == 'plank':
-            return '平板支撑保持头肩髋踝一线，收紧腹部与臀部，避免抬臀或塌腰。'
-        return '动作节奏良好，建议保持呼吸稳定并控制动作幅度。'
+            return '俯卧撑身体尽量成直线，避免塌腰。'
+        return '动作节奏良好，保持平稳呼吸。'

@@ -43,15 +43,16 @@ class AIModelConfigViewSet(viewsets.ReadOnlyModelViewSet):
 class VLMAnalysisAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    def post(self, request):
+    async def post(self, request):
         image_base64 = request.data.get('image_base64')
         if not image_base64:
             return Response({'detail': '缺少 image_base64 字段'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # 使用单例模式获取服务
         service = ChinaVLMService()
         try:
-            # 传递请求数据进行 AI 分析
-            result = service.analyze_pose(
+            # 传递请求数据进行异步 AI 分析
+            result = await service.async_analyze_pose(
                 {
                     'image_base64': image_base64,
                     'exercise_type': request.data.get('exercise_type', 'general'),
@@ -61,15 +62,13 @@ class VLMAnalysisAPIView(APIView):
             )
             return Response(result, status=status.HTTP_200_OK)
         except Exception as exc:
-            # 增加错误日志，确保后端控制台可以看见真实原因
-            print(f"--- VLM Server Error ---")
-            print(f"Detail: {str(exc)}")
-            print(f"------------------------")
+            # 增加详细错误日志
+            logger.error(f"VLM View Error: {str(exc)}", exc_info=True)
             
             return Response(
                 {
-                    'detail': '视觉模型分析失败，可能是模型忙碌或配置有误。',
-                    'error_msg': str(exc)  # 返回具体细节给前端，方便调试
+                    'detail': '视觉模型分析失败，可能是模型处理超时。',
+                    'error_msg': str(exc)
                 },
                 status=status.HTTP_502_BAD_GATEWAY,
             )
