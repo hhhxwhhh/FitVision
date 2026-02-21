@@ -150,7 +150,12 @@ class ChinaVLMService:
             
             latency_ms = (time.time() - start_time) * 1000
             content = response.choices[0].message.content
-            result = json.loads(content) if content else {}
+            
+            try:
+                result = json.loads(content) if content else {}
+            except json.JSONDecodeError:
+                result = {"advice": content, "tts_alert": "请注意修正动作"}
+                
             result['latency_ms'] = round(latency_ms, 2)
             result['model'] = self.model
             return result

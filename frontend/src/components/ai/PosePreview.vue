@@ -339,23 +339,23 @@ defineExpose({
 }
 
 .stat-item .label {
-  font-size: 10px; 
+  font-size: 14px; 
   text-transform: uppercase; 
   color: #94a3b8; 
-  margin-bottom: 2px;
+  margin-bottom: 4px;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
 }
 
 .stat-item .value {
-  font-size: 32px; 
-  font-weight: 900; 
+  font-size: 48px; 
+  font-weight: 950; 
   color: #ffffff; 
   line-height: 1;
 }
 
 .stat-item .value-sm {
-  font-size: 16px; 
+  font-size: 20px; 
   font-weight: 700; 
   color: #60a5fa;
 }

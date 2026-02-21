@@ -2,8 +2,8 @@ import { ref, onUnmounted } from 'vue';
 import { Pose, type Results, POSE_CONNECTIONS } from '@mediapipe/pose';
 import { Camera } from '@mediapipe/camera_utils';
 import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
-import { calculateAngle, OneEuroFilter, normalizeLandmarks, matchPoseSignature } from '@/utils/poseMatching';
-import apiClient from '@/api';
+import { calculateAngle, OneEuroFilter, normalizeLandmarks, matchPoseSignature } from '../utils/poseMatching';
+import apiClient from '../api';
 
 export function usePoseDetection() {
   const MEDIAPIPE_POSE_VERSION = '0.5.1675469404';
@@ -98,9 +98,8 @@ export function usePoseDetection() {
       const now = Date.now();
       
       // 1. 坐标级平滑 (Coordinate-level Smoothing)
-      // 这里的优化点在于对每个关节的三维坐标进行物理级滤波，使得骨骼渲染极其稳定
       const smoothedLandmarks = results.poseLandmarks.map((lm, i) => {
-        if (i >= 33) return lm;
+        if (i >= 33 || !landmarkFilters[i]) return lm;
         return {
           ...lm,
           x: landmarkFilters[i].x.filter(lm.x, now),
@@ -110,98 +109,95 @@ export function usePoseDetection() {
       });
       latestLandmarks.value = smoothedLandmarks;
 
-      // 2. 动态着色渲染：根据最后一次动作得分改变骨骼颜色
+      // 2. 姿态归一化 (Skeletal Normalization)
+      const normalizedLandmarks = normalizeLandmarks(smoothedLandmarks as any);
+
+      // 3. 实时绘制与运动学分析
       const skeletonColor = lastScore.value > 88 ? 'rgba(0, 255, 100, 0.6)' : 'rgba(255, 165, 0, 0.6)';
       drawConnectors(canvasCtx, smoothedLandmarks, POSE_CONNECTIONS, { color: skeletonColor, lineWidth: 5 });
-      drawLandmarks(canvasCtx, smoothedLandmarks, { 
-        color: '#FFFFFF', 
-        lineWidth: 1, 
-        radius: (data: any) => (data.index > 10 ? 3 : 1) 
-      });
+      drawLandmarks(canvasCtx, smoothedLandmarks, { color: '#FFFFFF', radius: 2 });
 
-      // 3. 增强版运动学判定逻辑 (Kinematics with Signature Matching)
       if (exerciseMode.value === 'squat') {
-        const angle = calculateAngle(smoothedLandmarks[24], smoothedLandmarks[26], smoothedLandmarks[28]);
-        if (angle) {
-          const smoothedAngle = angleFilter.filter(angle, now);
-          repProgress.value = Math.floor(progressFilter.filter(Math.max(0, Math.min(100, (170 - smoothedAngle) / 80 * 100)), now));
-
-          if (smoothedAngle < 105 && state === 'UP') {
-            state = 'DOWN';
-            feedback.value = '下沉到位！';
-            lastStateChange = now;
-            
-            // 使用 SOTA 签名匹配进行实时打分 (Signature Match)
-            const signatureScore = matchPoseSignature(smoothedLandmarks, 'squat_down');
-            lastScore.value = Math.round(signatureScore * 100);
-          } else if (smoothedAngle > 155 && state === 'DOWN') {
-            state = 'UP';
-            repCount.value++;
-            speak(String(repCount.value));
-            feedback.value = lastScore.value > 90 ? '完美动作！' : '保持呼吸';
-            lastStateChange = now;
-          }
-        }
-      } else if (exerciseMode.value === 'pushup') {
-          const angle = calculateAngle(smoothedLandmarks[12], smoothedLandmarks[14], smoothedLandmarks[16]);
-          if (angle) {
+        const p1 = smoothedLandmarks[24], p2 = smoothedLandmarks[26], p3 = smoothedLandmarks[28];
+        if (p1 && p2 && p3) {
+          const angle = calculateAngle(p1, p2, p3);
+          if (angle !== null) {
             const smoothed = angleFilter.filter(angle, now);
-            repProgress.value = Math.floor(progressFilter.filter(Math.max(0, Math.min(100, (160 - smoothed) / 85 * 100)), now));
-            
-            if (smoothed < 95 && state === 'UP') {
-                state = 'DOWN';
-                feedback.value = '准备撑起！';
-                lastStateChange = now;
-                const signatureScore = matchPoseSignature(smoothedLandmarks, 'pushup_down');
-                lastScore.value = Math.round(signatureScore * 100);
-            } else if (smoothed > 150 && state === 'DOWN') {
-                state = 'UP';
-                repCount.value++;
-                speak(String(repCount.value));
-                lastStateChange = now;
-            }
-          }
-      } else if (exerciseMode.value === 'plank') {
-          // 平板支撑：利用 Signature 评估姿态稳定性与准确度 (SOTA Approach)
-          const signatureScore = matchPoseSignature(smoothedLandmarks, 'plank');
-          lastScore.value = Math.round(signatureScore * 100);
-          
-          if (lastScore.value > 85) {
-              if (!plankStartTime) plankStartTime = now;
-              duration.value = Math.floor((now - plankStartTime) / 1000);
-              feedback.value = `坚持住！稳定性: ${lastScore.value}%`;
-              repProgress.value = 100;
-          } else {
-              plankStartTime = null;
-              feedback.value = '⚠️ 请保持身体平直';
-              repProgress.value = lastScore.value;
-          }
-      } else if (exerciseMode.value === 'jumping_jack') {
-          const score = matchPoseSignature(smoothedLandmarks, 'jumping_jack_up');
-          // 开合跳：手部超过头部的同时也检查整体签名
-          const avgHandY = (smoothedLandmarks[15].y + smoothedLandmarks[16].y) / 2;
-          const headY = smoothedLandmarks[0].y;
-          
-          if (avgHandY < headY && score > 0.7 && state === 'UP') {
+            repProgress.value = Math.floor(progressFilter.filter(Math.max(0, Math.min(100, (170 - smoothed) / 80 * 100)), now));
+            if (smoothed < 105 && state === 'UP') {
               state = 'DOWN';
+              feedback.value = '下沉到位！';
               lastStateChange = now;
-              lastScore.value = Math.round(score * 100);
-          } else if (avgHandY > headY + 0.2 && state === 'DOWN') {
+              const sig = matchPoseSignature(normalizedLandmarks as any, 'squat_down');
+              lastScore.value = Math.round(sig * 100);
+            } else if (smoothed > 155 && state === 'DOWN') {
               state = 'UP';
               repCount.value++;
               speak(String(repCount.value));
-              feedback.value = lastScore.value > 85 ? '漂亮！' : '动作幅度再大点';
+              feedback.value = lastScore.value > 90 ? '完美动作！' : '保持呼吸';
               lastStateChange = now;
+            }
           }
+        }
+      } else if (exerciseMode.value === 'pushup') {
+        const p1 = smoothedLandmarks[12], p2 = smoothedLandmarks[14], p3 = smoothedLandmarks[16];
+        if (p1 && p2 && p3) {
+          const angle = calculateAngle(p1, p2, p3);
+          if (angle !== null) {
+            const smoothed = angleFilter.filter(angle, now);
+            repProgress.value = Math.floor(progressFilter.filter(Math.max(0, Math.min(100, (160 - smoothed) / 85 * 100)), now));
+            if (smoothed < 95 && state === 'UP') {
+              state = 'DOWN';
+              feedback.value = '准备撑起！';
+              lastStateChange = now;
+              const sig = matchPoseSignature(normalizedLandmarks as any, 'pushup_down');
+              lastScore.value = Math.round(sig * 100);
+            } else if (smoothed > 150 && state === 'DOWN') {
+              state = 'UP';
+              repCount.value++;
+              speak(String(repCount.value));
+              lastStateChange = now;
+            }
+          }
+        }
+      } else if (exerciseMode.value === 'plank') {
+        const sig = matchPoseSignature(normalizedLandmarks as any, 'plank');
+        lastScore.value = Math.round(sig * 100);
+        if (lastScore.value > 85) {
+          if (!plankStartTime) plankStartTime = now;
+          duration.value = Math.floor((now - plankStartTime) / 1000);
+          feedback.value = `坚持住！稳定性: ${lastScore.value}%`;
+          repProgress.value = 100;
+        } else {
+          plankStartTime = null;
+          feedback.value = '⚠️ 请保持身体平直';
+          repProgress.value = lastScore.value;
+        }
+      } else if (exerciseMode.value === 'jumping_jack') {
+        const p1 = smoothedLandmarks[15], p2 = smoothedLandmarks[16], p3 = smoothedLandmarks[0];
+        const sig = matchPoseSignature(normalizedLandmarks as any, 'jumping_jack_up');
+        if (p1 && p2 && p3) {
+          const avgY = (p1.y + p2.y) / 2;
+          if (avgY < p3.y && sig > 0.7 && state === 'UP') {
+            state = 'DOWN';
+            lastStateChange = now;
+            lastScore.value = Math.round(sig * 100);
+          } else if (avgY > p3.y + 0.2 && state === 'DOWN') {
+            state = 'UP';
+            repCount.value++;
+            speak(String(repCount.value));
+            feedback.value = lastScore.value > 85 ? '漂亮！' : '幅度再大点';
+            lastStateChange = now;
+          }
+        }
       }
     }
-    
-    // 🔥 VLM 智能自动纠错机制：如果分数长期低于阈值且冷却已过，自动请求深度分析
-    const now = Date.now();
+
+    // 🔥 VLM 智能自动纠错机制
+    const currentTime = Date.now();
     if (isUpdating.value && !isAnalyzingVlm.value && lastScore.value > 0 && lastScore.value < VLM_AUTO_THRESHOLD) {
-      if (now - lastVlmCallTime > VLM_COOLDOWN) {
-        lastVlmCallTime = now;
-        console.log("Detecting bad posture, auto-triggering VLM...");
+      if (currentTime - lastVlmCallTime > VLM_COOLDOWN) {
+        lastVlmCallTime = currentTime;
         analyzeWithVisionModel();
       }
     }

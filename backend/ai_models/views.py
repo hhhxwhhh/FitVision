@@ -5,7 +5,8 @@ from rest_framework.views import APIView
 from .models import AIAnalysisSession, AIModelConfig, PostureDiagnosis
 from .serializers import AIAnalysisSessionSerializer, AIModelConfigSerializer, PostureDiagnosisSerializer
 from .vlm_service import ChinaVLMService
-
+import logging
+logger = logging.getLogger(__name__)
 class PostureDiagnosisViewSet(viewsets.ModelViewSet):
     """姿态诊断视图集"""
     queryset = PostureDiagnosis.objects.all()
@@ -43,16 +44,16 @@ class AIModelConfigViewSet(viewsets.ReadOnlyModelViewSet):
 class VLMAnalysisAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    async def post(self, request):
+    def post(self, request):
         image_base64 = request.data.get('image_base64')
         if not image_base64:
             return Response({'detail': '缺少 image_base64 字段'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 使用单例模式获取服务
+        # 使用单例模式获取服务（同步接口）
         service = ChinaVLMService()
         try:
-            # 传递请求数据进行异步 AI 分析
-            result = await service.async_analyze_pose(
+            # 使用同步方法进行 AI 分析
+            result = service.analyze_pose(
                 {
                     'image_base64': image_base64,
                     'exercise_type': request.data.get('exercise_type', 'general'),
@@ -67,8 +68,8 @@ class VLMAnalysisAPIView(APIView):
             
             return Response(
                 {
-                    'detail': '视觉模型分析失败，可能是模型处理超时。',
+                    'detail': '视觉模型分析失败，可能是模型处理中发生异常。',
                     'error_msg': str(exc)
                 },
-                status=status.HTTP_502_BAD_GATEWAY,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

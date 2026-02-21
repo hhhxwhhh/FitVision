@@ -17,7 +17,7 @@
           <div class="name">{{ rec.exercise.name }}</div>
           <div class="reason">{{ rec.reason }}</div>
         </div>
-        <el-button type="primary" link icon="ArrowRight" />
+        <el-button type="primary" link :icon="ArrowRight" />
       </div>
     </div>
   </div>
@@ -25,7 +25,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import { Sort } from '@element-plus/icons-vue'
+import { Sort, ArrowRight } from '@element-plus/icons-vue'
 import apiClient from '../api'
 
 const props = defineProps<{

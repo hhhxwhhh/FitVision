@@ -12,7 +12,7 @@
             </div>
         </div>
 
-        <el-row :gutter="24">
+        <el-row :gutter="40">
             <el-col :xs="24" :lg="15">
                 <el-card class="ai-display-card" :body-style="{ padding: 0 }">
                     <div class="ai-header">
@@ -78,7 +78,7 @@
 
                         <el-table-column label="状态/操作" width="120" align="center">
                             <template #default="scope">
-                                <el-button v-if="!sessionId" size="small" type="info" bg text icon="View"
+                                <el-button v-if="!sessionId" size="small" type="info" bg text :icon="View"
                                     @click="fillRecordFromPlanExercise(scope.row)">
                                     预览
                                 </el-button>
@@ -94,7 +94,7 @@
                                         🔥 进行中
                                     </el-button>
 
-                                    <el-button v-else size="small" type="warning" bg text icon="Sort"
+                                    <el-button v-else size="small" type="warning" bg text :icon="Sort"
                                         @click="fillRecordFromPlanExercise(scope.row)">
                                         插队
                                     </el-button>
@@ -114,7 +114,7 @@
                             </div>
                         </template>
 
-                        <el-collapse v-model="activeSteps" accordion class="styled-collapse">
+                        <el-collapse v-model="activeSteps" class="styled-collapse">
                             <el-collapse-item name="plan">
                                 <template #title>
                                     <div class="step-title">
@@ -311,6 +311,14 @@
                                 </div>
                             </el-collapse-item>
                         </el-collapse>
+
+                        <!-- 新增：底部填充提示 card，用于填补空白区域 -->
+                        <div class="column-footer-tips">
+                            <div class="tip-card">
+                                <el-icon><Compass /></el-icon>
+                                <span>建议保持摄像头侧向 45° 俯拍以获得最佳识别效果。</span>
+                            </div>
+                        </div>
                     </el-card>
                 </div>
             </el-col>
@@ -361,11 +369,11 @@
 import { reactive, ref, watch, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { VideoCamera, InfoFilled, Trophy, Edit, MagicStick } from '@element-plus/icons-vue'
+import { VideoCamera, InfoFilled, Trophy, Edit, MagicStick, Compass } from '@element-plus/icons-vue'
 import apiClient from '../api'
 import PosePreview from '../components/ai/PosePreview.vue'
 import NextExerciseRecommendation from '../components/NextExerciseRecommendation.vue'
-import { ArrowRight } from '@element-plus/icons-vue'
+import { ArrowRight, View, Sort } from '@element-plus/icons-vue'
 import { CircleCheck, Timer, DataLine, Medal } from '@element-plus/icons-vue'
 
 import { useRouter } from 'vue-router'
@@ -373,7 +381,7 @@ const router = useRouter()
 
 const currentGifUrl = ref('')
 const route = useRoute()
-const activeSteps = ref(['plan'])
+const activeSteps = ref(['plan', 'session', 'record'])
 const loading = reactive({
     start: false,
     record: false,
@@ -865,22 +873,25 @@ export default {
 
 <style scoped>
 .page-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding-bottom: 60px;
+    max-width: 1680px; /* 进一步扩大容器宽度，适配大屏幕 */
+    margin: 32px auto;
+    padding: 0 40px 60px;
+    min-height: calc(100vh - 120px);
 }
 
 .page-header-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 24px;
+    margin-bottom: 32px;
 }
 
 .status-tag {
-    height: 32px;
-    padding: 0 16px;
+    height: 40px;
+    padding: 0 24px;
     font-weight: 600;
+    font-size: 15px;
+    border-radius: 20px;
 }
 
 .dot {
@@ -908,7 +919,7 @@ export default {
 
 .ai-header {
     background: rgba(255, 255, 255, 0.03);
-    padding: 16px 24px;
+    padding: 24px 32px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -916,17 +927,17 @@ export default {
 }
 
 .ai-title {
-    font-size: 16px;
-    font-weight: 600;
+    font-size: 18px;
+    font-weight: 700;
     display: flex;
     align-items: center;
-    gap: 10px;
-    color: #e2e8f0;
+    gap: 12px;
+    color: #f8fafc;
 }
 
 .pulse-indicator {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
     background: #10b981;
     border-radius: 50%;
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
@@ -935,7 +946,7 @@ export default {
 
 .camera-wrapper {
     position: relative;
-    min-height: 520px;
+    min-height: 640px;
     background: #020617;
     display: flex;
     align-items: center;
@@ -1152,6 +1163,24 @@ export default {
     border-radius: 12px;
     padding: 16px;
     text-align: center;
+}
+
+.column-footer-tips {
+    padding: 20px 24px;
+    background: #f8fafc;
+    border-top: 1px dashed #e2e8f0;
+}
+
+.tip-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.tip-card el-icon {
+    color: var(--el-color-primary);
 }
 
 .session-timer {
