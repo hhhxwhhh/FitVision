@@ -47,6 +47,52 @@
 
             <el-divider />
 
+            <!-- 新增：VLM 深度诊断展示区 -->
+            <div v-if="report.body_alignment" class="vlm-expert-report">
+                <div class="report-section">
+                    <div class="section-title">
+                        <el-icon><MagicStick /></el-icon>
+                        <span>人体力线深度分析 (VLM)</span>
+                    </div>
+                    <p class="section-content">{{ report.body_alignment }}</p>
+                </div>
+
+                <div class="report-section">
+                    <div class="section-title">
+                        <el-icon><Edit /></el-icon>
+                        <span>未来改善建议路线</span>
+                    </div>
+                    <p class="section-content">{{ report.improvement_plan }}</p>
+                </div>
+
+                <div v-if="report.system_recommendations?.length" class="report-section">
+                    <div class="section-title">
+                        <el-icon><Trophy /></el-icon>
+                        <span>AI 纠正动作推荐</span>
+                    </div>
+                    <div class="rec-grid">
+                        <el-tag v-for="ex in report.system_recommendations" :key="ex.id" plain effect="dark" class="rec-item">
+                            {{ ex.name }}
+                        </el-tag>
+                    </div>
+                </div>
+
+                <el-alert 
+                    v-if="report.scenario_application" 
+                    :title="'本报告分析结果已被同步到 AI 训练计划模型'" 
+                    type="info" 
+                    :closable="false" 
+                    show-icon 
+                    class="mt-4"
+                >
+                    <template #description>
+                        {{ report.scenario_application }}
+                    </template>
+                </el-alert>
+                
+                <el-divider border-style="dashed" />
+            </div>
+
             <div class="detail-list">
                 <div v-for="(item, idx) in report.details" :key="idx" class="detail-item">
                     <div class="detail-top">
@@ -106,7 +152,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Loading, InfoFilled, ArrowRight } from '@element-plus/icons-vue'
+import { Loading, InfoFilled, ArrowRight, MagicStick, Edit, Trophy } from '@element-plus/icons-vue'
 import { usePostureDiagnosis } from '@/composables/usePostureDiagnosis'
 import apiClient from '@/api'
 import { ElMessage } from 'element-plus'
@@ -165,7 +211,11 @@ const viewDetail = (row: any) => {
     report.value = {
         score: row.score,
         summary: row.summary,
-        details: row.detailed_report
+        details: row.detailed_report,
+        body_alignment: row.body_alignment,
+        improvement_plan: row.improvement_plan,
+        scenario_application: row.scenario_application,
+        system_recommendations: row.system_recommendations
     }
 }
 
@@ -180,6 +230,53 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.vlm-expert-report {
+    background: #fdf2f8;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+    border: 1px solid #fbcfe8;
+}
+
+.report-section {
+    margin-bottom: 15px;
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: #be185d;
+    margin-bottom: 8px;
+}
+
+.section-content {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #4b5563;
+    background: white;
+    padding: 12px;
+    border-radius: 8px;
+    margin: 0;
+}
+
+.rec-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px;
+    background: white;
+    border-radius: 8px;
+}
+
+.rec-item {
+    padding: 8px 12px;
+}
+
+.mt-4 { margin-top: 16px; }
+.w-full { width: 100%; }
+
 .posture-diagnosis {
     padding: 24px;
     max-width: 1200px;

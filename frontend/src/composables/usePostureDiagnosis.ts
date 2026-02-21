@@ -8,6 +8,11 @@ import apiClient from '@/api';
 export interface PostureReport {
   score: number;
   summary: string;
+  body_alignment?: string;
+  risk_level?: 'low' | 'medium' | 'high';
+  improvement_plan?: string;
+  scenario_application?: string;
+  system_recommendations?: { id: number; name: string; muscle: string }[];
   details: {
     label: string;
     value: string;
@@ -110,67 +115,83 @@ export function usePostureDiagnosis() {
     ctx.restore();
   };
 
+  const captureFrameBase64 = (): string | null => {
+    if (!videoElement.value) return null;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = videoElement.value.videoWidth || 640;
+    tempCanvas.height = videoElement.value.videoHeight || 480;
+    const tempCtx = tempCanvas.getContext('2d');
+    if (!tempCtx) return null;
+    tempCtx.drawImage(videoElement.value, 0, 0, tempCanvas.width, tempCanvas.height);
+    return tempCanvas.toDataURL('image/jpeg', 0.85);
+  };
+
   const analyze = async () => {
     if (!lastResults.value?.poseLandmarks) return;
     isAnalyzing.value = true;
     
-    // 2. 使用归一化数据以脱离距离限制
+    // 1. 获取画面快照
+    const image = captureFrameBase64();
+    
+    // 2. 基础规则预分析
     const landmarks = normalizeLandmarks(lastResults.value.poseLandmarks as any);
-    const newReport: PostureReport = {
-      score: 100,
-      summary: '姿态良好',
-      details: []
-    };
+    const localDetails: PostureReport['details'] = [];
+    let baseScore = 100;
 
     if (currentMode.value === 'front') {
-      // 1. 肩膀对称性
-      const shDiff = Math.abs(landmarks[11].y - landmarks[12].y);
-      if (shDiff > 0.08) {
-        newReport.score -= 20;
-        newReport.details.push({ label: '显著高低肩', value: 'Danger', status: 'danger', advice: '建议咨询物理治疗师检查脊柱侧弯。' });
-      } else if (shDiff > 0.04) {
-        newReport.score -= 10;
-        newReport.details.push({ label: '轻微高低肩', value: 'Warning', status: 'warning', advice: '注意日常背包姿势，加强薄弱侧背部训练。' });
-      } else {
-          newReport.details.push({ label: '肩膀对称性', value: 'Excellent', status: 'normal', advice: '继续保持良好的姿势习惯。' });
-      }
-
-      // 2. 骨盆对称性
-      const hipDiff = Math.abs(landmarks[23].y - landmarks[24].y);
-      if (hipDiff > 0.05) {
-        newReport.score -= 15;
-        newReport.details.push({ label: '骨盆倾斜', value: '检测到偏斜', status: 'warning', advice: '加强单侧膝盖稳定性训练，检查是否有骨盆前倾或后倾。' });
-      }
-    } else {
-      // 侧面分析: 头前伸 (Ear x vs Shoulder x 归一化后差距)
-      const forwardHead = landmarks[7].x - landmarks[11].x; 
-      if (forwardHead > 0.15) {
-          newReport.score -= 25;
-          newReport.details.push({ label: '严重头前伸', value: '严重', status: 'danger', advice: '这严重增加颈椎压力，需进行规律的收下巴训练。' });
-      } else if (forwardHead > 0.08) {
-          newReport.score -= 15;
-          newReport.details.push({ label: '轻度头前伸', value: '轻度', status: 'warning', advice: '注意看电脑/手机的视线高度。' });
-      }
+        const shDiff = Math.abs(landmarks[11].y - landmarks[12].y);
+        if (shDiff > 0.08) {
+            baseScore -= 20;
+            localDetails.push({ label: '肩膀对称度', value: 'Danger', status: 'danger', advice: '存在明显高低肩，VLM 将深度评估脊柱风险。' });
+        }
     }
 
-    if (newReport.score < 70) newReport.summary = '检测到多处姿态失衡';
-    else if (newReport.score < 90) newReport.summary = '核心姿态良好，局部需微调';
-    
-    report.value = newReport;
-    
     try {
-        await apiClient.post('ai/posture-diagnosis/', {
-            diagnosis_type: currentMode.value,
-            score: newReport.score,
-            summary: newReport.summary,
-            detailed_report: newReport.details,
-            landmarks_data: landmarks
+        // 3. 调用核心 VLM 诊断引擎
+        const response = await apiClient.post('/ai/vlm-analysis/', {
+            image_base64: image,
+            mode: 'diagnosis',
+            exercise_type: currentMode.value === 'front' ? '正面全景体能' : '侧方视角体态',
+            landmarks: lastResults.value.poseLandmarks,
+            motion_metrics: { last_score: baseScore }
         });
-    } catch (e) { 
-        console.error('History save failed', e); 
+
+        const vlmData = response.data;
+        
+        // 4. 合并报告
+        report.value = {
+            score: vlmData.score || baseScore,
+            summary: vlmData.summary || '诊断完成',
+            body_alignment: vlmData.body_alignment,
+            risk_level: vlmData.risk_level,
+            improvement_plan: vlmData.improvement_plan,
+            scenario_application: vlmData.scenario_application,
+            system_recommendations: vlmData.system_recommendations,
+            details: localDetails.length ? localDetails : [
+                { label: '初步扫描', value: 'Normal', status: 'normal', advice: '正在生成深度视觉建议...' }
+            ]
+        };
+
+        // 5. 持久化到后端
+        await apiClient.post('/ai/posture-diagnosis/', {
+            diagnosis_type: currentMode.value,
+            score: report.value.score,
+            summary: report.value.summary,
+            detailed_report: vlmData,
+            landmarks_data: lastResults.value.poseLandmarks
+        });
+
+    } catch (err) {
+        console.error('VLM Diagnosis Integration Error:', err);
+        // 回退逻辑
+        report.value = {
+            score: baseScore,
+            summary: '本地扫描快查',
+            details: localDetails
+        };
+    } finally {
+        isAnalyzing.value = false;
     }
-    
-    isAnalyzing.value = false;
   };
 
   const stop = () => {

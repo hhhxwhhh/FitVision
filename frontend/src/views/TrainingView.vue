@@ -20,7 +20,21 @@
                             <div class="pulse-indicator"></div>
                             AI 姿态识别
                         </div>
-                        <el-tag size="small" effect="plain" class="tech-tag">MediaPipe Engine</el-tag>
+                        <div class="header-actions">
+                            <el-button 
+                                v-if="sessionId" 
+                                type="primary" 
+                                size="small" 
+                                bg 
+                                text 
+                                :icon="MagicStick"
+                                @click="triggerProfessionalDiagnosis"
+                                :loading="posePreviewRef?.isAnalyzingVlm"
+                            >
+                                深度姿态诊断 (VLM)
+                            </el-button>
+                            <el-tag size="small" effect="plain" class="tech-tag">MediaPipe Engine</el-tag>
+                        </div>
                     </div>
 
                     <div class="camera-wrapper">
@@ -313,6 +327,63 @@
                         </el-collapse>
 
                         <!-- 新增：底部填充提示 card，用于填补空白区域 -->
+                        <!-- 专业诊断报告卡片 (当有数据时显示) -->
+                        <transition name="el-fade-in-linear">
+                            <el-card v-if="posePreviewRef?.diagnosisReport" class="diagnosis-report-card shadow-sm">
+                                <template #header>
+                                    <div class="report-header">
+                                        <el-icon :color="'#409EFF'"><Medal /></el-icon>
+                                        <span>AI 专业姿态诊断报告</span>
+                                        <el-tag size="small" :type="posePreviewRef.diagnosisReport.risk_level === 'high' ? 'danger' : 'success'">
+                                            {{ posePreviewRef.diagnosisReport.risk_level === 'high' ? '高风险' : '状态健康' }}
+                                        </el-tag>
+                                    </div>
+                                </template>
+                                
+                                <div class="report-body">
+                                    <div class="summary-section">
+                                        <h4>核心结论: <span>{{ posePreviewRef.diagnosisReport.summary }}</span></h4>
+                                        <el-divider />
+                                    </div>
+                                    
+                                    <div class="analysis-grid">
+                                        <div class="grid-item">
+                                            <div class="label">力线分析</div>
+                                            <p>{{ posePreviewRef.diagnosisReport.body_alignment }}</p>
+                                        </div>
+                                        <div class="grid-item">
+                                            <div class="label">未来改善路线</div>
+                                            <p>{{ posePreviewRef.diagnosisReport.improvement_plan }}</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="recommendations-section" v-if="posePreviewRef.diagnosisReport.system_recommendations">
+                                        <div class="label">针对性纠正训练推荐:</div>
+                                        <div class="rec-chips">
+                                            <el-tag 
+                                                v-for="ex in posePreviewRef.diagnosisReport.system_recommendations" 
+                                                :key="ex.id" 
+                                                effect="plain"
+                                                class="rec-chip"
+                                            >
+                                                {{ ex.name }} ({{ ex.muscle }})
+                                            </el-tag>
+                                        </div>
+                                    </div>
+
+                                    <div class="scenario-section">
+                                        <el-alert 
+                                            title="AI 应用场景建议" 
+                                            type="info" 
+                                            :closable="false" 
+                                            show-icon
+                                            :description="posePreviewRef.diagnosisReport.scenario_application"
+                                        />
+                                    </div>
+                                </div>
+                            </el-card>
+                        </transition>
+
                         <div class="column-footer-tips">
                             <div class="tip-card">
                                 <el-icon><Compass /></el-icon>
@@ -397,6 +468,21 @@ let timerInterval: any = null
 
 const lastResponse = ref('')
 const posePreviewRef = ref<any>(null)
+
+const triggerProfessionalDiagnosis = async () => {
+    if (!posePreviewRef.value) return;
+    try {
+        await posePreviewRef.value.handleVlmAnalyze('diagnosis');
+        ElMessage({
+            message: '深度诊断已完成，正在生成应用场景报告...',
+            type: 'success',
+            duration: 3000
+        });
+    } catch (err) {
+        ElMessage.error('获取深度诊断失败，请检查网络稳定性');
+    }
+};
+
 const selectedExerciseName = ref('')
 const completedExerciseIds = ref<Set<string>>(new Set())
 const sessionRecords = ref<any[]>([])
@@ -924,6 +1010,93 @@ export default {
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.diagnosis-report-card {
+    margin-bottom: 25px;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+    background: #fff;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.diagnosis-report-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.1);
+}
+
+.report-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 700;
+    color: #1e293b;
+    font-size: 1.1rem;
+}
+
+.report-body h4 {
+    margin-top: 5px;
+    margin-bottom: 15px;
+    color: #475569;
+    font-size: 16px;
+}
+
+.report-body h4 span {
+    color: #0f172a;
+}
+
+.analysis-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.grid-item .label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+}
+
+.grid-item p {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #334155;
+    margin: 0;
+}
+
+.recommendations-section {
+    background: #f8fafc;
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
+.recommendations-section .label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 10px;
+}
+
+.rec-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.scenario-section {
+    margin-top: 10px;
 }
 
 .ai-title {

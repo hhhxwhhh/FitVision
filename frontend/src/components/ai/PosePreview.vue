@@ -121,6 +121,7 @@ const {
   duration,
   isAnalyzingVlm,
   vlmAdvice,
+  diagnosisReport,
   initPose,
   analyzeWithVisionModel,
   stopPose,
@@ -173,15 +174,17 @@ const stopDetection = () => {
   stopPose();
 };
 
-const handleVlmAnalyze = async () => {
-  await analyzeWithVisionModel();
+const handleVlmAnalyze = async (mode: 'realtime' | 'diagnosis' = 'realtime') => {
+  await analyzeWithVisionModel(mode);
 };
 
 defineExpose({
   startDetection,
   stopDetection,
   handleVlmAnalyze,
-  resetCount
+  resetCount,
+  diagnosisReport,
+  isAnalyzingVlm
 });
 </script>
 

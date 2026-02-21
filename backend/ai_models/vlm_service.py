@@ -43,8 +43,22 @@ class ChinaVLMService:
         self._initialized = True
         logger.info(f"VLM Service initialized with model: {self.model}")
 
-    def _get_system_prompt(self, exercise_type: str) -> str:
-        """根据训练科目生成系统提示词，引导 JSON 结构化输出"""
+    def _get_system_prompt(self, exercise_type: str, mode: str = 'realtime') -> str:
+        """根据训练科目和分析模式生成系统提示词"""
+        if mode == 'diagnosis':
+            return (
+                "你是一位专业的运动表现分析专家和人体工学专家。\n"
+                "请针对上传的动作静态或动态截图进行深度姿态诊断。并返回严格的 JSON 格式。\n"
+                "JSON 必须包含：\n"
+                "1. 'score': 姿态健康度综合评分 0-100 (number)；\n"
+                "2. 'summary': 核心结论 (string，限 15 字以内)；\n"
+                "3. 'body_alignment': 人体力线分析，涵盖脊柱、双肩、盆骨、重心平衡度 (string)；\n"
+                "4. 'risk_level': 风险等级 'low'/'medium'/'high' (string)；\n"
+                "5. 'recommended_target_muscles': 需要加强的目标肌群，从 ['chest', 'back', 'shoulders', 'abs', 'legs', 'glutes'] 中选择 (array)；\n"
+                "6. 'scenario_application': 该报告的应用场景建议，说明如何基于此报告调整后续训练逻辑 (string)；\n"
+                "7. 'improvement_plan': 具体的未来两周改善动作路线建议 (string)。"
+            )
+        
         return (
             f"你是一位资深健身教练，擅长通过视觉分析{exercise_type}动作。\n"
             "请分析图片中的人体姿态，并返回严格的 JSON 格式。\n"
@@ -64,8 +78,8 @@ class ChinaVLMService:
             image_url = f'data:image/jpeg;base64,{image_url}'
         return image_url
 
-    async def async_analyze_pose(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """异步接口：适用于实时性要求高、并发大的场景"""
+    async def async_analyze_pose(self, payload: dict[str, Any], mode: str = 'realtime') -> dict[str, Any]:
+        """异步接口：支持实时分析和深度诊断模式"""
         if not self.async_client:
             return self._get_fallback_response(payload, "API Client not configured")
 
@@ -75,14 +89,14 @@ class ChinaVLMService:
         motion_metrics = payload.get('motion_metrics', {})
 
         image_url = self._prepare_image_url(image_base64)
-        prompt = self._build_user_prompt(exercise_type, landmarks, motion_metrics)
+        prompt = self._build_user_prompt(exercise_type, landmarks, motion_metrics, mode)
         start_time = time.time()
 
         try:
             response = await self.async_client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": self._get_system_prompt(exercise_type)},
+                    {"role": "system", "content": self._get_system_prompt(exercise_type, mode)},
                     {
                         "role": "user",
                         "content": [
@@ -92,9 +106,9 @@ class ChinaVLMService:
                     }
                 ],
                 temperature=0.1,
-                max_tokens=600,
+                max_tokens=800 if mode == 'diagnosis' else 400,
                 response_format={"type": "json_object"},
-                timeout=45.0
+                timeout=55.0
             )
 
             latency = (time.time() - start_time) * 1000
@@ -163,10 +177,20 @@ class ChinaVLMService:
             logger.error(f"VLM Sync Error: {str(e)}")
             return self._get_fallback_response(payload, str(e))
 
-    def _build_user_prompt(self, exercise_type: str, landmarks: list[Any], metrics: dict[str, Any]) -> str:
+    def _build_user_prompt(self, exercise_type: str, landmarks: list[Any], metrics: dict[str, Any], mode: str = 'realtime') -> str:
         rep_progress = metrics.get('rep_progress', 0)
         last_score = metrics.get('last_score', 0)
         
+        if mode == 'diagnosis':
+            return (
+                f"你正在进行一场专业的运动体态诊断。训练科目: {exercise_type}。\n"
+                "请根据图片（包含关键点数据和画面表现）进行深度剖析。\n"
+                "- 特别关注肩膀是否等高、骨盆是否倾斜、关节是否处在不安全位置。\n"
+                "- 给出的报告必须具有医学和体育科学的严谨性。\n"
+                "- 指明该用户接下来的提升方案和动作改进逻辑。\n"
+                "- 描述如何将该报告结果应用于后续的自动化训练计划生成中。"
+            )
+
         return (
             f"你是 FitVision AI 健身系统的核心视觉诊断引擎。请实时分析当前这一帧图像：\n"
             f"1. 训练科目: {exercise_type}\n"
