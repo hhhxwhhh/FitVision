@@ -158,7 +158,7 @@ const initChart = (data: any) => {
       ...l,
       source_name: sourceNode ? sourceNode.name : '',
       target_name: targetNode ? targetNode.name : '',
-      label: { show: true, formatter: '{c}', position: 'middle', fontSize: 10 }
+      label: l.label || { show: true, formatter: '前置基础', position: 'middle', fontSize: 10 }
     }
   })
 

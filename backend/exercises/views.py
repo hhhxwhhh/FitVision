@@ -120,7 +120,8 @@ def exercise_graph_data(request):
             links.append({
                 'source': str(pre.id),
                 'target': str(ex.id),
-                'label': {'show': True, 'formatter': '进化'},
+                'relation_label': '前置基础',
+                'label': {'show': True, 'formatter': '前置基础'},
                 'lineStyle': {'width': 2, 'curveness': 0.2, 'color': '#91d5ff'}
             })
             
