@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Sum
 from django.utils import timezone
 
-from .models import ExerciseCategory, Exercise, UserExerciseRecord
+from .models import ExerciseCategory, Exercise, UserExerciseRecord, ExerciseGraph
 from .serializers import (
     ExerciseCategorySerializer, 
     ExerciseSerializer, 
@@ -65,70 +65,123 @@ import torch
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def exercise_graph_data(request):
-    """获取动作知识图谱数据 (集成 GNN 结构分析)"""
-    exercises = list(Exercise.objects.filter(is_active=True).prefetch_related('prerequisites', 'unlocks'))
+    """获取动作知识图谱数据 (集成 GNN 结构分析与个人进度)"""
+    exercises = list(Exercise.objects.all().prefetch_related('prerequisites', 'unlocks')) # 获取所有动作
     ex_id_to_idx = {ex.id: i for i, ex in enumerate(exercises)}
     num_nodes = len(exercises)
     
-    # 构造邻接矩阵用于 GNN 分析
+    # 获取用户已完成的动作
+    mastered_ids = set(UserExerciseRecord.objects.filter(
+        user=request.user, 
+        accuracy_score__gte=80  # 假设 80 分以上为“掌握”
+    ).values_list('exercise_id', flat=True))
+
+    # 构造邻接矩阵用于 GNN 分析 (基于前置关系)
     adj = torch.eye(num_nodes)
     for ex in exercises:
         for pre in ex.prerequisites.all():
             if pre.id in ex_id_to_idx:
                 adj[ex_id_to_idx[pre.id], ex_id_to_idx[ex.id]] = 1.0
 
-    # 简单的 GNN 结构重要性计算
-    # 在实际应用中，这里可以使用训练好的 GNN 提取节点 Centrality 或 Embedding
+    # 获取学习路径权重 (ExerciseGraph)
+    graph_transitions = ExerciseGraph.objects.select_related('from_exercise', 'to_exercise')
+    transition_map = {}
+    for gt in graph_transitions:
+        transition_map[(gt.from_exercise_id, gt.to_exercise_id)] = gt.probability
+
     model = KnowledgeGraphGNN(num_nodes=num_nodes, feature_dim=16)
     x_indices = torch.arange(num_nodes)
     with torch.no_grad():
-        # 获取 GNN 学习到的多层特征表示
         node_embeddings = model(x_indices, adj)
-        # 计算结构重要性评分 (基于嵌入向量范数)
         structural_scores = torch.norm(node_embeddings, dim=1).numpy()
     
     nodes = []
     links = []
     
     category_colors = {
-        '胸部': '#ff4d4f', '背部': '#40a9ff', '腿部': '#73d13d',
-        '肩部': '#ffc53d', '手臂': '#ff7a45', '腹部': '#9254de', '有氧': '#36cfc9'
+        'chest': '#ff4d4f', 'back': '#40a9ff', 'legs': '#73d13d',
+        'shoulders': '#ffc53d', 'arms': '#ff7a45', 'abs': '#9254de', 
+        'glutes': '#eb2f96', 'full_body': '#fa8c16'
     }
+    
+    # 状态提示色
+    MASTERED_COLOR = '#b7eb8f' # 浅绿
+    LOCKED_COLOR = '#efefef'    # 浅灰
+    READY_COLOR = '#fffbe6'     # 浅黄 (可解锁)
 
     for i, ex in enumerate(exercises):
-        target_muscle_display = ex.get_target_muscle_display()
-        # 将 GNN 计算的结构分值映射到球体大小
+        # 确定节点状态
+        is_mastered = ex.id in mastered_ids
+        # 检查是否可以进行（前置是否全部掌握）
+        all_pres_mastered = all(p.id in mastered_ids for p in ex.prerequisites.all())
+        
+        node_status = 'locked'
+        if is_mastered:
+            node_status = 'mastered'
+        elif all_pres_mastered:
+            node_status = 'ready'
+            
+        target_muscle = ex.target_muscle
         gnn_score = float(structural_scores[i])
         symbol_size = 30 + (gnn_score * 10) + (ex.level * 5)
         
+        # 节点样式优化
+        item_style = {
+            'color': category_colors.get(target_muscle, '#bfbfbf'),
+            'borderColor': '#fff',
+            'borderWidth': 2 if gnn_score > 1.5 else 0
+        }
+        
+        # 如果已掌握，给一个外发光或特殊标记
+        if is_mastered:
+            item_style['borderColor'] = '#52c41a'
+            item_style['borderWidth'] = 4
+            item_style['shadowBlur'] = 10
+            item_style['shadowColor'] = '#52c41a'
+
         nodes.append({
             'name': ex.name,
             'id': str(ex.id),
-            'category': target_muscle_display,
-            'symbolSize': min(symbol_size, 80), # 限制最大尺寸
+            'category': ex.get_target_muscle_display(),
+            'symbolSize': min(symbol_size, 80),
             'value': round(gnn_score, 2),
-            'tags': ex.tags,
+            'status': node_status,
+            'is_mastered': is_mastered,
             'gnn_insight': f"结构重要性: {round(gnn_score, 2)}",
-            'itemStyle': {
-                'color': category_colors.get(target_muscle_display, '#bfbfbf'),
-                'borderColor': '#fff',
-                'borderWidth': 2 if gnn_score > 1.5 else 0 # 高重要性节点高亮边缘
-            }
+            'itemStyle': item_style,
+            'level': ex.level
         })
         
         for pre in ex.prerequisites.all():
+            weight = transition_map.get((pre.id, ex.id), 0.1)
+            line_color = '#91d5ff'
+            if pre.id in mastered_ids and ex.id in mastered_ids:
+                line_color = '#52c41a' # 已通关路径
+            elif pre.id in mastered_ids:
+                line_color = '#faad14' # 正在攻略路径
+
             links.append({
                 'source': str(pre.id),
                 'target': str(ex.id),
                 'relation_label': '前置基础',
-                'label': {'show': True, 'formatter': '前置基础'},
-                'lineStyle': {'width': 2, 'curveness': 0.2, 'color': '#91d5ff'}
+                'label': {'show': True, 'formatter': '前置基础', 'fontSize': 10},
+                'lineStyle': {
+                    'width': 2 + (weight * 3), 
+                    'curveness': 0.2, 
+                    'color': line_color,
+                    'type': 'solid' if pre.id in mastered_ids else 'dashed'
+                }
             })
             
     return Response({
         'nodes': nodes,
         'links': links,
-        'categories': [{'name': v} for v in category_colors.keys()]
+        'categories': [{'name': v} for v in ['胸部', '背部', '腿部', '肩部', '手臂', '腹部', '臀部', '全身']],
+        'stats': {
+            'total': num_nodes,
+            'mastered': len(mastered_ids),
+            'percent': round((len(mastered_ids) / num_nodes * 100), 1) if num_nodes > 0 else 0
+        }
     }, status=status.HTTP_200_OK)
 
 @api_view(['POST'])

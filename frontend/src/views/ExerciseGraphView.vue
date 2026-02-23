@@ -5,9 +5,28 @@
         <el-button icon="ArrowLeft" circle @click="router.back()" />
         <h1 class="page-title">动作知识图谱</h1>
       </div>
-      <div class="header-tips">
-        <el-tag type="info" effect="plain">💡 提示：按住拖动节点，滚轮缩放，蓝色线条表示前置要求关系</el-tag>
+      <div class="header-right">
+        <el-input
+          v-model="searchQuery"
+          placeholder="搜索动作..."
+          clearable
+          class="search-input"
+          @input="handleSearch"
+        >
+          <template #prefix><el-icon><Search /></el-icon></template>
+        </el-input>
+        <div v-if="stats" class="progress-stats">
+          <span class="stat-item">探索进度: <b>{{ stats.mastered }}/{{ stats.total }}</b></span>
+          <el-progress :percentage="stats.percent" :stroke-width="10" striped animated style="width: 120px" :color="progressColor" />
+        </div>
       </div>
+    </div>
+    
+    <div class="graph-toolbar">
+      <el-tag type="success" effect="dark" class="status-legend"><el-icon><CircleCheck /></el-icon> 已掌握</el-tag>
+      <el-tag type="warning" effect="dark" class="status-legend"><el-icon><Promotion /></el-icon> 可开始</el-tag>
+      <el-tag type="info" effect="plain" class="status-legend"><el-icon><Lock /></el-icon> 未解锁</el-tag>
+      <el-tag type="primary" effect="plain" class="status-legend"><el-icon><Link /></el-icon> 虚线: 进阶路径</el-tag>
     </div>
 
     <el-card class="graph-card" v-loading="loading">
@@ -75,9 +94,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { Cpu, ArrowLeft } from '@element-plus/icons-vue'
+import { Cpu, ArrowLeft, Search, CircleCheck, Promotion, Lock, Link } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import apiClient from '../api'
 
@@ -87,11 +106,43 @@ const loading = ref(true)
 const nodeDialogVisible = ref(false)
 const currentNode = ref<any>({})
 const nodesCount = ref(0)
+const searchQuery = ref('')
+const stats = ref<any>(null)
 let myChart: any = null
 let graphRawData: any = null
 
-const handleNodeJump = (id: number) => {
-  const node = graphRawData.nodes.find((n: any) => n.id === id)
+const progressColor = computed(() => {
+  if (!stats.value) return '#ff4d4f'
+  const p = stats.value.percent
+  if (p < 30) return '#f56c6c'
+  if (p < 70) return '#e6a23c'
+  return '#67c23a'
+})
+
+const handleSearch = () => {
+  if (!myChart) return
+  if (!searchQuery.value) {
+    myChart.dispatchAction({ type: 'downplay', seriesIndex: 0 })
+    return
+  }
+  
+  // 查找匹配的节点
+  const nodes = graphRawData.nodes
+  const foundNode = nodes.find((n: any) => 
+    n.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+  )
+  
+  if (foundNode) {
+    myChart.dispatchAction({
+      type: 'focusNodeAdjacency',
+      seriesIndex: 0,
+      dataIndex: nodes.indexOf(foundNode)
+    })
+  }
+}
+
+const handleNodeJump = (id: string | number) => {
+  const node = graphRawData.nodes.find((n: any) => n.id === String(id))
   if (node) {
     showNodeDetail(node)
   }
@@ -112,7 +163,7 @@ const showNodeDetail = (node: any) => {
 
   currentNode.value = { 
     ...node, 
-    level_value: node.value, // value 其实是 GNN 分分
+    level_value: node.level || 1, // 使用逻辑难度等级
     preds, 
     succs 
   }
@@ -124,6 +175,7 @@ const fetchGraphData = async () => {
   try {
     const res = await apiClient.get('exercises/graph/')
     graphRawData = res.data
+    stats.value = res.data.stats
     nodesCount.value = res.data.nodes?.length || 0
     if (nodesCount.value > 0) {
       await nextTick()
@@ -142,44 +194,46 @@ const fetchGraphData = async () => {
 const initChart = (data: any) => {
   if (!chartRef.value) return
   
-  // 使用后端提供的 categories
   const categories = data.categories || []
-
-  // 处理节点：保留后端计算好的颜色和大小
-  const nodes = data.nodes.map((n: any) => ({
-    ...n,
-    category: categories.findIndex((c: any) => c.name === n.category)
-  }))
-
-  const links = data.links.map((l: any) => {
-    const sourceNode = data.nodes.find((n: any) => n.id === l.source)
-    const targetNode = data.nodes.find((n: any) => n.id === l.target)
+  const nodes = data.nodes.map((n: any) => {
+    let symbol = 'circle'
+    if (n.status === 'mastered') symbol = 'diamond'
+    else if (n.status === 'ready') symbol = 'roundRect'
+    
     return {
-      ...l,
-      source_name: sourceNode ? sourceNode.name : '',
-      target_name: targetNode ? targetNode.name : '',
-      label: l.label || { show: true, formatter: '前置基础', position: 'middle', fontSize: 10 }
+      ...n,
+      category: categories.findIndex((c: any) => c.name === n.category),
+      symbol: symbol
     }
   })
 
   myChart = echarts.init(chartRef.value)
   const option = {
+    backgroundColor: '#ffffff', // 强制背景色，提升对比度
     tooltip: {
       show: true,
       trigger: 'item',
+      backgroundColor: 'rgba(255, 255, 255, 0.96)',
+      borderColor: '#ebeef5',
+      borderWidth: 1,
+      padding: [10, 15],
+      textStyle: { color: '#606266', fontSize: 13 },
+      extraCssText: 'box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 8px;',
       formatter: (params: any) => {
         if (params.dataType === 'node') {
+          const statusMap: any = { mastered: '已掌握', ready: '可练习', locked: '未解锁' }
+          const statusColor: any = { mastered: '#52c41a', ready: '#faad14', locked: '#999' }
           return `
             <div style="font-weight:bold;margin-bottom:4px;">${params.name}</div>
-            <div style="font-size:12px;">部位: ${params.data.category_name || params.data.category}</div>
-            <div style="font-size:12px;">难度: ${params.data.value}级</div>
+            <div style="font-size:12px;">部位: ${params.data.category}</div>
+            <div style="font-size:12px;">状态: <span style="color:${statusColor[params.data.status]}">${statusMap[params.data.status]}</span></div>
+            <div style="font-size:11px;color:#888;margin-top:4px;">${params.data.gnn_insight}</div>
           `
         } else if (params.dataType === 'edge') {
           return `
-            <div style="font-size:12px;">
-              <b>${params.data.source_name || '前置'}</b> 
-              <span style="margin:0 4px;">➔</span> 
-              <b>${params.data.target_name || '后继'}</b>
+            <div style="font-size:12px;">关系: <b>${params.data.relation_label || '关联'}</b></div>
+            <div style="font-size:12px;margin-top:4px;">
+              ${params.data.source_name} ➔ ${params.data.target_name}
             </div>
           `
         }
@@ -187,57 +241,74 @@ const initChart = (data: any) => {
       }
     },
     legend: {
+      show: true,
       data: categories.map(c => c.name),
       orient: 'vertical',
-      right: 20,
-      top: 20,
-      textStyle: { color: '#666' }
+      right: 30,
+      top: 'center',
+      padding: [15, 20],
+      backgroundColor: 'rgba(255, 255, 255, 0.8)',
+      borderColor: '#f2f2f2',
+      borderWidth: 1,
+      borderRadius: 10,
+      textStyle: { color: '#666', fontSize: 13, fontWeight: 500 },
+      icon: 'circle',
+      selectedMode: 'multiple' // 允许点击过滤分类，提升探索体验
     },
     series: [
       {
         type: 'graph',
         layout: 'force',
         data: nodes,
-        links: links,
+        links: data.links.map((l: any) => ({
+          ...l,
+          source_name: nodes.find(n => n.id === l.source)?.name,
+          target_name: nodes.find(n => n.id === l.target)?.name,
+        })),
         categories: categories,
         roam: true,
+        selectedMode: 'single', // 单选节点
+        nodeScaleRatio: 0.6, // 缩放比例
         label: {
           show: true,
           position: 'right',
           formatter: '{b}',
-          fontSize: 12,
-          color: '#333'
+          fontSize: 11,
+          fontWeight: 500,
+          color: '#34495e',
+          distance: 10 // 增加文字与节点的距离
         },
-        edgeSymbol: ['none', 'arrow'], // 源节点无装饰，目标节点显示箭头
-        edgeSymbolSize: [4, 10], // 箭头大小
+        edgeSymbol: ['none', 'arrow'],
+        edgeSymbolSize: [5, 10],
         force: {
-          initLayout: 'circular', // 初始布局模型，防止节点重叠在 0,0
-          repulsion: 1000, // 增加斥力，使节点分布均匀
-          edgeLength: [100, 200], // 增加连线长度，使图谱展开
-          gravity: 0.1,
+          initLayout: 'circular',
+          repulsion: 3500, // 再次大幅增加斥力，让动作点位分布更广
+          edgeLength: [150, 400], // 连线也要拉开，适应斥力
+          gravity: 0.015, // 进一步减小引力，允许图谱在中心点外更大范围扩展
+          friction: 0.25, // 细微调整摩擦力
           layoutAnimation: true
         },
         draggable: true,
         emphasis: {
           focus: 'adjacency',
-          lineStyle: {
-            width: 5
+          lineStyle: { 
+            width: 5,
+            opacity: 1
+          },
+          label: {
+            show: true,
+            fontSize: 14,
+            fontWeight: 'bold'
           }
         },
         lineStyle: {
-          color: '#409EFF',
-          curveness: 0.2, // 曲线让线条不重叠
-          width: 2,
-          opacity: 0.5
+          curveness: 0.3, // 增加弧度，减少重叠
+          opacity: 0.3,
+          width: 2
         }
       }
     ]
   }
-
-  // 为 tooltip 补全显示名称
-  nodes.forEach((n: any) => {
-    n.category_name = categories[n.category]?.name || '未知'
-  })
 
   myChart.setOption(option)
   
@@ -276,9 +347,10 @@ onUnmounted(() => {
 <style scoped>
 .graph-container {
   padding: 20px;
-  height: calc(100vh - 100px);
+  height: calc(100vh - 40px); /* 增加可用空间 */
   display: flex;
   flex-direction: column;
+  background-color: #f8f9fa;
 }
 
 .graph-header {
@@ -286,26 +358,71 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  background: white;
+  padding: 15px 25px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
 
 .header-left {
   display: flex;
   align-items: center;
+  gap: 15px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.search-input {
+  width: 250px;
+}
+
+.progress-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.stat-item {
+  font-size: 13px;
+  font-weight: 500;
+  color: #606266;
+}
+
+.graph-toolbar {
+  display: flex;
   gap: 12px;
+  margin-bottom: 15px;
+  padding: 0 5px;
+}
+
+.status-legend {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 500;
 }
 
 .page-title {
   margin: 0;
   font-size: 24px;
+  font-weight: 600;
+  color: #2c3e50;
 }
 
 .graph-card {
   flex: 1;
   display: flex;
   flex-direction: column;
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
-  height: 0; /* 强制 flex 生效 */
+  height: 0;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08) !important;
+  border: none;
 }
 
 :deep(.el-card__body) {
