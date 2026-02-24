@@ -82,28 +82,33 @@
       </el-button>
       
       <div v-else class="active-controls">
-        <el-button type="primary" :loading="isAnalyzingVlm" @click="handleVlmAnalyze">AI深度分析</el-button>
         <el-button type="danger" @click="stopDetection">关闭摄像头</el-button>
         <el-button type="warning" @click="resetCount">重新计数</el-button>
       </div>
     </div>
 
-    <div v-if="vlmAdvice" class="vlm-advice-box">
-      <div class="vlm-advice-title">国产视觉大模型建议</div>
-      <div class="vlm-advice-content">{{ vlmAdvice }}</div>
+    <div v-if="vlmAdvice || isAnalyzingVlm" class="vlm-advice-box" :class="{ 'is-analyzing': isAnalyzingVlm }">
+      <div class="vlm-advice-title">
+        <el-icon v-if="isAnalyzingVlm" class="is-loading" style="margin-right: 4px;"><Loading /></el-icon>
+        <span v-else>💡</span> 国产视觉大模型私教
+      </div>
+      
+      <div v-if="isAnalyzingVlm" class="vlm-advice-content analyzing-text">
+        捕捉到动作异常，AI 正在深度诊断骨骼形态...
+      </div>
+      <div v-else class="vlm-advice-content">{{ vlmAdvice }}</div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, watch } from 'vue';
 import { usePoseDetection } from '../../composables/usePoseDetection';
-import { VideoCamera, CaretRight, VideoPlay } from '@element-plus/icons-vue'; // 引入图标
+import { VideoCamera, CaretRight, VideoPlay, Loading } from '@element-plus/icons-vue'; // 🔥 修改点 3：引入 Loading 图标
 
 const videoRef = ref<HTMLVideoElement | null>(null);
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 
-// 🔥 核心修改：接收 demoGif 参数
 const props = defineProps<{
   initialExercise?: string,
   demoGif?: string  
@@ -128,7 +133,6 @@ const {
   resetCount
 } = usePoseDetection();
 
-// 中文映射表
 const exerciseModeMap: Record<string, string> = {
   'squat': '深蹲',
   'pushup': '俯卧撑',
@@ -136,7 +140,6 @@ const exerciseModeMap: Record<string, string> = {
   'plank': '平板支撑'
 }
 
-// 关键词映射逻辑
 const mapExerciseToMode = (name: string): any => {
   if (!name) return 'squat'
   if (name.includes('深蹲')) return 'squat'
@@ -146,7 +149,6 @@ const mapExerciseToMode = (name: string): any => {
   return 'squat'
 }
 
-// 监听动作变化
 watch(() => props.initialExercise, (newVal) => {
   if (newVal) {
     exerciseMode.value = mapExerciseToMode(newVal)
@@ -217,7 +219,6 @@ defineExpose({
   width: 100%; height: 100%; object-fit: contain;
 }
 
-/* --- 遮罩样式 --- */
 .standby-overlay {
   position: absolute;
   top: 0; left: 0; width: 100%; height: 100%;
@@ -237,8 +238,8 @@ defineExpose({
 
 .cover-image {
   width: 100%; height: 100%;
-  object-fit: cover; /* 铺满 */
-  opacity: 0.5; /* 变暗 */
+  object-fit: cover;
+  opacity: 0.5;
 }
 
 .image-backdrop {
@@ -281,7 +282,7 @@ defineExpose({
   width: 80px; height: 80px;
   font-size: 36px;
   border: 4px solid rgba(255, 255, 255, 0.2);
-  background: rgba(16, 185, 129, 0.9); /* 绿色主色调 */
+  background: rgba(16, 185, 129, 0.9);
   color: white;
   box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
   animation: pulse-green 2s infinite;
@@ -301,7 +302,6 @@ defineExpose({
   letter-spacing: 1px;
 }
 
-/* --- 运行时样式 --- */
 .pose-overlay {
   position: absolute;
   top: 0; left: 0; width: 100%; height: 100%;
@@ -398,17 +398,6 @@ defineExpose({
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 
-.feedback {
-  background: rgba(59, 130, 246, 0.9);
-  color: white;
-  padding: 8px 16px;
-  border-radius: 20px;
-  font-weight: 600;
-  font-size: 14px;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-}
-
-/* --- 底部控制 --- */
 .controls {
   padding: 16px;
   background: #0f172a;
@@ -427,6 +416,14 @@ defineExpose({
   border-radius: 10px;
   background: #0b1328;
   border: 1px solid #1d4ed8;
+  transition: all 0.3s ease;
+}
+
+/* 🔥 修改点 4：新增分析中的警示动画样式 */
+.vlm-advice-box.is-analyzing {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+  animation: pulse-border 2s infinite;
 }
 
 .vlm-advice-title {
@@ -434,12 +431,20 @@ defineExpose({
   font-size: 12px;
   margin-bottom: 6px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
 }
 
 .vlm-advice-content {
   color: #e2e8f0;
   font-size: 14px;
   line-height: 1.6;
+}
+
+.analyzing-text {
+  color: #fbbf24;
+  font-weight: 600;
+  letter-spacing: 1px;
 }
 
 .loading-overlay {
@@ -452,5 +457,11 @@ defineExpose({
   0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
   70% { box-shadow: 0 0 0 15px rgba(16, 185, 129, 0); }
   100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+@keyframes pulse-border {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
 }
 </style>

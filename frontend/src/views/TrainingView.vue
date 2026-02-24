@@ -21,18 +21,14 @@
                             AI 姿态识别
                         </div>
                         <div class="header-actions">
-                            <el-button 
-                                v-if="sessionId" 
-                                type="primary" 
-                                size="small" 
-                                bg 
-                                text 
-                                :icon="MagicStick"
-                                @click="triggerProfessionalDiagnosis"
-                                :loading="posePreviewRef?.isAnalyzingVlm"
-                            >
-                                深度姿态诊断 (VLM)
-                            </el-button>
+                            <el-tag v-if="sessionId" type="success" size="small" effect="light" class="tech-tag"
+                                style="display: flex; align-items: center; gap: 4px;">
+                                <el-icon>
+                                    <MagicStick />
+                                </el-icon>
+                                VLM 智能守护中
+                            </el-tag>
+
                             <el-tag size="small" effect="plain" class="tech-tag">MediaPipe Engine</el-tag>
                         </div>
                     </div>
@@ -250,13 +246,10 @@
                                             ✅ 提交记录
                                         </el-button>
                                     </el-form>
-                                    
+
                                     <!-- AI 连招建议 -->
-                                    <NextExerciseRecommendation 
-                                        v-if="sessionId && recordForm.exercise"
-                                        :last-exercise-id="recordForm.exercise" 
-                                        @select="handleSelectRecommended" 
-                                    />
+                                    <NextExerciseRecommendation v-if="sessionId && recordForm.exercise"
+                                        :last-exercise-id="recordForm.exercise" @select="handleSelectRecommended" />
                                 </div>
                             </el-collapse-item>
 
@@ -332,20 +325,23 @@
                             <el-card v-if="posePreviewRef?.diagnosisReport" class="diagnosis-report-card shadow-sm">
                                 <template #header>
                                     <div class="report-header">
-                                        <el-icon :color="'#409EFF'"><Medal /></el-icon>
+                                        <el-icon :color="'#409EFF'">
+                                            <Medal />
+                                        </el-icon>
                                         <span>AI 专业姿态诊断报告</span>
-                                        <el-tag size="small" :type="posePreviewRef.diagnosisReport.risk_level === 'high' ? 'danger' : 'success'">
+                                        <el-tag size="small"
+                                            :type="posePreviewRef.diagnosisReport.risk_level === 'high' ? 'danger' : 'success'">
                                             {{ posePreviewRef.diagnosisReport.risk_level === 'high' ? '高风险' : '状态健康' }}
                                         </el-tag>
                                     </div>
                                 </template>
-                                
+
                                 <div class="report-body">
                                     <div class="summary-section">
                                         <h4>核心结论: <span>{{ posePreviewRef.diagnosisReport.summary }}</span></h4>
                                         <el-divider />
                                     </div>
-                                    
+
                                     <div class="analysis-grid">
                                         <div class="grid-item">
                                             <div class="label">力线分析</div>
@@ -357,28 +353,20 @@
                                         </div>
                                     </div>
 
-                                    <div class="recommendations-section" v-if="posePreviewRef.diagnosisReport.system_recommendations">
+                                    <div class="recommendations-section"
+                                        v-if="posePreviewRef.diagnosisReport.system_recommendations">
                                         <div class="label">针对性纠正训练推荐:</div>
                                         <div class="rec-chips">
-                                            <el-tag 
-                                                v-for="ex in posePreviewRef.diagnosisReport.system_recommendations" 
-                                                :key="ex.id" 
-                                                effect="plain"
-                                                class="rec-chip"
-                                            >
+                                            <el-tag v-for="ex in posePreviewRef.diagnosisReport.system_recommendations"
+                                                :key="ex.id" effect="plain" class="rec-chip">
                                                 {{ ex.name }} ({{ ex.muscle }})
                                             </el-tag>
                                         </div>
                                     </div>
 
                                     <div class="scenario-section">
-                                        <el-alert 
-                                            title="AI 应用场景建议" 
-                                            type="info" 
-                                            :closable="false" 
-                                            show-icon
-                                            :description="posePreviewRef.diagnosisReport.scenario_application"
-                                        />
+                                        <el-alert title="AI 应用场景建议" type="info" :closable="false" show-icon
+                                            :description="posePreviewRef.diagnosisReport.scenario_application" />
                                     </div>
                                 </div>
                             </el-card>
@@ -386,7 +374,9 @@
 
                         <div class="column-footer-tips">
                             <div class="tip-card">
-                                <el-icon><Compass /></el-icon>
+                                <el-icon>
+                                    <Compass />
+                                </el-icon>
                                 <span>建议保持摄像头侧向 45° 俯拍以获得最佳识别效果。</span>
                             </div>
                         </div>
@@ -468,20 +458,6 @@ let timerInterval: any = null
 
 const lastResponse = ref('')
 const posePreviewRef = ref<any>(null)
-
-const triggerProfessionalDiagnosis = async () => {
-    if (!posePreviewRef.value) return;
-    try {
-        await posePreviewRef.value.handleVlmAnalyze('diagnosis');
-        ElMessage({
-            message: '深度诊断已完成，正在生成应用场景报告...',
-            type: 'success',
-            duration: 3000
-        });
-    } catch (err) {
-        ElMessage.error('获取深度诊断失败，请检查网络稳定性');
-    }
-};
 
 const selectedExerciseName = ref('')
 const completedExerciseIds = ref<Set<string>>(new Set())
@@ -959,7 +935,8 @@ export default {
 
 <style scoped>
 .page-container {
-    max-width: 1680px; /* 进一步扩大容器宽度，适配大屏幕 */
+    max-width: 1680px;
+    /* 进一步扩大容器宽度，适配大屏幕 */
     margin: 32px auto;
     padding: 0 40px 60px;
     min-height: calc(100vh - 120px);

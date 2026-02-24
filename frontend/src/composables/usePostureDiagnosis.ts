@@ -2,8 +2,8 @@ import { ref, onUnmounted } from 'vue';
 import { Pose, type Results, POSE_CONNECTIONS } from '@mediapipe/pose';
 import { Camera } from '@mediapipe/camera_utils';
 import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
-import { OneEuroFilter, normalizeLandmarks } from '@/utils/poseMatching';
-import apiClient from '@/api';
+import { OneEuroFilter, normalizeLandmarks } from '../utils/poseMatching';
+import apiClient from '../api';
 
 export interface PostureReport {
   score: number;
