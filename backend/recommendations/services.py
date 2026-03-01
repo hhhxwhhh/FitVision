@@ -2,7 +2,7 @@ import numpy as np
 import random
 from datetime import timedelta
 from django.utils import timezone
-from django.db.models import Count, Avg
+from django.db.models import Count, Avg, F 
 from django.contrib.auth.models import User
 from exercises.models import Exercise
 from .models import UserInteraction, RecommendedExercise, UserState
@@ -12,7 +12,7 @@ from .gnn_models import KnowledgeGraphGNN
 
 # 高级算法库依赖
 import torch
-import torch.nn.functional as F
+import torch.nn.functional as F_torch 
 from sklearn.metrics.pairwise import cosine_similarity
 
 class RecommendationEngine:
@@ -91,8 +91,8 @@ class KnowledgeGraphEngine(RecommendationEngine):
             if ex.id in [h.exercise_id for h in history]: continue
             if ex.id not in ex_id_to_idx: continue
             idx = ex_id_to_idx[ex.id]
-            # 使用 GNN 嵌入计算余弦相似度 + 路径分值
-            sim = F.cosine_similarity(user_knowledge_emb.unsqueeze(0), embeddings[idx].unsqueeze(0)).item()
+            # 使用 GNN 嵌入计算余弦相似度 + 路径分值 (注意这里改用 F_torch)
+            sim = F_torch.cosine_similarity(user_knowledge_emb.unsqueeze(0), embeddings[idx].unsqueeze(0)).item()
             results.append((ex, sim))
             
         results.sort(key=lambda x: x[1], reverse=True)
@@ -389,6 +389,66 @@ class ColdStartEngine(RecommendationEngine):
         
         return recs[:limit]
 
+# 新增基于生命周期的时空穿梭 CF 引擎
+class TimeTravelCFEngine(RecommendationEngine):
+    """时空穿梭协同过滤：用成功老手的新手期经验指导当前新人"""
+    def recommend(self, user, limit=5):
+        profile = getattr(user, 'profile', None)
+        if not profile:
+            return []
+
+        # 1. 寻找“平行宇宙的你” (画像高度相似的用户群体)
+        user_bmi = profile.bmi or 22.0
+        
+        # 跨表关联查询：直接用 User 模型，防止引包错误
+        similar_users = User.objects.filter(
+            profile__gender=profile.gender,
+            profile__bmi__gte=user_bmi - 2.0,
+            profile__bmi__lte=user_bmi + 2.0,
+        ).exclude(id=user.id)
+
+        # 如果有具体的目标(减脂/增肌)，进一步精确圈人
+        if hasattr(profile, 'goal') and profile.goal:
+            similar_users = similar_users.filter(profile__goal=profile.goal)
+
+        similar_user_ids = similar_users.values_list('id', flat=True)
+        if not similar_user_ids:
+            return []
+
+        # 我们不仅找这些相似用户，还要限制只看他们【注册账号后的前 30 天内】的互动！
+        time_travel_interactions = UserInteraction.objects.filter(
+            user_id__in=similar_user_ids,
+            interaction_type__in=['finish', 'like'],
+            # 穿越条件：互动时间 <= 该用户注册时间 + 30天
+            timestamp__lte=F('user__date_joined') + timedelta(days=30),
+            # 难度保护：只取适合当前用户的等级
+            exercise__difficulty=profile.fitness_level or 'beginner'
+        )
+
+        # 3. 统计这些动作在“老手新手期”的受欢迎程度
+        cf_recommendations = time_travel_interactions.values('exercise_id').annotate(
+            popularity=Count('id')
+        ).order_by('-popularity')[:limit * 2] 
+
+        # 4. 组装结果并打分
+        recs = []
+        seen_ids = set()
+        for item in cf_recommendations:
+            ex_id = item['exercise_id']
+            if ex_id not in seen_ids:
+                try:
+                    ex = Exercise.objects.get(id=ex_id)
+                    # 分数计算：基础高分 0.8 + 流行度加成
+                    score = min(0.8 + (item['popularity'] / 100.0), 0.98) 
+                    recs.append((ex, float(score)))
+                    seen_ids.add(ex_id)
+                except Exercise.DoesNotExist:
+                    continue
+            if len(recs) >= limit:
+                break
+                
+        return recs
+
 class HybridRecommender:
     """高级混合推荐调度器：支持多路召回、策略路由与结果持久化"""
     
@@ -396,7 +456,6 @@ class HybridRecommender:
     def get_recommendations(user, scenario='default', limit=6):
         # 1. 缓存/持久化检查：如果过去 6 小时内已经为该场景生成过充分的推荐，则直接返回
         six_hours_ago = timezone.now() - timedelta(hours=6)
-        # 注意：这里我们按场景进行过滤，如果场景不同，则重新生成
         existing_recs = RecommendedExercise.objects.filter(
             user=user,
             algorithm__icontains=scenario if scenario != 'default' else '',
@@ -406,11 +465,21 @@ class HybridRecommender:
         if existing_recs.count() >= limit:
             return existing_recs[:limit]
 
-        # 2. 策略路由：基于场景选择主引擎，或者使用全路召回
         rec_sources = []
         
+        history_count = UserInteraction.objects.filter(user=user, interaction_type='finish').count()
+        is_newbie = history_count < 10 # 完成动作少于 10 个即为新手
+        
         try:
-            if scenario == 'auto_adjust':
+            if is_newbie:
+                # 纯新手：强制激活“时空穿梭 CF”
+                print(f"检测到新手用户 {user.username}，启动时空穿梭协同过滤...")
+                try:
+                    sources_cf = TimeTravelCFEngine().recommend(user, limit=limit)
+                    rec_sources.extend([(ex, s, 'time_travel_cf') for ex, s in sources_cf])
+                except Exception as e: print(f"CF Engine Error: {e}")
+                
+            elif scenario == 'auto_adjust':
                 # 强化学习主导：自适应疲劳和表现
                 sources = RLAdaptiveEngine().recommend(user, limit=limit)
                 rec_sources.extend([(ex, s, 'rl_adaptive') for ex, s in sources])
@@ -483,7 +552,8 @@ class HybridRecommender:
             'rl_adaptive': "基于您的身体状态实时调节",
             'ml_regression': "基于您的身体指标定制",
             'cosine': "基于您相似的互动偏好",
-            'popularity': "社区高热度动作"
+            'popularity': "社区高热度动作",
+            'time_travel_cf': "与您体质相似的进阶者在新手期最爱的动作" 
         }
 
         for i, item in enumerate(final_recs[:limit]):
@@ -493,7 +563,7 @@ class HybridRecommender:
             rec_obj = RecommendedExercise.objects.create(
                 user=user,
                 exercise=item['ex'],
-                algorithm=algo_tag, # 不再截断
+                algorithm=algo_tag,
                 score=item['score'],
                 rank=i + 1,
                 reason=reason_map.get(item['algorithm'], "AI 智能推荐")
