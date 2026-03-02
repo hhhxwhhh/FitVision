@@ -1,6 +1,5 @@
 <template>
   <div class="dashboard-container">
-    <!-- 欢迎横幅 -->
     <div class="welcome-banner">
       <div class="banner-content">
         <h1>欢迎回来，{{ username }}! 👋</h1>
@@ -11,7 +10,6 @@
       </div>
     </div>
 
-    <!-- 疲劳状态警告 -->
     <el-alert
       v-if="userStatus?.fatigue_level > 0.7"
       title="AI 检测到您处于疲劳状态"
@@ -27,7 +25,6 @@
       </template>
     </el-alert>
 
-    <!-- 快捷功能区 -->
     <section class="section">
       <h2 class="section-title">快捷入口</h2>
       <el-row :gutter="20">
@@ -62,7 +59,6 @@
       </el-row>
     </section>
 
-    <!-- 今日状态统计 -->
     <section class="section">
       <div class="section-header">
         <h2 class="section-title">今日状态</h2>
@@ -89,22 +85,24 @@
             <div class="status-footer">目标: 30 min</div>
           </el-card>
         </el-col>
+
         <el-col :xs="24" :sm="8">
           <el-card shadow="hover" class="status-card">
-            <div class="status-header">肌肉恢复状态</div>
+            <div class="status-header">本周部位训练负荷</div>
+            
             <div class="muscle-recovery-list">
-              <div v-for="muscle in muscleStatus" :key="muscle.name" class="muscle-item">
+              <div v-for="muscle in volumeStatus" :key="muscle.name" class="muscle-item">
                 <span class="m-name">{{ muscle.name }}</span>
-                <el-progress :percentage="muscle.recovery" :stroke-width="10" :color="muscle.color" />
+                <el-progress :percentage="muscle.percentage" :stroke-width="10" :color="muscle.color" />
               </div>
             </div>
-            <div class="status-footer">由 AI 根据训练负载计算</div>
+            
+            <div class="status-footer">基于本周实际训练容量 (重量×次数) 统计</div>
           </el-card>
         </el-col>
-      </el-row>
+        </el-row>
     </section>
 
-    <!-- AI 推荐模块 -->
     <AIRecommendations ref="recommendationsRef" />
   </div>
 </template>
@@ -129,10 +127,18 @@ const calorieGoal = computed(() => {
   return Math.round(profile.value.bmr * 0.3)
 })
 
-const muscleStatus = ref([
-  { name: '胸部', recovery: 85, color: '#67C23A' },
-  { name: '腿部', recovery: 30, color: '#F56C6C' },
-  { name: '核心', recovery: 60, color: '#E6A23C' }
+// 新增：容量达标颜色逻辑（练得越好越绿，缺乏锻炼标红）
+const getVolumeColor = (percentage: number) => {
+  if (percentage >= 80) return '#67C23A' // 绿
+  if (percentage >= 40) return '#E6A23C' // 橙
+  return '#F56C6C' // 红
+}
+
+// 修改：变量名更替，并套用动态颜色函数
+const volumeStatus = ref([
+  { name: '胸部', percentage: 85, color: getVolumeColor(85) },
+  { name: '腿部', percentage: 30, color: getVolumeColor(30) },
+  { name: '核心', percentage: 60, color: getVolumeColor(60) }
 ])
 
 const customColors = [
@@ -178,9 +184,12 @@ const fetchUserStatus = async () => {
   try {
     const res = await apiClient.get('/recommendations/list/user_status/')
     userStatus.value = res.data
-    // 如果后端支持，可以从这里动态更新肌肉恢复状态
-    if (res.data.muscle_recovery) {
-      muscleStatus.value = res.data.muscle_recovery
+    // 修改：如果后端传来了 volume_stats，动态计算并赋值颜色
+    if (res.data.volume_stats) {
+      volumeStatus.value = res.data.volume_stats.map((item: any) => ({
+        ...item,
+        color: getVolumeColor(item.percentage)
+      }))
     }
   } catch (err) {
     console.error('Failed to fetch user status:', err)

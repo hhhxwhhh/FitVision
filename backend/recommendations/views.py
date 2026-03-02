@@ -1,5 +1,5 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action,api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import RecommendedExercise, UserInteraction, UserState
@@ -55,3 +55,70 @@ class InteractionViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         return super().create(request, *args, **kwargs)
+
+from recommendations.models import UserState
+from training.models import UserTrainingExerciseRecord
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_status_view(request):
+    """获取用户当前状态与本周训练容量统计"""
+    user = request.user
+    
+    # 1. 获取强化学习引擎需要的疲劳状态
+    state, _ = UserState.objects.get_or_create(user=user)
+    
+    # 2. 计算本周各部位的真实训练容量 
+    one_week_ago = timezone.now() - timedelta(days=7)
+    recent_records = UserTrainingExerciseRecord.objects.filter(
+        session__user=user,
+        created_at__gte=one_week_ago
+    ).select_related('exercise')
+
+    # 初始化三个核心部位的容量为 0
+    raw_volume = {'chest': 0.0, 'legs': 0.0, 'abs': 0.0}
+    
+    # 假设每周的及格目标容量是 3000kg (你可以根据 UserProfile 里的基础调整这个值)
+    TARGET_VOLUME = 3000.0 
+
+    for record in recent_records:
+        muscle = record.exercise.target_muscle
+        # 我们前端只展示这三个，所以只统计这三个
+        if muscle not in raw_volume:
+            continue
+            
+        # 清洗 JSON 里的脏数据
+        w_list = [float(w) for w in record.weights_used if str(w).replace('.', '', 1).isdigit()]
+        r_list = [int(r) for r in record.reps_completed if str(r).isdigit()]
+        
+        # 严谨计算容量 = 重量 * 次数
+        if w_list and len(w_list) == len(r_list):
+            vol = sum(w * r for w, r in zip(w_list, r_list))
+        elif r_list:
+            # 如果是俯卧撑这种自重动作，没有填重量，按固定系数(例如 20kg)折算
+            vol = sum(r_list) * 20.0 
+        else:
+            vol = 0.0
+            
+        raw_volume[muscle] += vol
+
+    # 3. 组装成前端 Vue 需要的精确格式
+    volume_stats = [
+        {
+            'name': '胸部', 
+            'percentage': min(int((raw_volume['chest'] / TARGET_VOLUME) * 100), 100)
+        },
+        {
+            'name': '腿部', 
+            'percentage': min(int((raw_volume['legs'] / TARGET_VOLUME) * 100), 100)
+        },
+        {
+            'name': '核心', 
+            'percentage': min(int((raw_volume['abs'] / TARGET_VOLUME) * 100), 100)
+        }
+    ]
+
+    return Response({
+        'fatigue_level': state.fatigue_level,  
+        'volume_stats': volume_stats           
+    })

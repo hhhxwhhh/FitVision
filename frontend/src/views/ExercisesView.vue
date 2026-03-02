@@ -193,13 +193,14 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { Search, VideoPlay } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { debounce } from 'lodash-es'
 import apiClient from '../api'
 
 const router = useRouter()
+const route = useRoute()
 const exercises = ref<any[]>([])
 const loading = ref(false)
 const search = ref('')
@@ -303,7 +304,7 @@ const navigateToExercise = async (id: number) => {
     try {
         const res = await apiClient.get(`exercises/${id}/`)
         currentEx.value = res.data
-        // 保持弹窗开启，但更新内容
+        detailVisible.value = true 
     } catch (err) {
         ElMessage.error('无法加载该动作详情')
     }
@@ -322,6 +323,12 @@ const startTraining = (ex: any) => {
 
 onMounted(() => {
     fetchExercises()
+    const targetId = route.query.actionId
+    if (targetId) {
+        navigateToExercise(Number(targetId))
+
+        router.replace({ path: '/exercises' })
+    }
 })
 </script>
 

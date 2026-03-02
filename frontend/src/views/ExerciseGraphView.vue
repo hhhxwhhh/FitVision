@@ -326,7 +326,10 @@ const initChart = (data: any) => {
 
 const goToExercise = (id: string) => {
   nodeDialogVisible.value = false
-  router.push({ path: '/exercises', query: { id } })
+  router.push({ 
+    path: '/exercises', 
+    query: { actionId: id }
+  })
 }
 
 const handleResize = () => {
