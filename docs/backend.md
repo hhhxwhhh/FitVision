@@ -7,27 +7,131 @@
 ```
 backend/
 ├── ai_models/           # 🤖 AI 模型与 VLM 集成
+│   ├── __init__.py
+│   ├── admin.py
+│   ├── apps.py
+│   ├── models.py
+│   ├── serializers.py
+│   ├── tests.py
+│   ├── urls.py
 │   ├── views.py         # 处理 AI 分析请求
-│   └── vlm_service.py   # 调用视觉大模型服务
+│   ├── vlm_service.py   # 调用视觉大模型服务
+│   └── migrations/
+│       ├── __init__.py
+│       ├── 0001_initial.py
+│       └── 0002_posturediagnosis.py
 ├── analytics/           # 📊 数据分析模块
+│   ├── __init__.py
+│   ├── admin.py
+│   ├── apps.py
+│   ├── models.py
+│   ├── serializers.py
+│   ├── signals.py
+│   ├── tests.py
+│   ├── urls.py
+│   ├── views.py
+│   └── migrations/
+│       ├── __init__.py
+│       └── 0001_initial.py
 ├── exercises/           # 🏋️ 动作库管理
+│   ├── __init__.py
+│   ├── admin.py
+│   ├── apps.py
 │   ├── models.py        # 动作数据模型
-│   └── management/      # 自定义命令 (导入数据等)
+│   ├── serializers.py
+│   ├── tests.py
+│   ├── urls.py
+│   ├── views.py
+│   ├── fixtures/
+│   │   └── data.json
+│   ├── management/      # 自定义命令 (导入数据等)
+│   │   ├── __init__.py
+│   │   └── commands/
+│   │       ├── __init__.py
+│   │       ├── build_vectors.py
+│   │       ├── generate_progression.py
+│   │       └── generate_tags.py
+│   └── migrations/
+│       ├── __init__.py
+│       ├── 0001_initial.py
+│       ├── 0002_exercisecategory_demo_gif.py
+│       ├── 0003_remove_exercisecategory_demo_gif_exercise_demo_gif.py
+│       ├── 0004_exercisecategory_level_and_more.py
+│       ├── 0005_remove_exercisecategory_level_and_more.py
+│       └── 0006_exercise_tags.py
 ├── fitvision/           # ⚙️ 核心配置
+│   ├── __init__.py
+│   ├── asgi.py
+│   ├── celery.py
 │   ├── settings.py      # 项目设置 (DB, Installed Apps)
-│   └── urls.py          # 全局路由分发
+│   ├── urls.py          # 全局路由分发
+│   └── wsgi.py
 ├── recommendations/     # 🎯 个性化推荐系统
+│   ├── __init__.py
+│   ├── admin.py
+│   ├── apps.py
+│   ├── dl_models.py
+│   ├── gnn_models.py
+│   ├── initialize_weights.py
+│   ├── model_utils.py
+│   ├── models.py
+│   ├── serializers.py
 │   ├── services.py      # 混合推荐算法逻辑
-│   └── views.py         # 推荐 API 视图
+│   ├── signals.py
+│   ├── tests.py
+│   ├── urls.py
+│   ├── views.py         # 推荐 API 视图
+│   ├── management/
+│   │   └── commands/
+│   │       ├── generate_test_interactions.py
+│   │       ├── process_rec_data.py
+│   │       ├── seed_interactions.py
+│   │       ├── sync_knowledge_graph_data.py
+│   │       ├── train_gnn.py
+│   │       └── train_rec_models.py
+│   └── migrations/
+│       ├── __init__.py
+│       ├── 0001_initial.py
+│       ├── 0002_alter_recommendedexercise_algorithm.py
+│       ├── 0003_userstate_target_intensity.py
+│       └── 0004_alter_recommendedexercise_algorithm.py
 ├── training/            # 📝 训练记录与计划
+│   ├── __init__.py
+│   ├── admin.py
+│   ├── apps.py
 │   ├── models.py        # 训练日志模型
-│   └── views.py         # 训练 API
+│   ├── serializers.py
+│   ├── services.py
+│   ├── tests.py
+│   ├── urls.py
+│   ├── views.py         # 训练 API
+│   ├── fixtures/
+│   │   └── seed.json
+│   └── migrations/
+│       ├── __init__.py
+│       ├── 0001_initial.py
+│       └── 0002_usertrainingsession_ai_analysis_and_more.py
 ├── users/               # 👤 用户认证与管理
+│   ├── __init__.py
+│   ├── admin.py
+│   ├── apps.py
 │   ├── models.py        # 用户扩展模型
-│   └── views.py         # 登录注册 API
+│   ├── serializers.py
+│   ├── tests.py
+│   ├── urls.py
+│   ├── views.py         # 登录注册 API
+│   └── migrations/
+│       ├── __init__.py
+│       ├── 0001_initial.py
+│       ├── 0002_userprofile_activity_level_userprofile_bmi_and_more.py
+│       └── 0003_userprofile_avatar.py
 ├── utils/               # 🛠️ 通用工具 (向量数据库等)
+│   ├── __init__.py
+│   └── vector_db.py
+├── generate_test_data.py    # 生成测试数据的脚本
 ├── manage.py            # Django 管理脚本
 └── requirements.txt     # Python 依赖列表
+
 ```
 
 ## 🧩 核心模块详解
