@@ -1,6 +1,5 @@
 # 后端项目文档 (Backend Documentation)
-
-本文档详细介绍了 FitVision 后端项目的目录结构、关键模块及其功能。该项目基于 **Django** + **Django Rest Framework (DRF)** 构建，并集成了 AI 服务。
+该基于**Django** + **Django Rest Framework(DRF)**构建，并集成了AI服务。
 
 ## 📁 目录结构概览
 
