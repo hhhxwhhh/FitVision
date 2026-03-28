@@ -195,6 +195,21 @@ const initChart = (data: any) => {
   if (!chartRef.value) return
   
   const categories = data.categories || []
+  const categoryPalette = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16', '#f97316']
+  const categoryColorMap = new Map(
+    categories.map((c: any, index: number) => [
+      c.name,
+      c.itemStyle?.color || categoryPalette[index % categoryPalette.length]
+    ])
+  )
+  const chartCategories = categories.map((c: any, index: number) => ({
+    ...c,
+    itemStyle: {
+      ...(c.itemStyle || {}),
+      color: categoryColorMap.get(c.name) || categoryPalette[index % categoryPalette.length]
+    }
+  }))
+
   const nodes = data.nodes.map((n: any) => {
     let symbol = 'circle'
     if (n.status === 'mastered') symbol = 'diamond'
@@ -202,8 +217,13 @@ const initChart = (data: any) => {
     
     return {
       ...n,
+      categoryName: n.category,
       category: categories.findIndex((c: any) => c.name === n.category),
-      symbol: symbol
+      symbol: symbol,
+      itemStyle: {
+        ...(n.itemStyle || {}),
+        color: categoryColorMap.get(n.category)
+      }
     }
   })
 
@@ -225,7 +245,7 @@ const initChart = (data: any) => {
           const statusColor: any = { mastered: '#52c41a', ready: '#faad14', locked: '#999' }
           return `
             <div style="font-weight:bold;margin-bottom:4px;">${params.name}</div>
-            <div style="font-size:12px;">部位: ${params.data.category}</div>
+            <div style="font-size:12px;">部位: ${params.data.category_name || params.data.categoryName || params.data.category}</div>
             <div style="font-size:12px;">状态: <span style="color:${statusColor[params.data.status]}">${statusMap[params.data.status]}</span></div>
             <div style="font-size:11px;color:#888;margin-top:4px;">${params.data.gnn_insight}</div>
           `
@@ -242,7 +262,7 @@ const initChart = (data: any) => {
     },
     legend: {
       show: true,
-      data: categories.map(c => c.name),
+      data: chartCategories.map((c: any) => c.name),
       orient: 'vertical',
       right: 30,
       top: 'center',
@@ -262,10 +282,10 @@ const initChart = (data: any) => {
         data: nodes,
         links: data.links.map((l: any) => ({
           ...l,
-          source_name: nodes.find(n => n.id === l.source)?.name,
-          target_name: nodes.find(n => n.id === l.target)?.name,
+          source_name: nodes.find((n: any) => n.id === l.source)?.name,
+          target_name: nodes.find((n: any) => n.id === l.target)?.name,
         })),
-        categories: categories,
+        categories: chartCategories,
         roam: true,
         selectedMode: 'single', // 单选节点
         nodeScaleRatio: 0.6, // 缩放比例
