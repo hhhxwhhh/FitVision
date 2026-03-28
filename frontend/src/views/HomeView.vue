@@ -24,85 +24,83 @@
       </template>
     </el-alert>
 
-    <section class="section">
-      <h2 class="section-title">快捷入口</h2>
-      <el-row :gutter="20">
-        <el-col :xs="24" :sm="12" :md="6">
-          <el-card class="feature-card highlighted" @click="router.push('/posture-diagnosis')">
-            <div class="card-icon">🧘</div>
-            <h3>AI 姿态建模诊断</h3>
-            <p>实时扫描并分析体态风险</p>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="6">
-          <el-card class="feature-card" @click="router.push('/training')">
-            <div class="card-icon">📋</div>
-            <h3>完成训练计划</h3>
-            <p>执行今日安排的课程课程</p>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="6">
-          <el-card class="feature-card" @click="router.push('/exercises')">
-            <div class="card-icon">📖</div>
-            <h3>动作库</h3>
-            <p>学习 50+ 标准健身动作</p>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="6">
-          <el-card class="feature-card" @click="router.push('/analytics')">
-            <div class="card-icon">📈</div>
-            <h3>进度轨迹</h3>
-            <p>查看各项身体指标趋势</p>
-          </el-card>
-        </el-col>
-      </el-row>
-    </section>
-
-    <section class="section">
-      <div class="section-header">
-        <h2 class="section-title">今日状态</h2>
-        <el-tag v-if="profile?.bmi" :type="getBMIType(profile.bmi)" size="small" effect="plain" class="bmi-tag">
-          BMI: {{ profile.bmi.toFixed(1) }} ({{ getBMIText(profile.bmi) }})
-        </el-tag>
-      </div>
-      <el-row :gutter="20" v-loading="loading">
-        <el-col :xs="24" :sm="8">
-          <el-card shadow="hover" class="status-card">
-            <div class="status-header">已消耗热量</div>
-            <div class="status-value">{{ stats.total_calories_burned || 0 }} <span>kcal</span></div>
-            <el-progress :percentage="Math.min(100, ((stats.total_calories_burned || 0) / calorieGoal) * 100)"
-              :show-text="false" :color="customColors" />
-            <div class="status-footer">目标: {{ calorieGoal }} kcal (基于 TDEE)</div>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="8">
-          <el-card shadow="hover" class="status-card">
-            <div class="status-header">累计训练时长</div>
-            <div class="status-value">{{ stats.total_duration_minutes || 0 }} <span>min</span></div>
-            <el-progress :percentage="Math.min(100, ((stats.total_duration_minutes || 0) / 30) * 100)"
-              :show-text="false" status="success" />
-            <div class="status-footer">目标: 30 min</div>
-          </el-card>
-        </el-col>
-
-        <el-col :xs="24" :sm="8">
-          <el-card shadow="hover" class="status-card">
-            <div class="status-header">本周部位训练负荷</div>
-            
-            <div class="muscle-recovery-list">
-              <div v-for="muscle in volumeStatus" :key="muscle.name" class="muscle-item">
-                <span class="m-name">{{ muscle.name }}</span>
-                <el-progress :percentage="muscle.percentage" :stroke-width="10" :color="muscle.color" />
+    <div class="dashboard-grid">
+      <div class="left-panel">
+        <section class="section">
+          <el-card class="module-shell" shadow="never">
+            <template #header>
+              <div class="module-header">
+                <h2 class="section-title">开启今日训练！</h2>
               </div>
+            </template>
+            <div class="training-grid">
+              <el-card class="feature-card compact highlighted" @click="router.push('/posture-diagnosis')">
+                <div class="card-icon">🧘</div>
+                <h3>AI 姿态诊断</h3>
+                <p>实时扫描并分析您的体态风险</p>
+              </el-card>
+              <el-card class="feature-card compact" @click="router.push('/training')">
+                <div class="card-icon">📋</div>
+                <h3>完成训练计划</h3>
+                <p>查看今日安排的课程</p>
+              </el-card>
             </div>
-            
-            <div class="status-footer">基于本周实际训练容量 (重量×次数) 统计</div>
           </el-card>
-        </el-col>
-        </el-row>
-    </section>
+        </section>
 
-    <AIRecommendations ref="recommendationsRef" />
+        <section class="section">
+          <el-card class="module-shell" shadow="never">
+            <template #header>
+              <div class="module-header section-header">
+                <h2 class="section-title">今日状态</h2>
+                <el-tag v-if="profile?.bmi" :type="getBMIType(profile.bmi)" size="small" effect="plain" class="bmi-tag">
+                  BMI: {{ profile.bmi.toFixed(1) }} ({{ getBMIText(profile.bmi) }})
+                </el-tag>
+              </div>
+            </template>
+            <div class="status-grid" v-loading="loading">
+              <el-card shadow="hover" class="status-card">
+                <div class="status-header">已消耗热量</div>
+                <div class="status-value">{{ stats.total_calories_burned || 0 }} <span>kcal</span></div>
+                <el-progress :percentage="Math.min(100, ((stats.total_calories_burned || 0) / calorieGoal) * 100)"
+                  :show-text="false" :color="customColors" />
+                <div class="status-footer">目标: {{ calorieGoal }} kcal (基于 TDEE)</div>
+              </el-card>
+
+              <el-card shadow="hover" class="status-card">
+                <div class="status-header">累计训练时长</div>
+                <div class="status-value">{{ stats.total_duration_minutes || 0 }} <span>min</span></div>
+                <el-progress :percentage="Math.min(100, ((stats.total_duration_minutes || 0) / 30) * 100)"
+                  :show-text="false" status="success" />
+                <div class="status-footer">目标: 30 min</div>
+              </el-card>
+
+              <el-card shadow="hover" class="status-card">
+                <div class="status-header">本周部位训练负荷</div>
+                <div class="muscle-recovery-list">
+                  <div v-for="muscle in volumeStatus" :key="muscle.name" class="muscle-item">
+                    <span class="m-name">{{ muscle.name }}</span>
+                    <el-progress :percentage="muscle.percentage" :stroke-width="10" :color="muscle.color" />
+                  </div>
+                </div>
+                <div class="status-footer">基于本周实际训练容量 (重量×次数) 统计</div>
+              </el-card>
+
+              <el-card shadow="hover" class="status-card trend-card" @click="router.push('/analytics')">
+                <div class="status-header">进度轨迹</div>
+                <div class="status-value">📈 <span>趋势洞察</span></div>
+                <p class="status-desc">查看体重、围度、训练完成度等指标变化。</p>
+                <el-button type="primary" text>打开分析面板</el-button>
+              </el-card>
+            </div>
+          </el-card>
+        </section>
+      </div>
+
+      <aside class="right-panel">
+        <AIRecommendations ref="recommendationsRef" :max-items="4" />
+      </aside>
+    </div>
   </div>
 </template>
 
@@ -245,21 +243,21 @@ onUnmounted(() => {
 
 <style scoped>
 .dashboard-container {
-  padding-bottom: 40px;
+  padding-bottom: 12px;
 }
 
 .welcome-banner {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 16px;
-  padding: 40px;
+  border-radius: 12px;
+  padding: 18px 22px;
   color: white;
-  margin-bottom: 30px;
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+  margin-bottom: 14px;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.1);
 }
 
 .banner-content h1 {
-  font-size: 32px;
-  margin-bottom: 12px;
+  font-size: 24px;
+  margin-bottom: 4px;
 }
 
 .banner-collapse-enter-active,
@@ -279,19 +277,62 @@ onUnmounted(() => {
 }
 
 .banner-content p {
-  font-size: 18px;
+  font-size: 14px;
   opacity: 0.9;
-  margin-bottom: 24px;
+  margin-bottom: 0;
 }
 
 .section {
-  margin-bottom: 40px;
+  margin-bottom: 12px;
+}
+
+.module-shell {
+  border: 1px solid #ebeef5;
+}
+
+.module-shell :deep(.el-card__header) {
+  padding: 10px 12px;
+}
+
+.module-shell :deep(.el-card__body) {
+  padding: 12px;
+}
+
+.module-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.left-panel,
+.right-panel {
+  min-width: 0;
+}
+
+.training-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .section-title {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: bold;
-  margin-bottom: 20px;
+  margin: 0;
   color: #303133;
 }
 
@@ -300,7 +341,7 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.3s;
   text-align: center;
-  padding: 10px;
+  padding: 2px;
 }
 
 .feature-card:hover {
@@ -309,70 +350,101 @@ onUnmounted(() => {
   border-color: #409eff;
 }
 
+.feature-card.compact {
+  padding: 2px;
+}
+
+.feature-card.compact :deep(.el-card__body) {
+  padding: 10px;
+}
+
 .card-icon {
-  font-size: 40px;
-  margin-bottom: 15px;
+  font-size: 22px;
+  margin-bottom: 6px;
 }
 
 .feature-card h3 {
-  margin: 10px 0;
-  font-size: 16px;
+  margin: 4px 0;
+  font-size: 14px;
 }
 
 .feature-card p {
-  font-size: 13px;
+  font-size: 12px;
   color: #909399;
+  margin: 0;
 }
 
 .status-card {
   height: 100%;
 }
 
+.status-card :deep(.el-card__body) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .status-header {
-  font-size: 14px;
+  font-size: 12px;
   color: #909399;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .status-value {
-  font-size: 28px;
+  font-size: 22px;
   font-weight: bold;
   color: #303133;
-  margin-bottom: 15px;
+  margin-bottom: 8px;
 }
 
 .status-value span {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: normal;
   color: #909399;
 }
 
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  margin-bottom: 20px;
+.status-desc {
+  margin: 6px 0 8px;
+  font-size: 12px;
+  color: #606266;
+  line-height: 1.35;
+  flex: 0;
 }
 
-.section-header .section-title {
-  margin-bottom: 0;
+.trend-card :deep(.el-card__body) {
+  justify-content: flex-start;
+}
+
+.trend-card .status-desc {
+  margin: 4px 0 6px;
+}
+
+.trend-card .el-button {
+  margin-top: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  align-self: flex-start;
+}
+
+.section-header {
+  gap: 10px;
 }
 
 .muscle-recovery-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin: 10px 0;
+  gap: 8px;
+  margin: 6px 0;
 }
 
 .muscle-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .m-name {
-  font-size: 13px;
+  font-size: 12px;
   color: #606266;
   min-width: 40px;
 }
@@ -382,14 +454,27 @@ onUnmounted(() => {
 }
 
 .status-footer {
-  margin-top: 10px;
-  font-size: 12px;
+  margin-top: 6px;
+  font-size: 11px;
   color: #c0c4cc;
+}
+
+@media (max-width: 1200px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .training-grid,
+  .status-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 768px) {
   .welcome-banner {
-    padding: 24px;
+    padding: 14px 16px;
   }
 }
 </style>
