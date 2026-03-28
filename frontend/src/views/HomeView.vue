@@ -1,14 +1,13 @@
 <template>
   <div class="dashboard-container">
-    <div class="welcome-banner">
-      <div class="banner-content">
-        <h1>欢迎回来，{{ username }}! 👋</h1>
-        <p>设定目标，坚持运动，AI 助你遇见更好的自己。</p>
-        <div class="banner-actions">
-          <el-button type="primary" size="large" @click="router.push('/training')">立即开始系统训练</el-button>
+    <transition name="banner-collapse">
+      <div v-if="showWelcomeBanner" class="welcome-banner">
+        <div class="banner-content">
+          <h1>欢迎回来，{{ username }}! 👋</h1>
+          <p>设定目标，坚持运动，AI 助你遇见更好的自己。</p>
         </div>
       </div>
-    </div>
+    </transition>
 
     <el-alert
       v-if="userStatus?.fatigue_level > 0.7"
@@ -108,7 +107,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import apiClient from '../api'
 import AIRecommendations from '../components/AIRecommendations.vue'
@@ -120,6 +119,14 @@ const stats = ref<any>({})
 const userStatus = ref<any>(null)
 const recommendationsRef = ref<any>(null)
 const profile = ref<any>(null)
+const showWelcomeBanner = ref(true)
+let welcomeTimer: number | null = null
+
+// 调试开关：
+// true  -> 每次进入首页都播放欢迎横幅（便于调试动画）
+// false -> 仅首次进入显示一次，后续不再出现
+const FORCE_REPEAT_WELCOME_BANNER = false
+const WELCOME_BANNER_SEEN_KEY = 'fitvision_home_welcome_seen'
 
 const calorieGoal = computed(() => {
   if (!profile.value?.bmr) return 500
@@ -209,9 +216,30 @@ const fetchTodayStats = async () => {
 }
 
 onMounted(() => {
+  const hasSeenWelcomeBanner = localStorage.getItem(WELCOME_BANNER_SEEN_KEY) === '1'
+
+  // 非调试模式且已经展示过：直接不显示横幅
+  if (!FORCE_REPEAT_WELCOME_BANNER && hasSeenWelcomeBanner) {
+    showWelcomeBanner.value = false
+  } else {
+    // 首次（或调试模式）展示 1 秒后淡出并记录已展示
+    welcomeTimer = window.setTimeout(() => {
+      showWelcomeBanner.value = false
+      if (!FORCE_REPEAT_WELCOME_BANNER) {
+        localStorage.setItem(WELCOME_BANNER_SEEN_KEY, '1')
+      }
+    }, 1000)
+  }
+
   fetchTodayStats()
   fetchUserStatus()
   fetchProfile()
+})
+
+onUnmounted(() => {
+  if (welcomeTimer) {
+    clearTimeout(welcomeTimer)
+  }
 })
 </script>
 
@@ -232,6 +260,22 @@ onMounted(() => {
 .banner-content h1 {
   font-size: 32px;
   margin-bottom: 12px;
+}
+
+.banner-collapse-enter-active,
+.banner-collapse-leave-active {
+  transition: all 0.32s ease;
+  overflow: hidden;
+}
+
+.banner-collapse-enter-from,
+.banner-collapse-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+  max-height: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .banner-content p {
