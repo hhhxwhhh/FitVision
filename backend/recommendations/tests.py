@@ -20,12 +20,14 @@ class _DummyExercise:
         target_muscle="legs",
         equipment="none",
         calories_burned=5.0,
+        difficulty="beginner",
         tags=None,
     ):
         self.id = ex_id
         self.target_muscle = target_muscle
         self.equipment = equipment
         self.calories_burned = calories_burned
+        self.difficulty = difficulty
         self.tags = tags or []
 
 
@@ -286,3 +288,67 @@ class HybridRecommenderStrategyTests(TestCase):
             candidates, goal_type="muscle_gain"
         )
         self.assertEqual(reranked[0]["ex"].id, 4)
+
+    def test_fatigue_coupling_downranks_high_intensity_strength_for_muscle_gain(self):
+        candidates = [
+            {
+                "ex": _DummyExercise(
+                    ex_id=5,
+                    target_muscle="chest",
+                    equipment="barbell",
+                    calories_burned=9.0,
+                    difficulty="advanced",
+                    tags=["strength"],
+                ),
+                "score": 1.0,
+                "algorithm": "ml_regression",
+            },
+            {
+                "ex": _DummyExercise(
+                    ex_id=6,
+                    target_muscle="full_body",
+                    equipment="none",
+                    calories_burned=6.0,
+                    difficulty="beginner",
+                ),
+                "score": 0.9,
+                "algorithm": "cosine",
+            },
+        ]
+
+        reranked = HybridRecommender._rerank_by_goal_and_fatigue(
+            candidates, goal_type="muscle_gain", fatigue_level=0.9
+        )
+        self.assertEqual(reranked[0]["ex"].id, 6)
+
+    def test_fatigue_coupling_keeps_strength_priority_when_not_fatigued(self):
+        candidates = [
+            {
+                "ex": _DummyExercise(
+                    ex_id=7,
+                    target_muscle="chest",
+                    equipment="barbell",
+                    calories_burned=9.0,
+                    difficulty="advanced",
+                    tags=["strength"],
+                ),
+                "score": 1.0,
+                "algorithm": "ml_regression",
+            },
+            {
+                "ex": _DummyExercise(
+                    ex_id=8,
+                    target_muscle="full_body",
+                    equipment="none",
+                    calories_burned=6.0,
+                    difficulty="beginner",
+                ),
+                "score": 0.9,
+                "algorithm": "cosine",
+            },
+        ]
+
+        reranked = HybridRecommender._rerank_by_goal_and_fatigue(
+            candidates, goal_type="muscle_gain", fatigue_level=0.3
+        )
+        self.assertEqual(reranked[0]["ex"].id, 7)

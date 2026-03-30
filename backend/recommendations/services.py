@@ -802,6 +802,53 @@ class HybridRecommender:
         return reranked
 
     @staticmethod
+    def _strength_intensity(exercise):
+        target = getattr(exercise, "target_muscle", "") or ""
+        equipment = getattr(exercise, "equipment", "none") or "none"
+        difficulty = getattr(exercise, "difficulty", "beginner") or "beginner"
+        calories = float(getattr(exercise, "calories_burned", 5.0) or 5.0)
+        tags = set(getattr(exercise, "tags", []) or [])
+
+        intensity = 0.0
+        if target in {"chest", "back", "legs", "shoulders", "glutes", "arms"}:
+            intensity += 0.35
+        if equipment != "none":
+            intensity += 0.25
+        if difficulty in {"intermediate", "advanced"}:
+            intensity += 0.2
+        if calories >= 8.0:
+            intensity += 0.15
+        if "strength" in tags:
+            intensity += 0.15
+        return min(intensity, 1.0)
+
+    @classmethod
+    def _rerank_by_goal_and_fatigue(cls, candidates, goal_type, fatigue_level):
+        if not candidates:
+            return []
+
+        try:
+            fatigue = float(fatigue_level)
+        except (TypeError, ValueError):
+            fatigue = 0.0
+
+        if goal_type != "muscle_gain" or fatigue < 0.65:
+            return list(candidates)
+
+        fatigue_factor = min(max((fatigue - 0.65) / 0.35, 0.0), 1.0)
+        adjusted = []
+        for item in candidates:
+            intensity = cls._strength_intensity(item["ex"])
+            penalty = 0.45 * fatigue_factor * intensity
+
+            updated = dict(item)
+            updated["score"] = item["score"] * (1.0 - penalty)
+            adjusted.append(updated)
+
+        adjusted.sort(key=lambda x: x["score"], reverse=True)
+        return adjusted
+
+    @staticmethod
     def get_recommendations(user, scenario="default", limit=6):
         reason_map = {
             "dl_sequence": "根据您的练习序列预测",
@@ -900,6 +947,14 @@ class HybridRecommender:
         user_goal = HybridRecommender._resolve_user_goal(user)
         candidate_pool = HybridRecommender._rerank_by_user_goal(
             reranked_candidates, goal_type=user_goal
+        )
+
+        rec_state = UserState.objects.filter(user=user).only("fatigue_level").first()
+        fatigue_level = rec_state.fatigue_level if rec_state else 0.0
+        candidate_pool = HybridRecommender._rerank_by_goal_and_fatigue(
+            candidate_pool,
+            goal_type=user_goal,
+            fatigue_level=fatigue_level,
         )
         seen_ids = {item["ex"].id for item in candidate_pool}
 
