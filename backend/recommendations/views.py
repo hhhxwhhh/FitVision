@@ -10,6 +10,7 @@ from .serializers import (
     RecommendedExerciseSerializer,
     UserInteractionSerializer,
     UserStateSerializer,
+    FeedbackActionSerializer,
 )
 from .services import HybridRecommender
 
@@ -26,9 +27,6 @@ def _parse_brief(value, default=True):
     if value is None:
         return default
     return str(value).strip().lower() in ("1", "true", "yes", "y", "on")
-
-
-VALID_FEEDBACK_ACTIONS = {"like", "skip"}
 
 
 class RecommendationViewSet(viewsets.ModelViewSet):
@@ -72,15 +70,9 @@ class RecommendationViewSet(viewsets.ModelViewSet):
     def feedback(self, request, pk=None):
         """对推荐结果进行反馈 (like/skip)"""
         rec = self.get_object()
-        action_type = (request.data.get("action") or "").strip().lower()
-        if action_type not in VALID_FEEDBACK_ACTIONS:
-            return Response(
-                {
-                    "detail": "Invalid action, allowed values: like, skip",
-                    "allowed_actions": sorted(VALID_FEEDBACK_ACTIONS),
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        serializer = FeedbackActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        action_type = serializer.validated_data["action"]
 
         # 记录交互
         UserInteraction.objects.create(

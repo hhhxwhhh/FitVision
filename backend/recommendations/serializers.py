@@ -4,6 +4,17 @@ from exercises.serializers import ExerciseSerializer
 from exercises.models import Exercise
 
 
+class FeedbackActionSerializer(serializers.Serializer):
+    action = serializers.CharField(required=True)
+
+    def validate_action(self, value):
+        normalized = str(value).strip().lower()
+        allowed = {"like", "skip"}
+        if normalized not in allowed:
+            raise serializers.ValidationError("action must be one of: like, skip")
+        return normalized
+
+
 class ExerciseBriefSerializer(serializers.ModelSerializer):
     class Meta:
         model = Exercise

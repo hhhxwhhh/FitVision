@@ -5,7 +5,10 @@ from unittest.mock import patch
 
 from exercises.models import Exercise, ExerciseCategory
 from recommendations.models import RecommendedExercise, UserInteraction, UserState
-from recommendations.serializers import RecommendedExerciseSerializer
+from recommendations.serializers import (
+    RecommendedExerciseSerializer,
+    FeedbackActionSerializer,
+)
 
 
 class RecommendationSerializerModeTests(TestCase):
@@ -48,6 +51,18 @@ class RecommendationSerializerModeTests(TestCase):
         self.assertIn("exercise", data)
         self.assertIn("instructions", data["exercise"])
         self.assertIn("description", data["exercise"])
+
+
+class FeedbackActionSerializerTests(TestCase):
+    def test_accepts_and_normalizes_action(self):
+        serializer = FeedbackActionSerializer(data={"action": " LIKE "})
+        self.assertTrue(serializer.is_valid())
+        self.assertEqual(serializer.validated_data["action"], "like")
+
+    def test_rejects_invalid_action(self):
+        serializer = FeedbackActionSerializer(data={"action": "oops"})
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("action", serializer.errors)
 
 
 class RecommendationViewSetActionTests(TestCase):
@@ -150,7 +165,7 @@ class RecommendationViewSetActionTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("allowed_actions", response.data)
+        self.assertIn("action", response.data)
         self.rec.refresh_from_db()
         self.assertFalse(self.rec.is_seen)
         self.assertEqual(UserInteraction.objects.filter(user=self.user).count(), 0)
