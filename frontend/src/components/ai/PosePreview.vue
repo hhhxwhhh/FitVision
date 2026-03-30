@@ -32,6 +32,33 @@
             <span class="label">计数</span>
             <span class="value">{{ repCount }}</span>
           </div>
+
+          <div class="stat-item" style="margin-top: 10px;">
+            <span class="label">标准连击</span>
+            <span class="value-sm">{{ standardStreak }}（最高 {{ bestStreak }}）</span>
+          </div>
+
+          <div class="stat-item" style="margin-top: 10px;">
+            <span class="label">最常见错误</span>
+            <el-popover
+              placement="right"
+              trigger="click"
+              :width="240"
+              popper-class="error-tip-popover"
+            >
+              <template #reference>
+                <el-tag
+                  :type="commonErrorLabel === '暂无明显错误' ? 'success' : 'danger'"
+                  size="small"
+                  class="error-tag"
+                >
+                  {{ commonErrorLabel }}
+                </el-tag>
+              </template>
+              <div class="error-tip-title">修正要点</div>
+              <div class="error-tip-text">{{ commonErrorTip }}</div>
+            </el-popover>
+          </div>
         </div>
         
         <div class="progress-ring-box">
@@ -50,6 +77,19 @@
 
         <div class="feedback-box" :class="{ 'warning': feedback.includes('⚠️') }">
           {{ feedback }}
+        </div>
+
+        <div class="quality-box">
+          <div class="quality-title">动作质量</div>
+          <div class="quality-main" :style="{ color: qualityColor }">
+            {{ qualityLabel }}（{{ qualityPercent }}%）
+          </div>
+          <el-progress
+            :percentage="qualityPercent"
+            :stroke-width="8"
+            :show-text="false"
+            :color="qualityColor"
+          />
         </div>
       </div>
 
@@ -167,6 +207,13 @@ const {
   feedback,
   exerciseMode,
   lastScore,
+  qualityLabel,
+  qualityPercent,
+  qualityColor,
+  standardStreak,
+  bestStreak,
+  commonErrorLabel,
+  commonErrorTip,
   repProgress,
   duration,
   isAnalyzingVlm,
@@ -442,6 +489,51 @@ defineExpose({
   pointer-events: none;
 }
 
+.quality-box {
+  position: absolute;
+  right: 18px;
+  bottom: 88px;
+  width: 180px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 10px;
+  padding: 10px;
+  pointer-events: none;
+}
+
+.quality-title {
+  color: #94a3b8;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.quality-main {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.error-tag {
+  cursor: pointer;
+}
+
+:deep(.error-tip-popover) {
+  border-radius: 10px;
+}
+
+.error-tip-title {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.error-tip-text {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .feedback-box.warning {
   border-color: #f43f5e;
   color: #fb7185;
@@ -567,6 +659,12 @@ defineExpose({
 
   .stress-grid {
     grid-template-columns: 1fr;
+  }
+
+  .quality-box {
+    right: 10px;
+    bottom: 78px;
+    width: 150px;
   }
 }
 
