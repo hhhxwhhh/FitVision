@@ -14,6 +14,20 @@ from .serializers import (
 from .services import HybridRecommender
 
 
+def _parse_limit(value, default=6, min_value=1, max_value=20):
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(min(parsed, max_value), min_value)
+
+
+def _parse_brief(value, default=True):
+    if value is None:
+        return default
+    return str(value).strip().lower() in ("1", "true", "yes", "y", "on")
+
+
 class RecommendationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = RecommendedExerciseSerializer
@@ -38,8 +52,8 @@ class RecommendationViewSet(viewsets.ModelViewSet):
     def get_personalized(self, request):
         """获取个性化推荐入口，支持 scenario 参数"""
         scenario = request.query_params.get("scenario", "default")
-        limit = int(request.query_params.get("limit", 6))
-        brief = request.query_params.get("brief", "1") in ("1", "true", "True")
+        limit = _parse_limit(request.query_params.get("limit", 6))
+        brief = _parse_brief(request.query_params.get("brief"), default=True)
 
         recommendations = HybridRecommender.get_recommendations(
             request.user, scenario=scenario, limit=limit
