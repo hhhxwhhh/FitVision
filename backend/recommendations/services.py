@@ -1,5 +1,6 @@
 import numpy as np
 import random
+from collections import defaultdict
 from datetime import timedelta
 import logging
 from django.utils import timezone
@@ -556,15 +557,164 @@ class TimeTravelCFEngine(RecommendationEngine):
 class HybridRecommender:
     """高级混合推荐调度器：支持多路召回、策略路由与结果持久化"""
 
+    DEFAULT_ALGORITHMS = {
+        "dl_sequence",
+        "gnn_reasoning",
+        "rl_adaptive",
+        "ml_regression",
+        "cosine",
+        "popularity",
+        "time_travel_cf",
+    }
+
+    SCENARIO_ENGINE_WEIGHTS = {
+        "default": {
+            "dl_sequence": 1.0,
+            "gnn_reasoning": 0.9,
+            "cosine": 0.85,
+            "popularity": 0.7,
+            "time_travel_cf": 0.95,
+        },
+        "discovery": {
+            "gnn_reasoning": 1.0,
+            "cosine": 0.95,
+            "popularity": 0.6,
+        },
+        "daily_plan": {
+            "ml_regression": 1.0,
+            "popularity": 0.7,
+        },
+        "auto_adjust": {
+            "rl_adaptive": 1.0,
+            "popularity": 0.65,
+        },
+    }
+
+    @staticmethod
+    def _safe_score(value, default=0.5):
+        try:
+            score = float(value)
+        except (TypeError, ValueError):
+            return default
+        if np.isnan(score) or np.isinf(score):
+            return default
+        return max(0.0, min(score, 1.2))
+
+    @classmethod
+    def _engine_weight(cls, scenario, engine):
+        scene_weights = cls.SCENARIO_ENGINE_WEIGHTS.get(scenario, {})
+        if engine in scene_weights:
+            return scene_weights[engine]
+        return cls.SCENARIO_ENGINE_WEIGHTS["default"].get(engine, 0.75)
+
+    @staticmethod
+    def _recent_blocked_ids(user, days=3):
+        since = timezone.now() - timedelta(days=days)
+        recent_actions = UserInteraction.objects.filter(
+            user=user,
+            timestamp__gte=since,
+            interaction_type__in=["finish", "skip"],
+        ).values_list("exercise_id", flat=True)
+
+        seen_recent_recs = RecommendedExercise.objects.filter(
+            user=user,
+            is_seen=True,
+            created_at__gte=since,
+        ).values_list("exercise_id", flat=True)
+
+        return set(recent_actions).union(set(seen_recent_recs))
+
+    @classmethod
+    def _blend_sources(cls, rec_sources, scenario, blocked_ids):
+        merged = {}
+        for ex, raw_score, algo in rec_sources:
+            if not ex or ex.id in blocked_ids:
+                continue
+
+            score = cls._safe_score(raw_score)
+            weighted = score * cls._engine_weight(scenario, algo)
+
+            if ex.id not in merged:
+                merged[ex.id] = {
+                    "ex": ex,
+                    "score": weighted,
+                    "sources": {algo},
+                    "algorithm": algo,
+                    "best_weighted": weighted,
+                }
+                continue
+
+            merged_item = merged[ex.id]
+            merged_item["score"] += weighted
+            merged_item["sources"].add(algo)
+            if weighted > merged_item["best_weighted"]:
+                merged_item["best_weighted"] = weighted
+                merged_item["algorithm"] = algo
+
+        candidates = []
+        for item in merged.values():
+            source_bonus = min(0.05 * len(item["sources"]), 0.2)
+            item["score"] = item["score"] + source_bonus
+            candidates.append(item)
+
+        candidates.sort(key=lambda x: x["score"], reverse=True)
+        return candidates
+
+    @staticmethod
+    def _rerank_with_diversity(candidates, limit):
+        if not candidates:
+            return []
+
+        pending = list(candidates)
+        selected = []
+        muscle_counter = defaultdict(int)
+
+        while pending and len(selected) < limit:
+            best_idx = 0
+            best_adjusted = -1.0
+
+            # 限制扫描窗口，兼顾质量与性能
+            for idx, item in enumerate(pending[:40]):
+                muscle = getattr(item["ex"], "target_muscle", "unknown") or "unknown"
+                diversity_penalty = 0.12 * muscle_counter[muscle]
+                adjusted = item["score"] - diversity_penalty
+                if adjusted > best_adjusted:
+                    best_adjusted = adjusted
+                    best_idx = idx
+
+            chosen = pending.pop(best_idx)
+            chosen["score"] = max(0.0, best_adjusted)
+            selected.append(chosen)
+            muscle = getattr(chosen["ex"], "target_muscle", "unknown") or "unknown"
+            muscle_counter[muscle] += 1
+
+        return selected
+
     @staticmethod
     def get_recommendations(user, scenario="default", limit=6):
+        reason_map = {
+            "dl_sequence": "根据您的练习序列预测",
+            "gnn_reasoning": "基于训练路径的逻辑进阶",
+            "rl_adaptive": "基于您的身体状态实时调节",
+            "ml_regression": "基于您的身体指标定制",
+            "cosine": "基于您相似的互动偏好",
+            "popularity": "社区高热度动作",
+            "time_travel_cf": "与您体质相似的进阶者在新手期最爱的动作",
+        }
+
         # 1. 缓存/持久化检查：如果过去 6 小时内已经为该场景生成过充分的推荐，则直接返回
         six_hours_ago = timezone.now() - timedelta(hours=6)
         existing_recs = RecommendedExercise.objects.filter(
             user=user,
-            algorithm__icontains=scenario if scenario != "default" else "",
             created_at__gte=six_hours_ago,
-        ).order_by("rank")
+        )
+        if scenario == "default":
+            existing_recs = existing_recs.filter(
+                algorithm__in=HybridRecommender.DEFAULT_ALGORITHMS
+            )
+        else:
+            existing_recs = existing_recs.filter(algorithm__startswith=f"{scenario}:")
+        existing_recs = existing_recs.order_by("rank")
 
         if existing_recs.count() >= limit:
             return existing_recs[:limit]
@@ -626,46 +776,39 @@ class HybridRecommender:
         except Exception as e:
             print(f"推荐场景 [{scenario}] 执行异常: {e}")
 
-        # 3. 结果合并、去重与排序
-        seen_ids = set()
-        final_recs = []
+        # 3. 分数融合 + 去重 + 多样性重排
+        blocked_ids = HybridRecommender._recent_blocked_ids(user)
+        fused_candidates = HybridRecommender._blend_sources(
+            rec_sources, scenario=scenario, blocked_ids=blocked_ids
+        )
 
-        # 按照预测分值和权重混合
-        for ex, score, algo in rec_sources:
-            if ex and ex.id not in seen_ids:
-                # 确保分值合法
-                valid_score = float(score) if not np.isnan(score) else 0.5
-                final_recs.append({"ex": ex, "score": valid_score, "algorithm": algo})
-                seen_ids.add(ex.id)
+        final_recs = HybridRecommender._rerank_with_diversity(
+            fused_candidates, limit=limit
+        )
+        seen_ids = {item["ex"].id for item in final_recs}
 
         # 4. 兜底策略：如果召回不足，使用热门冷启动补全
         if len(final_recs) < limit:
             remaining = limit - len(final_recs)
-            backups = ColdStartEngine().recommend(user, limit=remaining)
+            backups = ColdStartEngine().recommend(user, limit=remaining * 2)
             for ex, score in backups:
-                if ex.id not in seen_ids:
+                if ex.id not in seen_ids and ex.id not in blocked_ids:
                     final_recs.append(
                         {"ex": ex, "score": score, "algorithm": "popularity"}
                     )
                     seen_ids.add(ex.id)
+                if len(final_recs) >= limit:
+                    break
 
         # 5. 结果持久化与理由生成
         results = []
         # 清理该场景下的旧推荐
-        RecommendedExercise.objects.filter(
-            user=user,
-            algorithm__icontains=scenario if scenario != "default" else "hybrid",
-        ).delete()
-
-        reason_map = {
-            "dl_sequence": "根据您的练习序列预测",
-            "gnn_reasoning": "基于训练路径的逻辑进阶",
-            "rl_adaptive": "基于您的身体状态实时调节",
-            "ml_regression": "基于您的身体指标定制",
-            "cosine": "基于您相似的互动偏好",
-            "popularity": "社区高热度动作",
-            "time_travel_cf": "与您体质相似的进阶者在新手期最爱的动作",
-        }
+        old_recs = RecommendedExercise.objects.filter(user=user)
+        if scenario == "default":
+            old_recs = old_recs.filter(algorithm__in=HybridRecommender.DEFAULT_ALGORITHMS)
+        else:
+            old_recs = old_recs.filter(algorithm__startswith=f"{scenario}:")
+        old_recs.delete()
 
         for i, item in enumerate(final_recs[:limit]):
             # 记录推荐来源和场景标识，用于持久化过滤
