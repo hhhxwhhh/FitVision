@@ -691,6 +691,46 @@ class HybridRecommender:
         return selected
 
     @staticmethod
+    def _compute_exploration_ratio(positive_count, negative_count, default=0.18):
+        total = positive_count + negative_count
+        if total <= 0:
+            return default
+
+        negative_ratio = negative_count / total
+        adaptive = default + (negative_ratio - 0.4) * 0.35
+        return max(0.08, min(0.35, adaptive))
+
+    @staticmethod
+    def _select_with_exploration(candidates, limit, exploration_ratio, rng=None):
+        if not candidates or limit <= 0:
+            return []
+        if len(candidates) <= limit:
+            return candidates[:limit]
+
+        rng = rng or random
+        # 探索槽位不超过总数的一半，避免推荐质量明显下降
+        explore_slots = min(limit // 2, int(round(limit * exploration_ratio)))
+        exploit_slots = max(limit - explore_slots, 1)
+
+        exploit_part = candidates[:exploit_slots]
+        if explore_slots <= 0:
+            return exploit_part[:limit]
+
+        explore_pool = candidates[exploit_slots:]
+        if not explore_pool:
+            return exploit_part[:limit]
+
+        pick_n = min(explore_slots, len(explore_pool))
+        if len(explore_pool) <= pick_n:
+            explore_pick = list(explore_pool)
+        else:
+            explore_pick = rng.sample(explore_pool, pick_n)
+
+        merged = exploit_part + explore_pick
+        merged.sort(key=lambda x: x["score"], reverse=True)
+        return merged[:limit]
+
+    @staticmethod
     def get_recommendations(user, scenario="default", limit=6):
         reason_map = {
             "dl_sequence": "根据您的练习序列预测",
@@ -782,30 +822,59 @@ class HybridRecommender:
             rec_sources, scenario=scenario, blocked_ids=blocked_ids
         )
 
-        final_recs = HybridRecommender._rerank_with_diversity(
-            fused_candidates, limit=limit
+        reranked_candidates = HybridRecommender._rerank_with_diversity(
+            fused_candidates, limit=max(limit * 3, limit)
         )
-        seen_ids = {item["ex"].id for item in final_recs}
+        candidate_pool = list(reranked_candidates)
+        seen_ids = {item["ex"].id for item in candidate_pool}
 
         # 4. 兜底策略：如果召回不足，使用热门冷启动补全
-        if len(final_recs) < limit:
-            remaining = limit - len(final_recs)
+        if len(candidate_pool) < limit:
+            remaining = limit - len(candidate_pool)
             backups = ColdStartEngine().recommend(user, limit=remaining * 2)
             for ex, score in backups:
                 if ex.id not in seen_ids and ex.id not in blocked_ids:
-                    final_recs.append(
+                    candidate_pool.append(
                         {"ex": ex, "score": score, "algorithm": "popularity"}
                     )
                     seen_ids.add(ex.id)
-                if len(final_recs) >= limit:
+                if len(candidate_pool) >= limit * 2:
                     break
 
-        # 5. 结果持久化与理由生成
+        # 5. 自适应探索：近期负反馈越高，探索比重越大
+        recent_feedback = UserInteraction.objects.filter(
+            user=user,
+            timestamp__gte=timezone.now() - timedelta(days=14),
+            interaction_type__in=["finish", "like", "bookmark", "skip"],
+        ).values_list("interaction_type", flat=True)
+
+        positive_count = 0
+        negative_count = 0
+        for action in recent_feedback:
+            if action in ["finish", "like", "bookmark"]:
+                positive_count += 1
+            elif action == "skip":
+                negative_count += 1
+
+        exploration_ratio = HybridRecommender._compute_exploration_ratio(
+            positive_count=positive_count,
+            negative_count=negative_count,
+        )
+
+        final_recs = HybridRecommender._select_with_exploration(
+            candidate_pool,
+            limit=limit,
+            exploration_ratio=exploration_ratio,
+        )
+
+        # 6. 结果持久化与理由生成
         results = []
         # 清理该场景下的旧推荐
         old_recs = RecommendedExercise.objects.filter(user=user)
         if scenario == "default":
-            old_recs = old_recs.filter(algorithm__in=HybridRecommender.DEFAULT_ALGORITHMS)
+            old_recs = old_recs.filter(
+                algorithm__in=HybridRecommender.DEFAULT_ALGORITHMS
+            )
         else:
             old_recs = old_recs.filter(algorithm__startswith=f"{scenario}:")
         old_recs.delete()

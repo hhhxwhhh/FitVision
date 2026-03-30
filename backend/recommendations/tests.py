@@ -1,5 +1,6 @@
 from django.test import TestCase
 from django.contrib.auth.models import User
+import random
 from rest_framework.test import APIClient
 from unittest.mock import patch
 
@@ -9,6 +10,13 @@ from recommendations.serializers import (
     RecommendedExerciseSerializer,
     FeedbackActionSerializer,
 )
+from recommendations.services import HybridRecommender
+
+
+class _DummyExercise:
+    def __init__(self, ex_id, target_muscle="legs"):
+        self.id = ex_id
+        self.target_muscle = target_muscle
 
 
 class RecommendationSerializerModeTests(TestCase):
@@ -170,3 +178,41 @@ class RecommendationViewSetActionTests(TestCase):
         self.assertFalse(self.rec.is_seen)
         self.assertEqual(UserInteraction.objects.filter(user=self.user).count(), 0)
         mocked_cache.delete.assert_not_called()
+
+
+class HybridRecommenderStrategyTests(TestCase):
+    def test_compute_exploration_ratio_increases_with_negative_feedback(self):
+        low_ratio = HybridRecommender._compute_exploration_ratio(
+            positive_count=20, negative_count=1
+        )
+        high_ratio = HybridRecommender._compute_exploration_ratio(
+            positive_count=1, negative_count=20
+        )
+        self.assertLess(low_ratio, high_ratio)
+        self.assertGreaterEqual(low_ratio, 0.08)
+        self.assertLessEqual(high_ratio, 0.35)
+
+    def test_select_with_exploration_keeps_top_and_adds_explore(self):
+        candidates = [
+            {
+                "ex": _DummyExercise(ex_id=i, target_muscle="legs"),
+                "score": 1.0 - (i * 0.05),
+                "algorithm": "cosine",
+            }
+            for i in range(10)
+        ]
+
+        rng = random.Random(1234)
+        selected = HybridRecommender._select_with_exploration(
+            candidates=candidates,
+            limit=6,
+            exploration_ratio=0.33,
+            rng=rng,
+        )
+
+        self.assertEqual(len(selected), 6)
+        selected_ids = {item["ex"].id for item in selected}
+        # 最高分候选应保留
+        self.assertIn(0, selected_ids)
+        # 应有至少一个不是纯前6名的探索候选
+        self.assertTrue(any(ex_id >= 6 for ex_id in selected_ids))
