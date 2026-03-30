@@ -5,6 +5,60 @@ import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
 import { calculateAngle, OneEuroFilter, normalizeLandmarks, matchPoseSignature } from '../utils/poseMatching';
 import apiClient from '../api';
 
+type VoiceCategory = 'count' | 'encourage' | 'corrective' | 'cadence';
+type VoiceStyle = 'encouraging' | 'strict' | 'energetic';
+
+interface SpokenEvent {
+  ts: number;
+  category: VoiceCategory;
+  text: string;
+}
+
+const SAME_SENTENCE_COOLDOWN_MS = 4000;
+const MIN_SPEAK_INTERVAL_MS = 1500;
+const VARIETY_WINDOW_MS = 60000;
+
+const VOICE_STYLES: Record<
+  VoiceStyle,
+  {
+    rate: number;
+    pitch: number;
+    volume: number;
+    encouragement: string[];
+    corrective: string[];
+    cadenceDown: string[];
+    cadenceUp: string[];
+  }
+> = {
+  encouraging: {
+    rate: 1.15,
+    pitch: 1.05,
+    volume: 1,
+    encouragement: ['很好，继续保持！', '节奏不错，稳住！', '干得漂亮，再来一组！'],
+    corrective: ['膝盖和脚尖同向，动作更标准。', '背部挺直，核心收紧。', '幅度再完整一点。'],
+    cadenceDown: ['慢一点下蹲', '稳住，继续下沉'],
+    cadenceUp: ['发力起身', '起身，呼气'],
+  },
+  strict: {
+    rate: 1.1,
+    pitch: 0.95,
+    volume: 1,
+    encouragement: ['动作合格，继续。', '节奏达标，保持。', '完成不错，下一次更标准。'],
+    corrective: ['不要借力，控制下放。', '膝盖别内扣，立刻修正。', '核心收紧，保持躯干稳定。'],
+    cadenceDown: ['下蹲慢一点', '稳住，不要塌腰'],
+    cadenceUp: ['发力起', '起身呼气'],
+  },
+  energetic: {
+    rate: 1.3,
+    pitch: 1.2,
+    volume: 1,
+    encouragement: ['太棒了，继续冲！', '状态在线，再来！', '很有力量，保持爆发！'],
+    corrective: ['控制住，动作再标准一点！', '注意姿态，别急！', '稳住核心，继续干！'],
+    cadenceDown: ['慢一点，稳住！', '下蹲控制住！'],
+    cadenceUp: ['发力冲起来！', '起身呼气，走！'],
+  },
+};
+
 export function usePoseDetection() {
   const MEDIAPIPE_POSE_VERSION = '0.5.1675469404';
   const MEDIAPIPE_BASE_URL =
@@ -36,6 +90,16 @@ export function usePoseDetection() {
   const isAnalyzingVlm = ref(false);
   const vlmAdvice = ref('');
   const latestLandmarks = ref<any[] | null>(null);
+  const voiceStyle = ref<VoiceStyle>('encouraging');
+  const stressModeEnabled = ref(false);
+  const stressElapsedSeconds = ref(0);
+  const voiceHitCount = ref({ count: 0, encourage: 0, corrective: 0, cadence: 0 });
+  const voiceCoveredCategories = ref(0);
+  const voiceTotalInLastMinute = ref(0);
+  const voiceRepeatedInLastMinute = ref(0);
+  const voiceCoveragePass = ref(false);
+  const voiceQuietPass = ref(true);
+  const voiceStressPass = ref(false);
 
   const VLM_COOLDOWN_MS = 15000; 
   let lastVlmTriggerTime = 0;    
@@ -55,21 +119,165 @@ export function usePoseDetection() {
   let plankStartTime: number | null = null;
   let pose: Pose | null = null;
   let camera: Camera | null = null;
+  let varietyTimer: number | null = null;
+  let stressTimer: number | null = null;
+  let stressStartAt: number | null = null;
+  const spokenEvents: SpokenEvent[] = [];
 
-  const speak = (text: string) => {
+  const lastSentenceAt = new Map<string, number>();
+  const lastCategoryAt = new Map<VoiceCategory, number>();
+  let lastSpeakAt = 0;
+
+  const pickByStyle = (category: Exclude<VoiceCategory, 'count'>, phase?: 'down' | 'up') => {
+    const stylePack = VOICE_STYLES[voiceStyle.value];
+    if (category === 'cadence') {
+      const phraseList = phase === 'down' ? stylePack.cadenceDown : stylePack.cadenceUp;
+      return phraseList[Math.floor(Math.random() * phraseList.length)];
+    }
+
+    const phraseList = category === 'encourage' ? stylePack.encouragement : stylePack.corrective;
+    return phraseList[Math.floor(Math.random() * phraseList.length)];
+  };
+
+  const shouldSkipSpeech = (text: string, now: number) => {
+    if (!text) return true;
+    if (now - lastSpeakAt < MIN_SPEAK_INTERVAL_MS) return true;
+
+    const lastSame = lastSentenceAt.get(text);
+    if (lastSame && now - lastSame < SAME_SENTENCE_COOLDOWN_MS) {
+      return true;
+    }
+    return false;
+  };
+
+  const refreshVoiceStressStats = () => {
+    const now = Date.now();
+    const windowStart = now - VARIETY_WINDOW_MS;
+
+    while (spokenEvents.length > 0 && spokenEvents[0].ts < windowStart) {
+      spokenEvents.shift();
+    }
+
+    let count = 0;
+    let encourage = 0;
+    let corrective = 0;
+    let cadence = 0;
+    let repeated = 0;
+    const seenText = new Set<string>();
+
+    for (const item of spokenEvents) {
+      if (item.category === 'count') count += 1;
+      if (item.category === 'encourage') encourage += 1;
+      if (item.category === 'corrective') corrective += 1;
+      if (item.category === 'cadence') cadence += 1;
+
+      if (seenText.has(item.text)) {
+        repeated += 1;
+      } else {
+        seenText.add(item.text);
+      }
+    }
+
+    voiceHitCount.value = { count, encourage, corrective, cadence };
+    voiceTotalInLastMinute.value = spokenEvents.length;
+    voiceRepeatedInLastMinute.value = repeated;
+
+    const covered = [count, encourage, corrective].filter((n) => n > 0).length;
+    voiceCoveredCategories.value = covered;
+    voiceCoveragePass.value = covered >= 3;
+
+    const repeatRatio = spokenEvents.length > 0 ? repeated / spokenEvents.length : 0;
+    voiceQuietPass.value = spokenEvents.length <= 18 && repeatRatio <= 0.35;
+    voiceStressPass.value = voiceCoveragePass.value && voiceQuietPass.value;
+
+    if (stressStartAt) {
+      stressElapsedSeconds.value = Math.floor((now - stressStartAt) / 1000);
+    }
+  };
+
+  const resetVoiceStressStats = () => {
+    spokenEvents.length = 0;
+    voiceHitCount.value = { count: 0, encourage: 0, corrective: 0, cadence: 0 };
+    voiceCoveredCategories.value = 0;
+    voiceTotalInLastMinute.value = 0;
+    voiceRepeatedInLastMinute.value = 0;
+    voiceCoveragePass.value = false;
+    voiceQuietPass.value = true;
+    voiceStressPass.value = false;
+    stressElapsedSeconds.value = 0;
+  };
+
+  const speak = (text: string, category: VoiceCategory = 'encourage') => {
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+      const now = Date.now();
+      if (shouldSkipSpeech(text, now)) {
+        return;
+      }
+
+      const stylePack = VOICE_STYLES[voiceStyle.value];
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'zh-CN';
-      utterance.rate = 1.3;
+      utterance.rate = stylePack.rate;
+      utterance.pitch = stylePack.pitch;
+      utterance.volume = stylePack.volume;
       window.speechSynthesis.speak(utterance);
+
+      lastSpeakAt = now;
+      lastSentenceAt.set(text, now);
+      lastCategoryAt.set(category, now);
+      if (stressModeEnabled.value) {
+        spokenEvents.push({ ts: now, category, text });
+        refreshVoiceStressStats();
+      }
     }
+  };
+
+  const speakCountdown = (count: number) => speak(String(count), 'count');
+  const speakEncouragement = () => speak(pickByStyle('encourage'), 'encourage');
+  const speakCorrection = () => speak(pickByStyle('corrective'), 'corrective');
+  const speakCadence = (phase: 'down' | 'up') => speak(pickByStyle('cadence', phase), 'cadence');
+  const scheduleSpeak = (fn: () => void, delay = 1800) => {
+    window.setTimeout(() => {
+      if (isUpdating.value) fn();
+    }, delay);
+  };
+
+  const maybeEnsureVoiceVariety = () => {
+    if (!isUpdating.value) return;
+
+    const now = Date.now();
+    const categories: VoiceCategory[] = ['count', 'encourage', 'corrective'];
+    const missing = categories.filter((category) => {
+      const lastAt = lastCategoryAt.get(category);
+      return !lastAt || now - lastAt > VARIETY_WINDOW_MS;
+    });
+
+    if (missing.length === 0) return;
+
+    const target = missing[0];
+    if (target === 'count') {
+      speak('当前计数，' + String(repCount.value), 'count');
+      return;
+    }
+    if (target === 'encourage') {
+      speakEncouragement();
+      return;
+    }
+    speakCorrection();
   };
 
   const clearCoachTimer = () => {
     if (coachTimer) {
       window.clearInterval(coachTimer);
       coachTimer = null;
+    }
+    if (varietyTimer) {
+      window.clearInterval(varietyTimer);
+      varietyTimer = null;
+    }
+    if (stressTimer) {
+      window.clearInterval(stressTimer);
+      stressTimer = null;
     }
   };
 
@@ -78,8 +286,22 @@ export function usePoseDetection() {
     coachTimer = window.setInterval(() => {
       const idleTime = Date.now() - lastStateChange;
       if (idleTime > 8000 && isUpdating.value) {
-        speak(state === 'UP' ? '加油，动作快一点！' : '坚持住，慢慢起来！');
+        if (state === 'UP') {
+          speakEncouragement();
+        } else {
+          speakCadence('up');
+        }
         lastStateChange = Date.now();
+      }
+    }, 1000);
+
+    varietyTimer = window.setInterval(() => {
+      maybeEnsureVoiceVariety();
+    }, 10000);
+
+    stressTimer = window.setInterval(() => {
+      if (stressModeEnabled.value) {
+        refreshVoiceStressStats();
       }
     }, 1000);
   };
@@ -122,7 +344,7 @@ export function usePoseDetection() {
       const advice = response.data?.advice || '已完成分析，请继续保持训练节奏';
       vlmAdvice.value = advice;
       feedback.value = `🤖 ${advice}`;
-      speak(advice);
+      speak(advice, 'corrective');
     } catch (err: any) {
       const message = err?.response?.data?.detail || '视觉大模型分析失败，请稍后重试';
       feedback.value = `⚠️ ${message}`;
@@ -191,17 +413,28 @@ export function usePoseDetection() {
           if (smoothedAngle < 105 && state === 'UP') {
             state = 'DOWN';
             feedback.value = '下沉到位！';
+            speakCadence('down');
             lastStateChange = now;
             
             const signatureScore = matchPoseSignature(smoothedLandmarks, 'squat_down');
             lastScore.value = Math.round(signatureScore * 100);
+
+            if (lastScore.value < 85) {
+              speakCorrection();
+            }
 
             tryTriggerVlmAnalysis(lastScore.value);
 
           } else if (smoothedAngle > 155 && state === 'DOWN') {
             state = 'UP';
             repCount.value++;
-            speak(String(repCount.value));
+            speakCountdown(repCount.value);
+            if (repCount.value % 2 === 1) {
+              scheduleSpeak(() => speakCadence('up'), 1800);
+            }
+            if (repCount.value % 2 === 0 || lastScore.value > 90) {
+              scheduleSpeak(() => speakEncouragement(), 3200);
+            }
             feedback.value = lastScore.value > 90 ? '完美动作！' : '保持呼吸';
             lastStateChange = now;
           }
@@ -215,16 +448,27 @@ export function usePoseDetection() {
             if (smoothed < 95 && state === 'UP') {
                 state = 'DOWN';
                 feedback.value = '准备撑起！';
+                speakCadence('down');
                 lastStateChange = now;
                 const signatureScore = matchPoseSignature(smoothedLandmarks, 'pushup_down');
                 lastScore.value = Math.round(signatureScore * 100);
+
+                if (lastScore.value < 85) {
+                  speakCorrection();
+                }
 
                 tryTriggerVlmAnalysis(lastScore.value);
 
             } else if (smoothed > 150 && state === 'DOWN') {
                 state = 'UP';
                 repCount.value++;
-                speak(String(repCount.value));
+                speakCountdown(repCount.value);
+                if (repCount.value % 2 === 1) {
+                  scheduleSpeak(() => speakCadence('up'), 1800);
+                }
+                if (repCount.value % 2 === 0 || lastScore.value > 90) {
+                  scheduleSpeak(() => speakEncouragement(), 3200);
+                }
                 lastStateChange = now;
             }
           }
@@ -240,6 +484,7 @@ export function usePoseDetection() {
           } else {
               plankStartTime = null;
               feedback.value = '⚠️ 请保持身体平直';
+              speakCorrection();
               repProgress.value = lastScore.value;
 
               tryTriggerVlmAnalysis(lastScore.value);
@@ -251,15 +496,26 @@ export function usePoseDetection() {
           
           if (avgHandY < headY && score > 0.7 && state === 'UP') {
               state = 'DOWN';
+              speakCadence('down');
               lastStateChange = now;
               lastScore.value = Math.round(score * 100);
+
+              if (lastScore.value < 85) {
+                speakCorrection();
+              }
 
               tryTriggerVlmAnalysis(lastScore.value);
 
           } else if (avgHandY > headY + 0.2 && state === 'DOWN') {
               state = 'UP';
               repCount.value++;
-              speak(String(repCount.value));
+              speakCountdown(repCount.value);
+              if (repCount.value % 2 === 1) {
+                scheduleSpeak(() => speakCadence('up'), 1800);
+              }
+              if (repCount.value % 2 === 0 || lastScore.value > 90) {
+                scheduleSpeak(() => speakEncouragement(), 3200);
+              }
               feedback.value = lastScore.value > 85 ? '漂亮！' : '动作幅度再大点';
               lastStateChange = now;
           }
@@ -299,6 +555,10 @@ export function usePoseDetection() {
       
       await camera.start();
       isUpdating.value = true;
+      if (stressModeEnabled.value) {
+        stressStartAt = Date.now();
+        resetVoiceStressStats();
+      }
     } catch (err: any) {
       error.value = `启动失败: ${err.message}`;
       console.error(err);
@@ -312,6 +572,7 @@ export function usePoseDetection() {
     pose?.close();
     camera = null;
     pose = null;
+    stressStartAt = null;
   };
 
   onUnmounted(stopPose);
@@ -331,6 +592,16 @@ export function usePoseDetection() {
     initPose,
     analyzeWithVisionModel,
     stopPose,
+    voiceStyle,
+    stressModeEnabled,
+    stressElapsedSeconds,
+    voiceHitCount,
+    voiceCoveredCategories,
+    voiceTotalInLastMinute,
+    voiceRepeatedInLastMinute,
+    voiceCoveragePass,
+    voiceQuietPass,
+    voiceStressPass,
     resetCount: () => {
       repCount.value = 0;
       duration.value = 0;
@@ -338,6 +609,8 @@ export function usePoseDetection() {
       state = 'UP';
       feedback.value = '请就位';
       vlmAdvice.value = '';
+      resetVoiceStressStats();
+      stressStartAt = stressModeEnabled.value ? Date.now() : null;
 
       lastVlmTriggerTime = 0;
       hasCheckedFirstRep = false;
