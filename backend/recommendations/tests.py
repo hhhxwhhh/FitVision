@@ -108,6 +108,17 @@ class RecommendationViewSetActionTests(TestCase):
         mocked_get.assert_called_once_with(self.user, scenario="default", limit=6)
         self.assertIn("instructions", response.data[0]["exercise"])
 
+    @patch("recommendations.views.HybridRecommender.get_recommendations")
+    def test_get_personalized_limit_above_max_is_clamped(self, mocked_get):
+        mocked_get.return_value = [self.rec]
+
+        response = self.client.get(
+            "/api/recommendations/list/get_personalized/?limit=999&brief=1"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mocked_get.assert_called_once_with(self.user, scenario="default", limit=20)
+
     @patch("recommendations.views.cache")
     def test_user_status_hits_cache_and_feedback_clears_cache(self, mocked_cache):
         mocked_cache.get.return_value = {"fatigue_level": 0.77, "cached": True}
@@ -131,3 +142,16 @@ class RecommendationViewSetActionTests(TestCase):
             ).count(),
             1,
         )
+
+    @patch("recommendations.views.cache")
+    def test_feedback_invalid_action_returns_400(self, mocked_cache):
+        response = self.client.post(
+            f"/api/recommendations/list/{self.rec.id}/feedback/", {"action": "oops"}
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("allowed_actions", response.data)
+        self.rec.refresh_from_db()
+        self.assertFalse(self.rec.is_seen)
+        self.assertEqual(UserInteraction.objects.filter(user=self.user).count(), 0)
+        mocked_cache.delete.assert_not_called()
