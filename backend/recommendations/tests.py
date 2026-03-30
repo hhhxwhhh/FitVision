@@ -14,9 +14,19 @@ from recommendations.services import HybridRecommender
 
 
 class _DummyExercise:
-    def __init__(self, ex_id, target_muscle="legs"):
+    def __init__(
+        self,
+        ex_id,
+        target_muscle="legs",
+        equipment="none",
+        calories_burned=5.0,
+        tags=None,
+    ):
         self.id = ex_id
         self.target_muscle = target_muscle
+        self.equipment = equipment
+        self.calories_burned = calories_burned
+        self.tags = tags or []
 
 
 class RecommendationSerializerModeTests(TestCase):
@@ -216,3 +226,63 @@ class HybridRecommenderStrategyTests(TestCase):
         self.assertIn(0, selected_ids)
         # 应有至少一个不是纯前6名的探索候选
         self.assertTrue(any(ex_id >= 6 for ex_id in selected_ids))
+
+    def test_goal_rerank_prefers_full_body_for_weight_loss(self):
+        candidates = [
+            {
+                "ex": _DummyExercise(
+                    ex_id=1,
+                    target_muscle="legs",
+                    equipment="dumbbell",
+                    calories_burned=6.0,
+                ),
+                "score": 1.0,
+                "algorithm": "cosine",
+            },
+            {
+                "ex": _DummyExercise(
+                    ex_id=2,
+                    target_muscle="full_body",
+                    equipment="none",
+                    calories_burned=10.0,
+                    tags=["cardio"],
+                ),
+                "score": 0.9,
+                "algorithm": "cosine",
+            },
+        ]
+
+        reranked = HybridRecommender._rerank_by_user_goal(
+            candidates, goal_type="weight_loss"
+        )
+        self.assertEqual(reranked[0]["ex"].id, 2)
+
+    def test_goal_rerank_prefers_strength_for_muscle_gain(self):
+        candidates = [
+            {
+                "ex": _DummyExercise(
+                    ex_id=3,
+                    target_muscle="full_body",
+                    equipment="none",
+                    calories_burned=7.0,
+                ),
+                "score": 1.0,
+                "algorithm": "cosine",
+            },
+            {
+                "ex": _DummyExercise(
+                    ex_id=4,
+                    target_muscle="chest",
+                    equipment="barbell",
+                    calories_burned=7.0,
+                    tags=["strength"],
+                ),
+                "score": 0.9,
+                "algorithm": "cosine",
+            },
+        ]
+
+        reranked = HybridRecommender._rerank_by_user_goal(
+            candidates, goal_type="muscle_gain"
+        )
+        self.assertEqual(reranked[0]["ex"].id, 4)

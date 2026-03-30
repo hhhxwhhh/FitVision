@@ -8,6 +8,7 @@ from django.db.models import Count, Avg, F
 from django.contrib.auth.models import User
 from exercises.models import Exercise
 from .models import UserInteraction, RecommendedExercise, UserState
+from users.models import UserGoal
 from utils.vector_db import VectorDB
 from .model_utils import DLModelManager
 from .gnn_models import KnowledgeGraphGNN
@@ -731,6 +732,76 @@ class HybridRecommender:
         return merged[:limit]
 
     @staticmethod
+    def _resolve_user_goal(user):
+        # 优先读取用户显式激活目标
+        active_goal = (
+            UserGoal.objects.filter(user=user, is_active=True, achieved=False)
+            .order_by("-updated_at", "-created_at")
+            .first()
+        )
+        if active_goal and active_goal.goal_type:
+            return active_goal.goal_type
+
+        # 其次根据档案体重目标进行推断
+        profile = getattr(user, "profile", None)
+        if profile and profile.target_weight and profile.weight:
+            delta = profile.target_weight - profile.weight
+            if delta <= -1.0:
+                return "weight_loss"
+            if delta >= 1.0:
+                return "muscle_gain"
+
+        return "fitness"
+
+    @staticmethod
+    def _goal_fit_bonus(exercise, goal_type):
+        target = getattr(exercise, "target_muscle", "") or ""
+        equipment = getattr(exercise, "equipment", "none") or "none"
+        calories = float(getattr(exercise, "calories_burned", 5.0) or 5.0)
+        tags = set(getattr(exercise, "tags", []) or [])
+
+        if goal_type == "weight_loss":
+            bonus = 0.0
+            if target == "full_body":
+                bonus += 0.22
+            if calories >= 8.0:
+                bonus += 0.10
+            if equipment == "none":
+                bonus += 0.05
+            if "cardio" in tags:
+                bonus += 0.08
+            return min(bonus, 0.4)
+
+        if goal_type == "muscle_gain":
+            bonus = 0.0
+            if target in {"chest", "back", "legs", "shoulders", "glutes"}:
+                bonus += 0.18
+            if equipment != "none":
+                bonus += 0.12
+            if calories >= 6.0:
+                bonus += 0.05
+            if "strength" in tags:
+                bonus += 0.08
+            return min(bonus, 0.4)
+
+        return 0.0
+
+    @classmethod
+    def _rerank_by_user_goal(cls, candidates, goal_type):
+        if not candidates:
+            return []
+
+        reranked = []
+        for item in candidates:
+            bonus = cls._goal_fit_bonus(item["ex"], goal_type)
+            updated = dict(item)
+            updated["score"] = item["score"] * (1.0 + bonus)
+            reranked.append(updated)
+
+        reranked.sort(key=lambda x: x["score"], reverse=True)
+        return reranked
+
+    @staticmethod
     def get_recommendations(user, scenario="default", limit=6):
         reason_map = {
             "dl_sequence": "根据您的练习序列预测",
@@ -825,7 +896,11 @@ class HybridRecommender:
         reranked_candidates = HybridRecommender._rerank_with_diversity(
             fused_candidates, limit=max(limit * 3, limit)
         )
-        candidate_pool = list(reranked_candidates)
+
+        user_goal = HybridRecommender._resolve_user_goal(user)
+        candidate_pool = HybridRecommender._rerank_by_user_goal(
+            reranked_candidates, goal_type=user_goal
+        )
         seen_ids = {item["ex"].id for item in candidate_pool}
 
         # 4. 兜底策略：如果召回不足，使用热门冷启动补全
