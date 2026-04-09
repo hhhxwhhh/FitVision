@@ -32,6 +32,33 @@
             <span class="label">计数</span>
             <span class="value">{{ repCount }}</span>
           </div>
+
+          <div class="stat-item" style="margin-top: 10px;">
+            <span class="label">标准连击</span>
+            <span class="value-sm">{{ standardStreak }}（最高 {{ bestStreak }}）</span>
+          </div>
+
+          <div class="stat-item" style="margin-top: 10px;">
+            <span class="label">最常见错误</span>
+            <el-popover
+              placement="right"
+              trigger="click"
+              :width="240"
+              popper-class="error-tip-popover"
+            >
+              <template #reference>
+                <el-tag
+                  :type="commonErrorLabel === '暂无明显错误' ? 'success' : 'danger'"
+                  size="small"
+                  class="error-tag"
+                >
+                  {{ commonErrorLabel }}
+                </el-tag>
+              </template>
+              <div class="error-tip-title">修正要点</div>
+              <div class="error-tip-text">{{ commonErrorTip }}</div>
+            </el-popover>
+          </div>
         </div>
         
         <div class="progress-ring-box">
@@ -50,6 +77,19 @@
 
         <div class="feedback-box" :class="{ 'warning': feedback.includes('⚠️') }">
           {{ feedback }}
+        </div>
+
+        <div class="quality-box">
+          <div class="quality-title">动作质量</div>
+          <div class="quality-main" :style="{ color: qualityColor }">
+            {{ qualityLabel }}（{{ qualityPercent }}%）
+          </div>
+          <el-progress
+            :percentage="qualityPercent"
+            :stroke-width="8"
+            :show-text="false"
+            :color="qualityColor"
+          />
         </div>
       </div>
 
@@ -77,6 +117,25 @@
     </div>
 
     <div class="controls">
+      <div class="voice-controls">
+        <span class="voice-label">语气包</span>
+        <el-radio-group v-model="voiceStyle" size="small" class="voice-radio-group">
+          <el-radio-button label="encouraging">鼓励型</el-radio-button>
+          <el-radio-button label="strict">严格型</el-radio-button>
+          <el-radio-button label="energetic">活力型</el-radio-button>
+        </el-radio-group>
+      </div>
+
+      <div class="stress-controls">
+        <el-switch
+          v-model="stressModeEnabled"
+          inline-prompt
+          active-text="压测开"
+          inactive-text="压测关"
+        />
+        <span class="stress-note">1 分钟试听压测</span>
+      </div>
+
       <el-button v-if="!isUpdating" type="primary" plain @click="startDetection" class="start-btn-mini">
         开启摄像头 AI
       </el-button>
@@ -84,6 +143,32 @@
       <div v-else class="active-controls">
         <el-button type="danger" @click="stopDetection">关闭摄像头</el-button>
         <el-button type="warning" @click="resetCount">重新计数</el-button>
+      </div>
+    </div>
+
+    <div v-if="stressModeEnabled" class="stress-panel" :class="{ pass: voiceStressPass, warn: !voiceStressPass }">
+      <div class="stress-title">
+        1分钟实训试听压测（{{ stressElapsedSeconds }}s）
+      </div>
+      <div class="stress-grid">
+        <div class="stress-item">计数命中：{{ voiceHitCount.count }}</div>
+        <div class="stress-item">鼓励命中：{{ voiceHitCount.encourage }}</div>
+        <div class="stress-item">纠错命中：{{ voiceHitCount.corrective }}</div>
+        <div class="stress-item">节奏命中：{{ voiceHitCount.cadence }}</div>
+      </div>
+      <div class="stress-summary">
+        <el-tag :type="voiceCoveragePass ? 'success' : 'warning'" size="small">
+          覆盖度：{{ voiceCoveredCategories }}/3
+        </el-tag>
+        <el-tag :type="voiceQuietPass ? 'success' : 'danger'" size="small">
+          安静度：{{ voiceQuietPass ? '不过吵' : '偏吵' }}
+        </el-tag>
+        <el-tag :type="voiceStressPass ? 'success' : 'info'" size="small">
+          当前结论：{{ voiceStressPass ? '达标' : '待继续' }}
+        </el-tag>
+      </div>
+      <div class="stress-footnote">
+        最近1分钟播报总数 {{ voiceTotalInLastMinute }}，重复句 {{ voiceRepeatedInLastMinute }}（同句冷却4秒）
       </div>
     </div>
 
@@ -122,11 +207,28 @@ const {
   feedback,
   exerciseMode,
   lastScore,
+  qualityLabel,
+  qualityPercent,
+  qualityColor,
+  standardStreak,
+  bestStreak,
+  commonErrorLabel,
+  commonErrorTip,
   repProgress,
   duration,
   isAnalyzingVlm,
   vlmAdvice,
   diagnosisReport,
+  voiceStyle,
+  stressModeEnabled,
+  stressElapsedSeconds,
+  voiceHitCount,
+  voiceCoveredCategories,
+  voiceTotalInLastMinute,
+  voiceRepeatedInLastMinute,
+  voiceCoveragePass,
+  voiceQuietPass,
+  voiceStressPass,
   initPose,
   analyzeWithVisionModel,
   stopPose,
@@ -387,6 +489,51 @@ defineExpose({
   pointer-events: none;
 }
 
+.quality-box {
+  position: absolute;
+  right: 18px;
+  bottom: 88px;
+  width: 180px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 10px;
+  padding: 10px;
+  pointer-events: none;
+}
+
+.quality-title {
+  color: #94a3b8;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.quality-main {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.error-tag {
+  cursor: pointer;
+}
+
+:deep(.error-tip-popover) {
+  border-radius: 10px;
+}
+
+.error-tip-title {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.error-tip-text {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .feedback-box.warning {
   border-color: #f43f5e;
   color: #fb7185;
@@ -404,6 +551,121 @@ defineExpose({
   border-top: 1px solid #1e293b;
   display: flex;
   justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.voice-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stress-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stress-note {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.stress-panel {
+  margin: 0 16px 16px;
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid #334155;
+  background: #0b1328;
+}
+
+.stress-panel.pass {
+  border-color: #16a34a;
+}
+
+.stress-panel.warn {
+  border-color: #f59e0b;
+}
+
+.stress-title {
+  color: #e2e8f0;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.stress-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.stress-item {
+  color: #cbd5e1;
+  font-size: 12px;
+  background: rgba(30, 41, 59, 0.6);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.stress-summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.stress-footnote {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.voice-label {
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.voice-radio-group {
+  pointer-events: auto;
+}
+
+.active-controls,
+.start-btn-mini {
+  pointer-events: auto;
+}
+
+@media (max-width: 640px) {
+  .voice-controls {
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .stress-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .voice-radio-group {
+    width: 100%;
+  }
+
+  .voice-radio-group :deep(.el-radio-button__inner) {
+    padding: 6px 10px;
+  }
+
+  .stress-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quality-box {
+    right: 10px;
+    bottom: 78px;
+    width: 150px;
+  }
 }
 
 .active-controls {

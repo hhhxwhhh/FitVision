@@ -26,6 +26,52 @@
 
     <div class="dashboard-grid">
       <div class="left-panel">
+        <section class="section growth-section" v-loading="growthLoading">
+          <div class="section-header growth-header">
+            <h2 class="section-title">成长看板</h2>
+            <el-tag type="success" effect="dark">{{ growth.positiveMessage }}</el-tag>
+          </div>
+
+          <el-row :gutter="16" class="growth-cards">
+            <el-col :xs="24" :sm="8">
+              <el-card shadow="hover" class="growth-card">
+                <div class="growth-card-title">本周已训练</div>
+                <div class="growth-card-value">{{ growth.weeklyTrainingDays }} <span>天</span></div>
+                <div class="growth-card-sub">目标: 3 天起步，5 天优秀</div>
+              </el-card>
+            </el-col>
+            <el-col :xs="24" :sm="8">
+              <el-card shadow="hover" class="growth-card">
+                <div class="growth-card-title">连续打卡</div>
+                <div class="growth-card-value">{{ growth.currentStreak }} <span>天</span></div>
+                <div class="growth-card-sub">保持节奏，连击越高越强</div>
+              </el-card>
+            </el-col>
+            <el-col :xs="24" :sm="8">
+              <el-card shadow="hover" class="growth-card">
+                <div class="growth-card-title">本周进步动作</div>
+                <div class="growth-card-value growth-action">{{ growth.bestWeeklyExercise }}</div>
+                <div class="growth-card-sub">{{ growth.bestWeeklyImprovementText }}</div>
+              </el-card>
+            </el-col>
+          </el-row>
+
+          <el-card class="achievement-card" shadow="never">
+            <div class="achievement-title">成就系统</div>
+            <div class="achievement-list">
+              <div v-for="item in growth.achievements" :key="item.key" class="achievement-item">
+                <el-tag :type="item.unlocked ? 'success' : 'info'" effect="plain" size="small">
+                  {{ item.unlocked ? '已达成' : '进行中' }}
+                </el-tag>
+                <div class="achievement-content">
+                  <div class="achievement-name">{{ item.title }}</div>
+                  <div class="achievement-desc">{{ item.description }}</div>
+                </div>
+              </div>
+            </div>
+          </el-card>
+        </section>
+
         <section class="section">
           <el-card class="module-shell" shadow="never">
             <template #header>
@@ -113,6 +159,7 @@ import AIRecommendations from '../components/AIRecommendations.vue'
 const router = useRouter()
 const username = ref(localStorage.getItem('username') || '健身者')
 const loading = ref(false)
+const growthLoading = ref(false)
 const stats = ref<any>({})
 const userStatus = ref<any>(null)
 const recommendationsRef = ref<any>(null)
@@ -125,6 +172,22 @@ let welcomeTimer: number | null = null
 // false -> 仅首次进入显示一次，后续不再出现
 const FORCE_REPEAT_WELCOME_BANNER = false
 const WELCOME_BANNER_SEEN_KEY = 'fitvision_home_welcome_seen'
+
+const userStats = ref<any>({})
+
+const growth = ref({
+  weeklyTrainingDays: 0,
+  currentStreak: 0,
+  bestWeeklyExercise: '继续训练解锁',
+  bestWeeklyImprovementText: '完成训练后自动计算进步幅度',
+  positiveMessage: '每次打开都在向更好的自己靠近',
+  achievements: [
+    { key: 'first_training', title: '完成首训', description: '完成 1 次训练', unlocked: false },
+    { key: 'streak_3', title: '连续 3 天', description: '连续打卡 3 天', unlocked: false },
+    { key: 'week_3', title: '稳定习惯', description: '本周训练达到 3 天', unlocked: false },
+    { key: 'improve_action', title: '动作进步', description: '本周至少 1 个动作明显进步', unlocked: false },
+  ] as Array<{ key: string; title: string; description: string; unlocked: boolean }>,
+})
 
 const calorieGoal = computed(() => {
   if (!profile.value?.bmr) return 500
@@ -213,6 +276,152 @@ const fetchTodayStats = async () => {
   }
 }
 
+const dateToKey = (date: Date) => {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+const shiftDays = (date: Date, delta: number) => {
+  const next = new Date(date)
+  next.setDate(next.getDate() + delta)
+  return next
+}
+
+const computeCurrentStreak = (trainedDateKeys: Set<string>) => {
+  if (trainedDateKeys.size === 0) return 0
+
+  const today = new Date()
+  let cursor = new Date(today)
+
+  if (!trainedDateKeys.has(dateToKey(cursor))) {
+    cursor = shiftDays(cursor, -1)
+  }
+
+  let streak = 0
+  while (trainedDateKeys.has(dateToKey(cursor))) {
+    streak += 1
+    cursor = shiftDays(cursor, -1)
+  }
+  return streak
+}
+
+const isTrainingDay = (item: any) => {
+  return (item?.total_duration_minutes || 0) > 0 ||
+    (item?.completed_sessions || 0) > 0 ||
+    (item?.completed_exercises || 0) > 0
+}
+
+const evaluateBestWeeklyExercise = (items: any[]) => {
+  if (!items?.length) {
+    return { name: '继续训练解锁', text: '完成训练后自动计算进步幅度', improved: false }
+  }
+
+  const start = shiftDays(new Date(), -6)
+  const startKey = dateToKey(start)
+  const grouped = new Map<number, any[]>()
+
+  for (const item of items) {
+    const id = Number(item.exercise) || Number(item.exercise_id)
+    if (!id) continue
+    const list = grouped.get(id) || []
+    list.push(item)
+    grouped.set(id, list)
+  }
+
+  let best: { name: string; score: number } | null = null
+  for (const records of grouped.values()) {
+    records.sort((a, b) => String(a.date).localeCompare(String(b.date)))
+    const thisWeek = records.filter((r) => String(r.date) >= startKey)
+    if (thisWeek.length === 0) continue
+
+    const latest = thisWeek[thisWeek.length - 1]
+    const previous = records.filter((r) => String(r.date) < startKey).slice(-1)[0]
+
+    const scoreDelta = (Number(latest.best_form_score) || 0) - (Number(previous?.best_form_score) || 0)
+    const volPrev = Number(previous?.total_volume) || 0
+    const volNow = Number(latest.total_volume) || 0
+    const volDeltaRatio = volPrev > 0 ? (volNow - volPrev) / volPrev : (volNow > 0 ? 0.2 : 0)
+    const repDelta = (Number(latest.max_reps) || 0) - (Number(previous?.max_reps) || 0)
+    const totalGain = scoreDelta * 1.2 + volDeltaRatio * 30 + repDelta * 1.8
+
+    if (!best || totalGain > best.score) {
+      best = {
+        name: latest.exercise_name || '未命名动作',
+        score: totalGain,
+      }
+    }
+  }
+
+  if (!best || best.score <= 0) {
+    return { name: '继续训练解锁', text: '再完成几次训练即可看到明显进步', improved: false }
+  }
+  return {
+    name: best.name,
+    text: `综合进步 +${best.score.toFixed(1)}（动作质量/训练量）`,
+    improved: true,
+  }
+}
+
+const updateAchievements = (weeklyTrainingDays: number, currentStreak: number, improved: boolean) => {
+  const totalTrainings = Number(userStats.value?.total_trainings || 0)
+  growth.value.achievements = growth.value.achievements.map((item) => {
+    if (item.key === 'first_training') return { ...item, unlocked: totalTrainings >= 1 }
+    if (item.key === 'streak_3') return { ...item, unlocked: currentStreak >= 3 }
+    if (item.key === 'week_3') return { ...item, unlocked: weeklyTrainingDays >= 3 }
+    if (item.key === 'improve_action') return { ...item, unlocked: improved }
+    return item
+  })
+
+  if (currentStreak >= 3) {
+    growth.value.positiveMessage = `太棒了，已连续打卡 ${currentStreak} 天！`
+  } else if (weeklyTrainingDays >= 3) {
+    growth.value.positiveMessage = `本周已训练 ${weeklyTrainingDays} 天，状态很稳！`
+  } else if (totalTrainings >= 1) {
+    growth.value.positiveMessage = '训练习惯正在形成，今天继续打卡吧！'
+  } else {
+    growth.value.positiveMessage = '完成首训就能点亮第一枚成就！'
+  }
+}
+
+const fetchGrowthData = async () => {
+  growthLoading.value = true
+  try {
+    const [summaryRes, userStatsRes, progressRes] = await Promise.all([
+      apiClient.get('/analytics/daily-stats/summary/?days=30'),
+      apiClient.get('/auth/stats/'),
+      apiClient.get('/analytics/exercise-progress/'),
+    ])
+
+    userStats.value = userStatsRes.data || {}
+    const dailyStats = summaryRes.data?.daily_breakdown || []
+    const progressItems = progressRes.data || []
+
+    const trainedKeys = new Set(
+      dailyStats
+        .filter((item: any) => isTrainingDay(item))
+        .map((item: any) => String(item.date))
+    )
+
+    const weekStart = dateToKey(shiftDays(new Date(), -6))
+    const weeklyTrainingDays = dailyStats.filter((item: any) => String(item.date) >= weekStart && isTrainingDay(item)).length
+    const currentStreak = computeCurrentStreak(trainedKeys)
+    const bestProgress = evaluateBestWeeklyExercise(progressItems)
+
+    growth.value.weeklyTrainingDays = weeklyTrainingDays
+    growth.value.currentStreak = currentStreak
+    growth.value.bestWeeklyExercise = bestProgress.name
+    growth.value.bestWeeklyImprovementText = bestProgress.text
+
+    updateAchievements(weeklyTrainingDays, currentStreak, bestProgress.improved)
+  } catch (err) {
+    console.error('Failed to fetch growth data:', err)
+  } finally {
+    growthLoading.value = false
+  }
+}
+
 onMounted(() => {
   const hasSeenWelcomeBanner = localStorage.getItem(WELCOME_BANNER_SEEN_KEY) === '1'
 
@@ -232,6 +441,7 @@ onMounted(() => {
   fetchTodayStats()
   fetchUserStatus()
   fetchProfile()
+  fetchGrowthData()
 })
 
 onUnmounted(() => {
@@ -327,6 +537,93 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.growth-section {
+  margin-top: 8px;
+}
+
+.growth-header {
+  justify-content: space-between;
+}
+
+.growth-cards {
+  margin-bottom: 16px;
+}
+
+.growth-card {
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.growth-card-title {
+  color: #64748b;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.growth-card-value {
+  color: #0f172a;
+  font-size: 28px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.growth-card-value span {
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.growth-action {
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.growth-card-sub {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.achievement-card {
+  border-radius: 12px;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+}
+
+.achievement-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 10px;
+}
+
+.achievement-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.achievement-item {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.achievement-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.achievement-name {
+  font-size: 13px;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.achievement-desc {
+  font-size: 12px;
+  color: #64748b;
 }
 
 .section-title {
