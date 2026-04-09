@@ -26,7 +26,8 @@
 
     <div class="dashboard-grid">
       <div class="left-panel">
-        <section class="section growth-section" v-loading="growthLoading">
+        <el-card class="left-overview-shell" shadow="never" v-loading="growthLoading">
+          <section class="section growth-section">
           <div class="section-header growth-header">
             <h2 class="section-title">成长看板</h2>
             <el-tag type="success" effect="dark">{{ growth.positiveMessage }}</el-tag>
@@ -48,10 +49,13 @@
               </el-card>
             </el-col>
             <el-col :xs="24" :sm="8">
-              <el-card shadow="hover" class="growth-card">
-                <div class="growth-card-title">本周进步动作</div>
-                <div class="growth-card-value growth-action">{{ growth.bestWeeklyExercise }}</div>
-                <div class="growth-card-sub">{{ growth.bestWeeklyImprovementText }}</div>
+              <el-card shadow="hover" class="growth-card growth-action-card">
+                <div class="growth-card-title">继续训练</div>
+                <div class="growth-card-value growth-action">解锁进阶动作</div>
+                <div class="growth-action-buttons">
+                  <el-button size="small" type="primary" @click="router.push('/training')">今日训练</el-button>
+                  <el-button size="small" @click="router.push('/posture-diagnosis')">AI姿态诊断</el-button>
+                </div>
               </el-card>
             </el-col>
           </el-row>
@@ -70,32 +74,8 @@
               </div>
             </div>
           </el-card>
-        </section>
 
-        <section class="section">
-          <el-card class="module-shell" shadow="never">
-            <template #header>
-              <div class="module-header">
-                <h2 class="section-title">开启今日训练！</h2>
-              </div>
-            </template>
-            <div class="training-grid">
-              <el-card class="feature-card compact highlighted" @click="router.push('/posture-diagnosis')">
-                <div class="card-icon">🧘</div>
-                <h3>AI 姿态诊断</h3>
-                <p>实时扫描并分析您的体态风险</p>
-              </el-card>
-              <el-card class="feature-card compact" @click="router.push('/training')">
-                <div class="card-icon">📋</div>
-                <h3>完成训练计划</h3>
-                <p>查看今日安排的课程</p>
-              </el-card>
-            </div>
-          </el-card>
-        </section>
-
-        <section class="section">
-          <el-card class="module-shell" shadow="never">
+          <el-card class="module-shell compact-status-shell" shadow="never">
             <template #header>
               <div class="module-header section-header">
                 <h2 class="section-title">今日状态</h2>
@@ -104,43 +84,53 @@
                 </el-tag>
               </div>
             </template>
-            <div class="status-grid" v-loading="loading">
+            <div class="status-grid status-inline-four" v-loading="loading">
               <el-card shadow="hover" class="status-card">
-                <div class="status-header">已消耗热量</div>
-                <div class="status-value">{{ stats.total_calories_burned || 0 }} <span>kcal</span></div>
+                <div class="status-header-row">
+                  <div class="status-header">
+                    已消耗热量
+                    <span class="status-inline-value">{{ stats.total_calories_burned || 0 }} <span>kcal</span></span>
+                  </div>
+                  <div class="status-note-inline">目标: {{ calorieGoal }} kcal</div>
+                </div>
                 <el-progress :percentage="Math.min(100, ((stats.total_calories_burned || 0) / calorieGoal) * 100)"
                   :show-text="false" :color="customColors" />
-                <div class="status-footer">目标: {{ calorieGoal }} kcal (基于 TDEE)</div>
               </el-card>
 
               <el-card shadow="hover" class="status-card">
-                <div class="status-header">累计训练时长</div>
-                <div class="status-value">{{ stats.total_duration_minutes || 0 }} <span>min</span></div>
+                <div class="status-header-row">
+                  <div class="status-header">
+                    累计训练时长
+                    <span class="status-inline-value">{{ stats.total_duration_minutes || 0 }} <span>min</span></span>
+                  </div>
+                  <div class="status-note-inline">目标: 30 min</div>
+                </div>
                 <el-progress :percentage="Math.min(100, ((stats.total_duration_minutes || 0) / 30) * 100)"
                   :show-text="false" status="success" />
-                <div class="status-footer">目标: 30 min</div>
               </el-card>
 
               <el-card shadow="hover" class="status-card">
-                <div class="status-header">本周部位训练负荷</div>
+                <div class="status-header-row">
+                  <div class="status-header">本周部位训练负荷</div>
+                  <div class="status-note-inline">基于本周训练容量</div>
+                </div>
                 <div class="muscle-recovery-list">
                   <div v-for="muscle in volumeStatus" :key="muscle.name" class="muscle-item">
                     <span class="m-name">{{ muscle.name }}</span>
                     <el-progress :percentage="muscle.percentage" :stroke-width="10" :color="muscle.color" />
                   </div>
                 </div>
-                <div class="status-footer">基于本周实际训练容量 (重量×次数) 统计</div>
               </el-card>
 
               <el-card shadow="hover" class="status-card trend-card" @click="router.push('/analytics')">
-                <div class="status-header">进度轨迹</div>
-                <div class="status-value">📈 <span>趋势洞察</span></div>
+                <div class="status-header">📈 进度轨迹</div>
                 <p class="status-desc">查看体重、围度、训练完成度等指标变化。</p>
-                <el-button type="primary" text>打开分析面板</el-button>
               </el-card>
             </div>
           </el-card>
-        </section>
+          </section>
+        </el-card>
+
       </div>
 
       <aside class="right-panel">
@@ -398,7 +388,7 @@ const fetchGrowthData = async () => {
     const dailyStats = summaryRes.data?.daily_breakdown || []
     const progressItems = progressRes.data || []
 
-    const trainedKeys = new Set(
+    const trainedKeys: Set<string> = new Set(
       dailyStats
         .filter((item: any) => isTrainingDay(item))
         .map((item: any) => String(item.date))
@@ -453,7 +443,7 @@ onUnmounted(() => {
 
 <style scoped>
 .dashboard-container {
-  padding-bottom: 12px;
+  padding-bottom: 4px;
 }
 
 .welcome-banner {
@@ -496,6 +486,32 @@ onUnmounted(() => {
   margin-bottom: 12px;
 }
 
+.left-overview-shell {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  height: 100%;
+  width: 100%;
+}
+
+.left-overview-shell :deep(.el-card__body) {
+  padding: 10px;
+}
+
+.left-overview-shell .section {
+  margin-bottom: 0;
+}
+
+.right-panel :deep(.recommendation-section) {
+  width: 100%;
+  height: 100%;
+}
+
+.right-panel :deep(.recommendation-section .el-card__body) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .module-shell {
   border: 1px solid #ebeef5;
 }
@@ -518,13 +534,14 @@ onUnmounted(() => {
 .dashboard-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr);
-  gap: 12px;
-  align-items: start;
+  gap: 10px;
+  align-items: stretch;
 }
 
 .left-panel,
 .right-panel {
   min-width: 0;
+  display: flex;
 }
 
 .training-grid {
@@ -540,73 +557,178 @@ onUnmounted(() => {
 }
 
 .growth-section {
-  margin-top: 8px;
+  margin-top: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 0.42fr) minmax(0, 0.58fr);
+  gap: 8px;
 }
 
 .growth-header {
+  grid-column: 1 / -1;
   justify-content: space-between;
 }
 
 .growth-cards {
-  margin-bottom: 16px;
+  grid-column: 1 / -1;
+  margin-bottom: 8px;
 }
 
 .growth-card {
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid #e2e8f0;
+}
+
+.growth-card :deep(.el-card__body) {
+  padding: 9px;
+}
+
+.growth-action-card {
+  cursor: default;
+}
+
+.growth-action-card:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.12);
+}
+
+.growth-action-buttons {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.growth-action-buttons .el-button {
+  flex: 1;
 }
 
 .growth-card-title {
   color: #64748b;
-  font-size: 13px;
-  margin-bottom: 8px;
+  font-size: 12px;
+  margin-bottom: 6px;
 }
 
 .growth-card-value {
   color: #0f172a;
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 800;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .growth-card-value span {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
   color: #64748b;
 }
 
 .growth-action {
-  font-size: 20px;
+  font-size: 17px;
   line-height: 1.2;
 }
 
 .growth-card-sub {
   color: #94a3b8;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .achievement-card {
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px dashed #cbd5e1;
   background: #f8fafc;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.achievement-card :deep(.el-card__body) {
+  padding: 9px;
+}
+
+.compact-status-shell {
+  width: 100%;
+}
+
+.compact-status-shell :deep(.el-card__header) {
+  padding: 8px 10px;
+}
+
+.compact-status-shell :deep(.el-card__body) {
+  padding: 8px;
+}
+
+.status-inline-four {
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.compact-status-shell .status-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.compact-status-shell .status-note-inline {
+  font-size: 9px;
+  color: #94a3b8;
+  text-align: right;
+  line-height: 1.25;
+  max-width: 56%;
+}
+
+.compact-status-shell .status-header {
+  font-size: 10px;
+  margin-bottom: 0;
+}
+
+.compact-status-shell .status-inline-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-left: 6px;
+  line-height: 1;
+}
+
+.compact-status-shell .status-inline-value span {
+  font-size: 9px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.compact-status-shell .status-value {
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.compact-status-shell .status-value span {
+  font-size: 11px;
+}
+
+.compact-status-shell .status-desc {
+  font-size: 10px;
+  margin: 3px 0 4px;
+}
+
+.compact-status-shell .m-name {
+  font-size: 10px;
 }
 
 .achievement-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: #334155;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .achievement-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .achievement-item {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
 }
 
@@ -616,13 +738,13 @@ onUnmounted(() => {
 }
 
 .achievement-name {
-  font-size: 13px;
+  font-size: 12px;
   color: #1e293b;
   font-weight: 600;
 }
 
 .achievement-desc {
-  font-size: 12px;
+  font-size: 11px;
   color: #64748b;
 }
 
@@ -679,6 +801,7 @@ onUnmounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  padding: 8px;
 }
 
 .status-header {
@@ -759,6 +882,25 @@ onUnmounted(() => {
 @media (max-width: 1200px) {
   .dashboard-grid {
     grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .growth-section {
+    grid-template-columns: 1fr;
+  }
+
+  .status-inline-four {
+    grid-template-columns: 1fr;
+  }
+
+  .left-panel,
+  .right-panel {
+    display: block;
+  }
+
+  .left-overview-shell,
+  .right-panel :deep(.recommendation-section) {
+    height: auto;
   }
 }
 
@@ -772,6 +914,11 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .welcome-banner {
     padding: 14px 16px;
+  }
+
+  .achievement-card {
+    width: 100%;
+    max-width: none;
   }
 }
 </style>

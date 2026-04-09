@@ -296,19 +296,21 @@ defineExpose({
 .pose-preview-container {
   position: relative;
   width: 100%;
-  max-width: 640px;
-  margin: 0 auto;
+  height: 100%;
   border-radius: 12px;
   overflow: hidden;
   background: #0f172a;
   border: 1px solid #1e293b;
+  display: flex;
+  flex-direction: column;
 }
 
 .canvas-wrapper {
   position: relative;
   width: 100%;
-  aspect-ratio: 4/3;
+  min-height: clamp(440px, 58vh, 620px);
   background: #000;
+  flex: 1;
 }
 
 .hidden-video {
