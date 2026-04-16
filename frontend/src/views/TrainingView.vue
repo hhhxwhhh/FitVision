@@ -71,7 +71,7 @@
                         <h3>📋 今日课表</h3>
                     </div>
                     <el-table :data="currentDayExercises" style="width: 100%"
-                        :header-cell-style="{ background: '#f8fafc', color: '#475569' }"
+                        :header-cell-style="{ background: MILAN_COLORS.pageBase, color: MILAN_COLORS.textSecondary }"
                         :row-class-name="tableRowClassName">
 
                         <el-table-column prop="exercise_name" label="动作名称" min-width="140">
@@ -300,7 +300,7 @@
                                         <div class="rate-center">
                                             <el-rate v-model="completeForm.performance_score" size="large" allow-half
                                                 show-text :texts="['失望', '一般', '合格', '满意', '超神']"
-                                                :colors="['#99A9BF', '#F7BA2A', '#FF9900']" />
+                                                :colors="[MILAN_COLORS.surface, MILAN_COLORS.accentSoft, MILAN_COLORS.accentDeep]" />
                                         </div>
                                     </div>
 
@@ -325,7 +325,7 @@
                             <el-card v-if="posePreviewRef?.diagnosisReport" class="diagnosis-report-card shadow-sm">
                                 <template #header>
                                     <div class="report-header">
-                                        <el-icon :color="'#409EFF'">
+                                        <el-icon :color="MILAN_COLORS.accentDeep">
                                             <Medal />
                                         </el-icon>
                                         <span>AI 专业姿态诊断报告</span>
@@ -450,6 +450,17 @@ const loading = reactive({
     plans: false
 })
 
+const MILAN_COLORS = {
+    pageBase: '#F5F2ED', // 页面主背景 / 表头背景
+    surface: '#E5E0D8', // 边框 / 分隔
+    surfaceSoft: '#EFE8DD', // 弱强调背景
+    textPrimary: '#3C2F2F', // 主文字
+    textSecondary: '#7D756D', // 辅助文字
+    accent: '#BEA47E', // 主强调
+    accentSoft: '#D5C6B0', // 次强调
+    accentDeep: '#9F8462', // 深强调
+}
+
 const showRestOverlay = ref(false)
 const restCountdown = ref(45)
 const initialRestTime = ref(45)
@@ -530,10 +541,10 @@ const feedbackForm = ref({
 })
 
 const rpeMarks = {
-    1: { style: { color: '#10b981' }, label: '轻松' },
-    5: { style: { color: '#e6a23c' }, label: '适中' },
-    8: { style: { color: '#f56c6c' }, label: '力竭' },
-    10: { style: { color: '#7f1d1d' }, label: '极限' }
+    1: { style: { color: MILAN_COLORS.accentSoft }, label: '轻松' },
+    5: { style: { color: MILAN_COLORS.accent }, label: '适中' },
+    8: { style: { color: MILAN_COLORS.accentDeep }, label: '力竭' },
+    10: { style: { color: MILAN_COLORS.textPrimary }, label: '极限' }
 }
 
 const availableBodyTags = [
@@ -1610,5 +1621,139 @@ export default {
     50% {
         transform: translateY(-8px);
     }
+}
+
+/* =========================================
+   Milan Override Layer (单页配色收口)
+   ========================================= */
+.page-container {
+    --milan-bg-main: #F5F2ED;
+    --milan-bg-surface: #E5E0D8;
+    --milan-bg-soft: #EFE8DD;
+    --milan-text-primary: #3C2F2F;
+    --milan-text-secondary: #7D756D;
+    --milan-accent: #BEA47E;
+    --milan-accent-soft: #D5C6B0;
+    --milan-accent-deep: #9F8462;
+    --milan-shadow-soft: rgba(60, 47, 47, 0.08);
+
+    background: var(--milan-bg-main);
+    color: var(--milan-text-primary);
+}
+
+.page-container :deep(.el-card) {
+    background: var(--milan-bg-main);
+    border: 1px solid var(--milan-bg-surface);
+    box-shadow: 0 8px 20px var(--milan-shadow-soft);
+}
+
+.page-container :deep(.el-button--primary) {
+    --el-button-bg-color: var(--milan-accent);
+    --el-button-border-color: var(--milan-accent);
+    --el-button-hover-bg-color: var(--milan-accent-deep);
+    --el-button-hover-border-color: var(--milan-accent-deep);
+    --el-button-active-bg-color: var(--milan-accent-deep);
+    --el-button-active-border-color: var(--milan-accent-deep);
+    --el-button-text-color: #F5F2ED;
+}
+
+.page-container :deep(.el-button--success),
+.generate-btn {
+    background: linear-gradient(90deg, #BEA47E 0%, #9F8462 100%) !important;
+    border: none !important;
+}
+
+.page-container :deep(.el-button--success:hover),
+.generate-btn:hover {
+    box-shadow: 0 4px 12px rgba(159, 132, 98, 0.35) !important;
+}
+
+.page-container :deep(.el-tag--success),
+.page-container :deep(.el-tag--success.is-light),
+.page-container :deep(.el-tag--success.is-dark) {
+    --el-tag-bg-color: var(--milan-accent-soft);
+    --el-tag-border-color: var(--milan-accent-soft);
+    --el-tag-text-color: var(--milan-accent-deep);
+}
+
+.page-container :deep(.el-tag--info),
+.page-container :deep(.el-tag--info.is-plain) {
+    --el-tag-bg-color: var(--milan-bg-main);
+    --el-tag-border-color: var(--milan-bg-surface);
+    --el-tag-text-color: var(--milan-text-secondary);
+}
+
+.page-container :deep(.el-table) {
+    --el-table-border-color: var(--milan-bg-surface);
+    --el-table-header-bg-color: var(--milan-bg-main);
+    --el-table-row-hover-bg-color: var(--milan-bg-soft);
+    --el-table-text-color: var(--milan-text-primary);
+    --el-table-header-text-color: var(--milan-text-secondary);
+}
+
+.page-container :deep(.el-input__wrapper),
+.page-container :deep(.el-select__wrapper),
+.page-container :deep(.el-input-number__wrapper) {
+    background: var(--milan-bg-main);
+    box-shadow: 0 0 0 1px var(--milan-bg-surface) inset;
+}
+
+.page-container :deep(.el-input__wrapper.is-focus),
+.page-container :deep(.el-select__wrapper.is-focused),
+.page-container :deep(.el-input-number__wrapper:focus-within) {
+    box-shadow: 0 0 0 1px var(--milan-accent-soft) inset;
+}
+
+.page-title,
+.section-title,
+.report-header span,
+.stat-info .val,
+.step-title span {
+    color: var(--milan-text-primary) !important;
+}
+
+.stat-info .label,
+.target-hint,
+.card-label,
+.rpe-desc-text,
+.ai-tip span,
+.sub-btn {
+    color: var(--milan-text-secondary) !important;
+}
+
+.ai-display-card,
+.plan-card,
+.control-card,
+.diagnosis-report-card,
+.column-footer-tips .tip-card {
+    background: var(--milan-bg-main) !important;
+    border-color: var(--milan-bg-surface) !important;
+}
+
+.finish-panel,
+.feedback-card,
+.camera-overlay,
+.rest-content {
+    background: var(--milan-bg-soft) !important;
+    color: var(--milan-text-primary) !important;
+}
+
+.pulse-indicator,
+.dot.accepted,
+.success-glow {
+    background: var(--milan-accent) !important;
+}
+
+.feedback-tag {
+    background-color: var(--milan-bg-main) !important;
+    border-color: var(--milan-bg-surface) !important;
+    color: var(--milan-text-secondary) !important;
+}
+
+.feedback-tag:hover,
+:deep(.el-check-tag.is-checked) {
+    background-color: var(--milan-accent) !important;
+    border-color: var(--milan-accent) !important;
+    color: #F5F2ED !important;
 }
 </style>

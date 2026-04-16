@@ -340,8 +340,28 @@ export default {
 
 <style scoped>
 .page-container {
+    --milan-bg-main: #F5F2ED; /* 页面主背景 / 卡片底色 */
+    --milan-bg-surface: #E5E0D8; /* 卡片边框 / 分隔线 */
+    --milan-bg-soft: #EFE8DD; /* 弱强调背景 / hover 底色 */
+    --milan-text-primary: #3C2F2F; /* 主标题 / 主正文 */
+    --milan-text-secondary: #7D756D; /* 辅助说明文字 */
+    --milan-accent: #BEA47E; /* 主按钮 / 强调交互 */
+    --milan-accent-soft: #D5C6B0; /* 次级强调态 */
+    --milan-accent-deep: #9F8462; /* 深层强调态 */
+    --milan-shadow-soft: rgba(60, 47, 47, 0.08); /* 常规阴影 */
+    --milan-shadow-medium: rgba(60, 47, 47, 0.14); /* 悬浮阴影 */
+    --milan-image-bg: #4C403A; /* 动作图卡深底背景 */
+    --milan-on-dark: #F5F2ED; /* 深背景上的主文字 */
+    --milan-on-dark-muted: #D5C6B0; /* 深背景上的辅助文字 */
+
+    --text-main: var(--milan-text-primary);
+    --text-secondary: var(--milan-text-secondary);
+    --bg-color: var(--milan-bg-soft);
+
     max-width: 1200px;
     margin: 0 auto;
+    background: var(--milan-bg-main);
+    color: var(--milan-text-primary);
     padding-bottom: 60px;
 }
 
@@ -366,10 +386,10 @@ export default {
 
 .filter-card {
     margin-bottom: 24px;
-    border: none;
+    border: 1px solid var(--milan-bg-surface);
     border-radius: 12px;
-    box-shadow: var(--card-shadow, 0 4px 12px rgba(0,0,0,0.05));
-    background: #fff;
+    box-shadow: 0 4px 12px var(--milan-shadow-soft);
+    background: var(--milan-bg-main);
 }
 
 .filter-container {
@@ -395,8 +415,8 @@ export default {
 }
 
 .custom-radio-group :deep(.el-radio-button__inner) {
-    border: none;
-    background: transparent;
+    border: 1px solid transparent;
+    background: var(--milan-bg-main);
     padding: 8px 16px;
     border-radius: 6px;
     margin-right: 4px;
@@ -404,15 +424,17 @@ export default {
 }
 
 .custom-radio-group :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
-    background-color: var(--el-color-primary-light-9);
-    color: var(--el-color-primary);
+    background-color: var(--milan-bg-soft);
+    color: var(--milan-accent-deep);
+    border-color: var(--milan-accent-soft);
     box-shadow: none;
     font-weight: 600;
 }
 
 /* Exercise Card */
 .exercise-card {
-    border: none;
+    border: 1px solid var(--milan-bg-surface);
+    background: var(--milan-bg-main);
     border-radius: 16px;
     overflow: hidden;
     transition: transform 0.3s ease, box-shadow 0.3s ease;
@@ -424,14 +446,14 @@ export default {
 
 .hover-lift:hover {
     transform: translateY(-5px);
-    box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 20px -5px var(--milan-shadow-medium);
 }
 
 .card-image-wrapper {
     position: relative;
     height: 180px;
     overflow: hidden;
-    background: #1f2937; 
+    background: var(--milan-image-bg);
     display: flex;      
     align-items: center;
     justify-content: center;
@@ -442,7 +464,7 @@ export default {
     height: 60%;
     object-fit: contain; 
     transition: transform 0.5s ease;
-    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3)); 
+    filter: drop-shadow(0 4px 6px rgba(60, 47, 47, 0.35));
 }
 
 .exercise-card:hover .image {
@@ -457,13 +479,13 @@ export default {
     border-radius: 20px;
     font-size: 11px;
     font-weight: 700;
-    color: white;
+    color: var(--milan-on-dark);
     backdrop-filter: blur(4px);
     text-transform: uppercase;
 }
-.difficulty-badge.beginner { background: rgba(16, 185, 129, 0.9); }
-.difficulty-badge.intermediate { background: rgba(245, 158, 11, 0.9); }
-.difficulty-badge.advanced { background: rgba(239, 68, 68, 0.9); }
+.difficulty-badge.beginner { background: rgba(213, 198, 176, 0.92); color: #4C403A; }
+.difficulty-badge.intermediate { background: rgba(190, 164, 126, 0.94); }
+.difficulty-badge.advanced { background: rgba(159, 132, 98, 0.96); }
 
 .card-content {
     padding: 16px;
@@ -499,6 +521,7 @@ export default {
     margin: 0 0 16px 0;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
     height: 40px; 
@@ -539,7 +562,7 @@ export default {
 
 .dialog-left-pane {
     flex: 0 0 320px;
-    background: #1f2937;
+    background: var(--milan-image-bg);
     display: flex;
     flex-direction: column;
 }
@@ -547,7 +570,7 @@ export default {
 .dialog-right-pane {
     flex: 1;
     padding: 24px;
-    background: #fff;
+    background: var(--milan-bg-main);
 }
 
 .dialog-image-wrapper {
@@ -573,15 +596,15 @@ export default {
 .user-progress-box {
     margin: auto 16px 16px 16px; /* 移动到左侧窗格底部 */
     padding: 12px;
-    background: rgba(255, 255, 255, 0.05); /* 深色背景下的进度框 */
+    background: rgba(245, 242, 237, 0.1); /* 深色背景下的进度框 */
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(245, 242, 237, 0.16);
 }
 
 .progress-title {
     font-size: 14px;
     font-weight: 700;
-    color: #fff;
+    color: var(--milan-on-dark);
     margin-bottom: 8px;
 }
 
@@ -598,18 +621,18 @@ export default {
 }
 
 .p-label {
-    color: #9ca3af;
+    color: var(--milan-on-dark-muted);
 }
 
 .p-value {
     font-weight: 600;
-    color: #fff;
+    color: var(--milan-on-dark);
 }
 
 .ai-tips {
     margin: 0;
     padding-left: 18px;
-    color: #606266;
+    color: var(--milan-text-secondary);
     font-size: 14px;
     line-height: 1.6;
 }
@@ -674,12 +697,47 @@ export default {
 .stat-item .value {
     font-size: 20px;
     font-weight: 700;
-    color: var(--el-color-primary);
+    color: var(--milan-accent-deep);
 }
 
 .stat-item .value small {
     font-size: 12px;
     font-weight: 400;
     color: var(--text-secondary);
+}
+
+.page-title {
+    color: var(--milan-text-primary);
+}
+
+.page-container :deep(.el-button--primary) {
+    --el-button-bg-color: var(--milan-accent);
+    --el-button-border-color: var(--milan-accent);
+    --el-button-hover-bg-color: var(--milan-accent-deep);
+    --el-button-hover-border-color: var(--milan-accent-deep);
+    --el-button-active-bg-color: var(--milan-accent-deep);
+    --el-button-active-border-color: var(--milan-accent-deep);
+    --el-button-text-color: var(--milan-bg-main);
+}
+
+.page-container :deep(.el-button.is-text) {
+    color: var(--milan-accent-deep);
+}
+
+.page-container :deep(.el-input__wrapper),
+.page-container :deep(.el-select__wrapper) {
+    background: var(--milan-bg-main);
+    border-color: var(--milan-bg-surface);
+    box-shadow: 0 0 0 1px var(--milan-bg-surface) inset;
+}
+
+.page-container :deep(.el-pagination.is-background .el-pager li.is-active) {
+    background-color: var(--milan-accent);
+    color: var(--milan-bg-main);
+}
+
+.page-container :deep(.el-dialog) {
+    background: var(--milan-bg-main);
+    border: 1px solid var(--milan-bg-surface);
 }
 </style>

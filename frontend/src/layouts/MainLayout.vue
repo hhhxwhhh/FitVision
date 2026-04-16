@@ -206,19 +206,32 @@ const handleUserCommand = (command: string) => {
 /* 页面级容器：撑满视口，保证页脚在底部 */
 .layout-container {
     min-height: 100vh;
-    background-color: var(--bg-color);
+    --milan-page-bg: #EEE6DB;
+    --milan-page-bg-soft: #E4D8C8;
+    --milan-surface: #FBF8F3;
+    --milan-surface-2: #F5F0E8;
+    --milan-border: #E5E0D8;
+    --milan-text-primary: #3C2F2F;
+    --milan-text-secondary: #7D756D;
+    --milan-accent: #BEA47E;
+    --milan-accent-deep: #9F8462;
+
+    background:
+        radial-gradient(900px 280px at 8% -10%, rgba(245, 242, 237, 0.68), transparent 60%),
+        radial-gradient(980px 320px at 100% 0%, rgba(213, 198, 176, 0.28), transparent 62%),
+        linear-gradient(180deg, var(--milan-page-bg) 0%, var(--milan-page-bg-soft) 100%);
 }
 
 /* 顶栏：吸顶 + 轻阴影，保持导航可见性 */
 .header {
     height: var(--header-height) !important;
-    background: #ffffff;
-    border-bottom: 1px solid #e2e8f0;
+    background: linear-gradient(180deg, #FEFCF8 0%, #FBF7F1 100%);
+    border-bottom: 1px solid #ECE4D8;
     position: sticky;
     top: 0;
     z-index: 100;
     padding: 0;
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    box-shadow: 0 4px 14px rgba(60, 47, 47, 0.05);
 }
 
 /* 顶栏内部三段布局：左 Logo / 中菜单 / 右用户区 */
@@ -240,7 +253,7 @@ const handleUserCommand = (command: string) => {
 
 .logo-icon {
     font-size: 24px;
-    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    background: linear-gradient(135deg, #BEA47E 0%, #9F8462 100%);
     background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -251,15 +264,15 @@ const handleUserCommand = (command: string) => {
     align-items: center;
     justify-content: center;
     border-radius: 8px;
-    background: #e0e7ff;
-    color: #4f46e5;
+    background: #EFE8DD;
+    color: #9F8462;
     -webkit-text-fill-color: initial;
 }
 
 .logo-text {
     font-size: 20px;
     font-weight: 800;
-    color: #1e293b;
+    color: var(--milan-text-primary);
     margin: 0;
     letter-spacing: -0.5px;
 }
@@ -285,7 +298,7 @@ const handleUserCommand = (command: string) => {
     border-radius: 10px;
     font-size: 15px;
     font-weight: 500;
-    color: #64748b;
+    color: var(--milan-text-secondary);
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -293,14 +306,14 @@ const handleUserCommand = (command: string) => {
 }
 
 .nav-link.active {
-    color: #4f46e5;
+    color: var(--milan-accent-deep);
     font-weight: 600;
-    background: #eef2ff;
+    background: #EFE8DD;
 }
 
 .nav-link:hover {
-    color: #1e293b;
-    background: #f8fafc;
+    color: var(--milan-text-primary);
+    background: var(--milan-surface-2);
 }
 
 .nav-dropdown-trigger :deep(.el-icon) {
@@ -319,18 +332,18 @@ const handleUserCommand = (command: string) => {
 }
 
 .user-profile-badge:hover {
-    background-color: #f1f5f9;
+    background-color: var(--milan-surface-2);
 }
 
 .username {
     font-size: 14px;
     font-weight: 500;
-    color: #334155;
+    color: var(--milan-text-primary);
 }
 
 .user-avatar {
-    background: #6366f1;
-    color: white;
+    background: var(--milan-accent);
+    color: #F5F2ED;
 }
 
 /* 主内容区：横向不溢出，避免图表类组件撑破布局 */
@@ -348,8 +361,8 @@ const handleUserCommand = (command: string) => {
 
 /* 页脚：弱化视觉权重，作为收尾信息区 */
 .footer {
-    background: #fff;
-    border-top: 1px solid #e2e8f0;
+    background: color-mix(in srgb, var(--milan-surface) 90%, white 10%);
+    border-top: 1px solid var(--milan-border);
     padding: 0;
     height: auto;
 }
@@ -359,7 +372,22 @@ const handleUserCommand = (command: string) => {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #94a3b8;
+    color: var(--milan-text-secondary);
     font-size: 13px;
+}
+
+.main-layout :deep(.el-dropdown-menu) {
+    background: var(--milan-surface);
+    border: 1px solid var(--milan-border);
+    box-shadow: 0 8px 18px rgba(60, 47, 47, 0.1);
+}
+
+.main-layout :deep(.el-dropdown-menu__item) {
+    color: var(--milan-text-primary);
+}
+
+.main-layout :deep(.el-dropdown-menu__item:not(.is-disabled):hover) {
+    background: var(--milan-surface-2);
+    color: var(--milan-accent-deep);
 }
 </style>

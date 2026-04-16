@@ -163,6 +163,18 @@ let welcomeTimer: number | null = null
 const FORCE_REPEAT_WELCOME_BANNER = false
 const WELCOME_BANNER_SEEN_KEY = 'fitvision_home_welcome_seen'
 
+// 米兰色系（低饱和、高质感）
+const MILAN_COLORS = {
+  pageBase: '#F5F2ED', // 页面大背景 / 卡片背景
+  surface: '#E5E0D8', // 悬浮层 / 输入区背景 / 弱对比边框
+  surfaceMid: '#DCCFBE', // 低中进度条 / 轻强调底色
+  textPrimary: '#3C2F2F', // 标题 / 正文主文字
+  textSecondary: '#7D756D', // 注释 / 辅助信息
+  accent: '#BEA47E', // 按钮 / 选中状态 / 重点进度
+  accentSoft: '#D5C6B0', // 次级点缀 / 中段进度
+  accentDeep: '#9F8462', // 深层强调 / 渐变深色端
+}
+
 const userStats = ref<any>({})
 
 const growth = ref({
@@ -187,9 +199,9 @@ const calorieGoal = computed(() => {
 
 // 新增：容量达标颜色逻辑（练得越好越绿，缺乏锻炼标红）
 const getVolumeColor = (percentage: number) => {
-  if (percentage >= 80) return '#67C23A' // 绿
-  if (percentage >= 40) return '#E6A23C' // 橙
-  return '#F56C6C' // 红
+  if (percentage >= 80) return MILAN_COLORS.accent // 本周负荷高：重点色
+  if (percentage >= 40) return MILAN_COLORS.accentSoft // 本周负荷中：次级点缀
+  return MILAN_COLORS.surface // 本周负荷低：弱强调背景色
 }
 
 // 修改：变量名更替，并套用动态颜色函数
@@ -200,11 +212,11 @@ const volumeStatus = ref([
 ])
 
 const customColors = [
-  { color: '#f56c6c', percentage: 20 },
-  { color: '#e6a23c', percentage: 40 },
-  { color: '#5cb87a', percentage: 60 },
-  { color: '#1989fa', percentage: 80 },
-  { color: '#6f7ad3', percentage: 100 },
+  { color: MILAN_COLORS.surface, percentage: 20 }, // 低进度：浅米灰
+  { color: MILAN_COLORS.surfaceMid, percentage: 40 }, // 低中进度：浅暖米色
+  { color: MILAN_COLORS.accentSoft, percentage: 60 }, // 中进度：柔和金棕
+  { color: MILAN_COLORS.accent, percentage: 80 }, // 高进度：米兰主点缀
+  { color: MILAN_COLORS.accentDeep, percentage: 100 }, // 满进度：深金棕强调
 ]
 
 const getBMIType = (bmi: number) => {
@@ -419,13 +431,13 @@ onMounted(() => {
   if (!FORCE_REPEAT_WELCOME_BANNER && hasSeenWelcomeBanner) {
     showWelcomeBanner.value = false
   } else {
-    // 首次（或调试模式）展示 1 秒后淡出并记录已展示
+    // 首次（或调试模式）展示 5 秒后淡出并记录已展示
     welcomeTimer = window.setTimeout(() => {
       showWelcomeBanner.value = false
       if (!FORCE_REPEAT_WELCOME_BANNER) {
         localStorage.setItem(WELCOME_BANNER_SEEN_KEY, '1')
       }
-    }, 1000)
+    }, 5000)
   }
 
   fetchTodayStats()
@@ -443,16 +455,38 @@ onUnmounted(() => {
 
 <style scoped>
 .dashboard-container {
-  padding-bottom: 4px;
+  --milan-page-bg: #EEE6DB; /* 页面背景基底（比卡片更深，形成层次） */
+  --milan-page-bg-soft: #E4D8C8; /* 页面背景过渡色 */
+  --milan-bg-main: #FBF8F3; /* 主卡片底色（比页面更亮） */
+  --milan-bg-surface: #E5E0D8; /* 浮层背景 / 弱对比边框 */
+  --milan-bg-soft-contrast: #DCCFBE; /* 次级底色 / 低中进度衔接 */
+  --milan-text-primary: #3C2F2F; /* 标题 / 正文主文字 */
+  --milan-text-secondary: #7D756D; /* 注释 / 时间戳 / 辅助文字 */
+  --milan-accent: #BEA47E; /* 按钮 / 选中状态 / 强调色 */
+  --milan-accent-soft: #D5C6B0; /* 悬浮弱强调 / 次级高亮 */
+  --milan-accent-deep: #9F8462; /* 渐变深色端 / 高权重强调 */
+  --milan-on-accent: #F5F2ED; /* 强调色上的文字 */
+  --milan-shadow-soft: rgba(60, 47, 47, 0.12); /* 常规浮层阴影 */
+  --milan-shadow-medium: rgba(60, 47, 47, 0.14); /* 中等悬浮阴影 */
+  --milan-shadow-accent: rgba(190, 164, 126, 0.24); /* 强调态阴影 */
+
+  background:
+    radial-gradient(1200px 400px at 10% -10%, rgba(245, 242, 237, 0.65), transparent 55%),
+    radial-gradient(1000px 360px at 95% 0%, rgba(213, 198, 176, 0.22), transparent 58%),
+    linear-gradient(180deg, var(--milan-page-bg) 0%, var(--milan-page-bg-soft) 100%);
+  color: var(--milan-text-primary);
+  border-radius: 12px;
+  padding: 8px;
+  padding-bottom: 12px;
 }
 
 .welcome-banner {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--milan-accent) 0%, var(--milan-accent-deep) 100%);
   border-radius: 12px;
   padding: 18px 22px;
-  color: white;
+  color: var(--milan-on-accent);
   margin-bottom: 14px;
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 6px 14px var(--milan-shadow-soft);
 }
 
 .banner-content h1 {
@@ -487,10 +521,11 @@ onUnmounted(() => {
 }
 
 .left-overview-shell {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--milan-bg-surface);
   border-radius: 12px;
   height: 100%;
   width: 100%;
+  background: var(--milan-bg-main);
 }
 
 .left-overview-shell :deep(.el-card__body) {
@@ -513,7 +548,8 @@ onUnmounted(() => {
 }
 
 .module-shell {
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--milan-bg-surface);
+  background: var(--milan-bg-main);
 }
 
 .module-shell :deep(.el-card__header) {
@@ -575,7 +611,8 @@ onUnmounted(() => {
 
 .growth-card {
   border-radius: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--milan-bg-surface);
+  background: var(--milan-bg-main);
 }
 
 .growth-card :deep(.el-card__body) {
@@ -587,8 +624,8 @@ onUnmounted(() => {
 }
 
 .growth-action-card:hover {
-  border-color: #93c5fd;
-  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.12);
+  border-color: var(--milan-accent);
+  box-shadow: 0 6px 14px var(--milan-shadow-accent);
 }
 
 .growth-action-buttons {
@@ -602,13 +639,13 @@ onUnmounted(() => {
 }
 
 .growth-card-title {
-  color: #64748b;
+  color: var(--milan-text-secondary);
   font-size: 12px;
   margin-bottom: 6px;
 }
 
 .growth-card-value {
-  color: #0f172a;
+  color: var(--milan-text-primary);
   font-size: 24px;
   font-weight: 800;
   margin-bottom: 4px;
@@ -617,7 +654,7 @@ onUnmounted(() => {
 .growth-card-value span {
   font-size: 12px;
   font-weight: 500;
-  color: #64748b;
+  color: var(--milan-text-secondary);
 }
 
 .growth-action {
@@ -626,14 +663,14 @@ onUnmounted(() => {
 }
 
 .growth-card-sub {
-  color: #94a3b8;
+  color: var(--milan-text-secondary);
   font-size: 11px;
 }
 
 .achievement-card {
   border-radius: 10px;
-  border: 1px dashed #cbd5e1;
-  background: #f8fafc;
+  border: 1px dashed var(--milan-accent-soft);
+  background: var(--milan-bg-main);
   width: 100%;
   max-width: none;
   margin: 0;
@@ -670,7 +707,7 @@ onUnmounted(() => {
 
 .compact-status-shell .status-note-inline {
   font-size: 9px;
-  color: #94a3b8;
+  color: var(--milan-text-secondary);
   text-align: right;
   line-height: 1.25;
   max-width: 56%;
@@ -684,7 +721,7 @@ onUnmounted(() => {
 .compact-status-shell .status-inline-value {
   font-size: 15px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--milan-text-primary);
   margin-left: 6px;
   line-height: 1;
 }
@@ -692,7 +729,7 @@ onUnmounted(() => {
 .compact-status-shell .status-inline-value span {
   font-size: 9px;
   font-weight: 500;
-  color: #64748b;
+  color: var(--milan-text-secondary);
 }
 
 .compact-status-shell .status-value {
@@ -716,7 +753,7 @@ onUnmounted(() => {
 .achievement-title {
   font-size: 13px;
   font-weight: 700;
-  color: #334155;
+  color: var(--milan-text-primary);
   margin-bottom: 6px;
 }
 
@@ -739,20 +776,20 @@ onUnmounted(() => {
 
 .achievement-name {
   font-size: 12px;
-  color: #1e293b;
+  color: var(--milan-text-primary);
   font-weight: 600;
 }
 
 .achievement-desc {
   font-size: 11px;
-  color: #64748b;
+  color: var(--milan-text-secondary);
 }
 
 .section-title {
   font-size: 18px;
   font-weight: bold;
   margin: 0;
-  color: #303133;
+  color: var(--milan-text-primary);
 }
 
 .feature-card {
@@ -765,8 +802,8 @@ onUnmounted(() => {
 
 .feature-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
-  border-color: #409eff;
+  box-shadow: 0 8px 16px var(--milan-shadow-medium);
+  border-color: var(--milan-accent);
 }
 
 .feature-card.compact {
@@ -789,7 +826,7 @@ onUnmounted(() => {
 
 .feature-card p {
   font-size: 12px;
-  color: #909399;
+  color: var(--milan-text-secondary);
   margin: 0;
 }
 
@@ -806,27 +843,27 @@ onUnmounted(() => {
 
 .status-header {
   font-size: 12px;
-  color: #909399;
+  color: var(--milan-text-secondary);
   margin-bottom: 6px;
 }
 
 .status-value {
   font-size: 22px;
   font-weight: bold;
-  color: #303133;
+  color: var(--milan-text-primary);
   margin-bottom: 8px;
 }
 
 .status-value span {
   font-size: 12px;
   font-weight: normal;
-  color: #909399;
+  color: var(--milan-text-secondary);
 }
 
 .status-desc {
   margin: 6px 0 8px;
   font-size: 12px;
-  color: #606266;
+  color: var(--milan-text-secondary);
   line-height: 1.35;
   flex: 0;
 }
@@ -865,7 +902,7 @@ onUnmounted(() => {
 
 .m-name {
   font-size: 12px;
-  color: #606266;
+  color: var(--milan-text-secondary);
   min-width: 40px;
 }
 
@@ -876,7 +913,27 @@ onUnmounted(() => {
 .status-footer {
   margin-top: 6px;
   font-size: 11px;
-  color: #c0c4cc;
+  color: var(--milan-text-secondary);
+}
+
+.dashboard-container :deep(.el-button--primary) {
+  --el-button-bg-color: var(--milan-accent);
+  --el-button-border-color: var(--milan-accent);
+  --el-button-hover-bg-color: var(--milan-accent-deep);
+  --el-button-hover-border-color: var(--milan-accent-deep);
+  --el-button-active-bg-color: var(--milan-accent-deep);
+  --el-button-active-border-color: var(--milan-accent-deep);
+  --el-button-text-color: var(--milan-on-accent);
+}
+
+.dashboard-container :deep(.el-button--default) {
+  --el-button-border-color: var(--milan-bg-surface);
+  --el-button-hover-border-color: var(--milan-accent-soft);
+  --el-button-hover-text-color: var(--milan-accent-deep);
+}
+
+.dashboard-container :deep(.el-progress-bar__outer) {
+  background: var(--milan-bg-soft-contrast);
 }
 
 @media (max-width: 1200px) {

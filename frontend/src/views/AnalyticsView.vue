@@ -101,6 +101,18 @@ use([
 ])
 
 const timerange = ref(7)
+
+// 米兰色系（当前页面专用）
+const MILAN_COLORS = {
+    pageBase: '#F5F2ED', // 页面背景 / 卡片底色
+    surface: '#E5E0D8', // 卡片边框 / 分隔线
+    textPrimary: '#3C2F2F', // 主标题 / 正文
+    textSecondary: '#7D756D', // 次级文字 / 注释
+    accent: '#BEA47E', // 主图表色 / 选中态
+    accentSoft: '#D5C6B0', // 次级图表色
+    accentDeep: '#9F8462', // 深强调图表色
+}
+
 const summary = reactive({
     total_calories: 0,
     total_duration: 0,
@@ -115,7 +127,7 @@ const calorieOption = ref<any>({
     series: [{
         data: [],
         type: 'bar',
-        itemStyle: { color: '#409EFF' }
+        itemStyle: { color: MILAN_COLORS.accent }
     }]
 })
 
@@ -125,6 +137,7 @@ const scoreOption = ref<any>({
         {
             type: 'pie',
             radius: ['40%', '70%'],
+            color: [MILAN_COLORS.accentDeep, MILAN_COLORS.accent, MILAN_COLORS.accentSoft],
             data: []
         }
     ]
@@ -162,6 +175,16 @@ onMounted(() => {
 
 <style scoped>
 .analytics-container {
+    --milan-bg-main: #F5F2ED; /* 页面大背景 / 内容背景 */
+    --milan-bg-surface: #E5E0D8; /* 卡片边框 / 表格分隔 */
+    --milan-bg-hover: #EFE8DD; /* 表格悬浮态背景 */
+    --milan-text-primary: #3C2F2F; /* 主标题 / 主文本 */
+    --milan-text-secondary: #7D756D; /* 辅助说明文字 */
+    --milan-accent: #BEA47E; /* 交互强调 / 图表主色 */
+    --milan-shadow-soft: rgba(60, 47, 47, 0.08); /* 浮层阴影 */
+
+    background: var(--milan-bg-main);
+    color: var(--milan-text-primary);
     padding: 20px;
 }
 
@@ -169,6 +192,7 @@ onMounted(() => {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    color: var(--milan-text-primary);
 }
 
 .chart {
@@ -177,5 +201,45 @@ onMounted(() => {
 
 .chart-card {
     height: 400px;
+}
+
+.analytics-container :deep(.el-card) {
+    background: var(--milan-bg-main);
+    border: 1px solid var(--milan-bg-surface);
+    box-shadow: 0 4px 10px var(--milan-shadow-soft);
+}
+
+.analytics-container :deep(.el-card__header) {
+    color: var(--milan-text-primary);
+    font-weight: 700;
+}
+
+.analytics-container :deep(.el-statistic__head) {
+    color: var(--milan-text-secondary);
+}
+
+.analytics-container :deep(.el-statistic__content) {
+    color: var(--milan-text-primary);
+}
+
+.analytics-container :deep(.el-radio-button__inner) {
+    color: var(--milan-text-secondary);
+    border-color: var(--milan-bg-surface);
+    background: var(--milan-bg-main);
+}
+
+.analytics-container :deep(.el-radio-button__orig-radio:checked + .el-radio-button__inner) {
+    background: var(--milan-accent);
+    border-color: var(--milan-accent);
+    box-shadow: -1px 0 0 0 var(--milan-accent);
+    color: var(--milan-bg-main);
+}
+
+.analytics-container :deep(.el-table) {
+    --el-table-border-color: var(--milan-bg-surface);
+    --el-table-header-bg-color: var(--milan-bg-main);
+    --el-table-row-hover-bg-color: var(--milan-bg-hover);
+    --el-table-text-color: var(--milan-text-primary);
+    --el-table-header-text-color: var(--milan-text-secondary);
 }
 </style>

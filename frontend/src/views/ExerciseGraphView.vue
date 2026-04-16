@@ -111,12 +111,24 @@ const stats = ref<any>(null)
 let myChart: any = null
 let graphRawData: any = null
 
+// 米兰色系（当前页面专用）
+const MILAN_COLORS = {
+  pageBase: '#F5F2ED', // 页面背景 / 主容器底色
+  surface: '#E5E0D8', // 分隔线 / 卡片边框
+  surfaceSoft: '#EFE8DD', // 悬浮底色 / 弱强调区
+  textPrimary: '#3C2F2F', // 主标题 / 主正文
+  textSecondary: '#7D756D', // 次级文字 / 注释
+  accent: '#BEA47E', // 交互强调色
+  accentSoft: '#D5C6B0', // 次级强调色
+  accentDeep: '#9F8462', // 深层强调色
+}
+
 const progressColor = computed(() => {
-  if (!stats.value) return '#ff4d4f'
+  if (!stats.value) return MILAN_COLORS.accentSoft
   const p = stats.value.percent
-  if (p < 30) return '#f56c6c'
-  if (p < 70) return '#e6a23c'
-  return '#67c23a'
+  if (p < 30) return MILAN_COLORS.surface
+  if (p < 70) return MILAN_COLORS.accentSoft
+  return MILAN_COLORS.accent
 })
 
 const handleSearch = () => {
@@ -195,6 +207,7 @@ const initChart = (data: any) => {
   if (!chartRef.value) return
   
   const categories = data.categories || []
+  // 按用户要求：知识图谱中的部位标签色（如胸部/背部）保持原配色，不做米兰替换
   const categoryPalette = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16', '#f97316']
   const categoryColorMap = new Map(
     categories.map((c: any, index: number) => [
@@ -229,25 +242,25 @@ const initChart = (data: any) => {
 
   myChart = echarts.init(chartRef.value)
   const option = {
-    backgroundColor: '#ffffff', // 强制背景色，提升对比度
+    backgroundColor: MILAN_COLORS.pageBase,
     tooltip: {
       show: true,
       trigger: 'item',
-      backgroundColor: 'rgba(255, 255, 255, 0.96)',
-      borderColor: '#ebeef5',
+      backgroundColor: 'rgba(245, 242, 237, 0.96)',
+      borderColor: MILAN_COLORS.surface,
       borderWidth: 1,
       padding: [10, 15],
-      textStyle: { color: '#606266', fontSize: 13 },
-      extraCssText: 'box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 8px;',
+      textStyle: { color: MILAN_COLORS.textSecondary, fontSize: 13 },
+      extraCssText: 'box-shadow: 0 4px 12px rgba(60,47,47,0.12); border-radius: 8px;',
       formatter: (params: any) => {
         if (params.dataType === 'node') {
           const statusMap: any = { mastered: '已掌握', ready: '可练习', locked: '未解锁' }
-          const statusColor: any = { mastered: '#52c41a', ready: '#faad14', locked: '#999' }
+          const statusColor: any = { mastered: MILAN_COLORS.accentDeep, ready: MILAN_COLORS.accent, locked: MILAN_COLORS.textSecondary }
           return `
             <div style="font-weight:bold;margin-bottom:4px;">${params.name}</div>
             <div style="font-size:12px;">部位: ${params.data.category_name || params.data.categoryName || params.data.category}</div>
             <div style="font-size:12px;">状态: <span style="color:${statusColor[params.data.status]}">${statusMap[params.data.status]}</span></div>
-            <div style="font-size:11px;color:#888;margin-top:4px;">${params.data.gnn_insight}</div>
+            <div style="font-size:11px;color:${MILAN_COLORS.textSecondary};margin-top:4px;">${params.data.gnn_insight}</div>
           `
         } else if (params.dataType === 'edge') {
           return `
@@ -267,11 +280,11 @@ const initChart = (data: any) => {
       right: 30,
       top: 'center',
       padding: [15, 20],
-      backgroundColor: 'rgba(255, 255, 255, 0.8)',
-      borderColor: '#f2f2f2',
+      backgroundColor: 'rgba(245, 242, 237, 0.85)',
+      borderColor: MILAN_COLORS.surface,
       borderWidth: 1,
       borderRadius: 10,
-      textStyle: { color: '#666', fontSize: 13, fontWeight: 500 },
+      textStyle: { color: MILAN_COLORS.textSecondary, fontSize: 13, fontWeight: 500 },
       icon: 'circle',
       selectedMode: 'multiple' // 允许点击过滤分类，提升探索体验
     },
@@ -295,7 +308,7 @@ const initChart = (data: any) => {
           formatter: '{b}',
           fontSize: 11,
           fontWeight: 500,
-          color: '#34495e',
+          color: MILAN_COLORS.textPrimary,
           distance: 10 // 增加文字与节点的距离
         },
         edgeSymbol: ['none', 'arrow'],
@@ -369,11 +382,23 @@ onUnmounted(() => {
 
 <style scoped>
 .graph-container {
+  --milan-bg-main: #F5F2ED; /* 页面主背景 */
+  --milan-bg-surface: #E5E0D8; /* 卡片边框 / 分隔线 */
+  --milan-bg-soft: #EFE8DD; /* 悬浮态 / 弱强调背景 */
+  --milan-text-primary: #3C2F2F; /* 主标题 / 正文 */
+  --milan-text-secondary: #7D756D; /* 辅助说明文字 */
+  --milan-accent: #BEA47E; /* 交互强调 */
+  --milan-accent-soft: #D5C6B0; /* 次级强调 */
+  --milan-accent-deep: #9F8462; /* 深层强调 */
+  --milan-shadow-soft: rgba(60, 47, 47, 0.08); /* 常规阴影 */
+  --milan-shadow-medium: rgba(60, 47, 47, 0.14); /* 悬浮阴影 */
+
   padding: 20px;
   height: calc(100vh - 40px); /* 增加可用空间 */
   display: flex;
   flex-direction: column;
-  background-color: #f8f9fa;
+  background-color: var(--milan-bg-main);
+  color: var(--milan-text-primary);
 }
 
 .graph-header {
@@ -381,10 +406,11 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
-  background: white;
+  background: var(--milan-bg-main);
+  border: 1px solid var(--milan-bg-surface);
   padding: 15px 25px;
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 12px var(--milan-shadow-soft);
 }
 
 .header-left {
@@ -413,7 +439,7 @@ onUnmounted(() => {
 .stat-item {
   font-size: 13px;
   font-weight: 500;
-  color: #606266;
+  color: var(--milan-text-secondary);
 }
 
 .graph-toolbar {
@@ -434,7 +460,7 @@ onUnmounted(() => {
   margin: 0;
   font-size: 24px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--milan-text-primary);
 }
 
 .graph-card {
@@ -444,8 +470,9 @@ onUnmounted(() => {
   border-radius: 16px;
   overflow: hidden;
   height: 0;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.08) !important;
-  border: none;
+  box-shadow: 0 4px 20px var(--milan-shadow-soft) !important;
+  border: 1px solid var(--milan-bg-surface);
+  background: var(--milan-bg-main);
 }
 
 :deep(.el-card__body) {
@@ -474,7 +501,7 @@ onUnmounted(() => {
 
 .detail-item .label {
   width: 80px;
-  color: #909399;
+  color: var(--milan-text-secondary);
 }
 
 .tag-list {
@@ -485,7 +512,7 @@ onUnmounted(() => {
 
 .divider {
   height: 1px;
-  background: #ebeef5;
+  background: var(--milan-bg-surface);
   margin: 15px 0;
 }
 
@@ -498,7 +525,7 @@ onUnmounted(() => {
 .rel-header {
   font-size: 14px;
   font-weight: bold;
-  color: #606266;
+  color: var(--milan-text-secondary);
   margin-bottom: 8px;
 }
 
@@ -515,19 +542,20 @@ onUnmounted(() => {
 
 .rel-tag:hover {
   transform: translateY(-2px);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px var(--milan-shadow-medium);
 }
 
 .no-rel {
   text-align: center;
-  color: #909399;
+  color: var(--milan-text-secondary);
   font-style: italic;
   font-size: 13px;
   padding: 10px 0;
 }
 
 .gnn-insight-box {
-  background: #f0f7ff;
+  background: var(--milan-bg-soft);
+  border: 1px solid var(--milan-bg-surface);
   border-radius: 8px;
   padding: 12px;
   display: block !important; /* 强制覆盖 flex */
@@ -535,7 +563,7 @@ onUnmounted(() => {
 }
 
 .gnn-label {
-  color: #409eff;
+  color: var(--milan-accent-deep);
   font-weight: bold;
   font-size: 13px;
   margin-bottom: 6px;
@@ -547,7 +575,32 @@ onUnmounted(() => {
 .gnn-text {
   margin: 0;
   font-size: 13px;
-  color: #606266;
+  color: var(--milan-text-secondary);
   line-height: 1.5;
+}
+
+.graph-container :deep(.el-progress-bar__outer) {
+  background: var(--milan-bg-soft);
+}
+
+.graph-container :deep(.el-dialog) {
+  background: var(--milan-bg-main);
+  border: 1px solid var(--milan-bg-surface);
+}
+
+.graph-container :deep(.el-dialog__title) {
+  color: var(--milan-text-primary);
+}
+
+.graph-container :deep(.el-tag.el-tag--info.is-plain) {
+  border-color: var(--milan-bg-surface);
+  color: var(--milan-text-secondary);
+  background: var(--milan-bg-main);
+}
+
+.graph-container :deep(.el-tag.el-tag--primary.is-plain) {
+  border-color: var(--milan-accent-soft);
+  color: var(--milan-accent-deep);
+  background: var(--milan-bg-main);
 }
 </style>
