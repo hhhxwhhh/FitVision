@@ -51,6 +51,22 @@ class VLMAnalysisAPIView(AsyncAPIView):
                 mode=mode
             )
 
+            if mode == 'realtime':
+                motion_metrics = request.data.get('motion_metrics', {})
+                last_score = int(motion_metrics.get('last_score', 100))
+                
+                base_rest_time = int(motion_metrics.get('planned_rest_time', 60))
+                
+                if last_score < 60:
+                    result['adjusted_rest_time'] = base_rest_time + 30  
+                    result['next_set_reps_adjustment'] = -2             
+                elif last_score < 80:
+                    result['adjusted_rest_time'] = base_rest_time + 15 
+                    result['next_set_reps_adjustment'] = -1
+                else:
+                    result['adjusted_rest_time'] = base_rest_time      
+                    result['next_set_reps_adjustment'] = 0
+
             # 如果是诊断模式，自动关联数据库中的动作建议
             if mode == 'diagnosis':
                 targets = result.get('recommended_target_muscles', [])

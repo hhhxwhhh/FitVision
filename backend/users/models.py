@@ -54,6 +54,12 @@ class UserProfile(models.Model):
                 
         super().save(*args, **kwargs)
 
+    @property
+    def goal(self):
+        """获取当前激活的训练目标"""
+        active_goal = self.user.goals.filter(is_active=True).first()
+        return active_goal.goal_type if active_goal else None
+
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
     if created:

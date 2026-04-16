@@ -9,6 +9,7 @@ from .models import UserInteraction, RecommendedExercise, UserState
 from utils.vector_db import VectorDB
 from .model_utils import DLModelManager
 from .gnn_models import KnowledgeGraphGNN
+from exercises.models import UserExerciseRecord
 
 # 高级算法库依赖
 import torch
@@ -514,26 +515,57 @@ class HybridRecommender:
 
         # 3. 结果合并、去重与排序
         seen_ids = set()
-        final_recs = []
+        raw_final_recs = [] 
         
-        # 按照预测分值和权重混合
         for ex, score, algo in rec_sources:
             if ex and ex.id not in seen_ids:
-                # 确保分值合法
                 valid_score = float(score) if not np.isnan(score) else 0.5
-                final_recs.append({
+                raw_final_recs.append({
                     'ex': ex,
                     'score': valid_score,
                     'algorithm': algo
                 })
                 seen_ids.add(ex.id)
-        
-        # 4. 兜底策略：如果召回不足，使用热门冷启动补全
+
+        final_recs = []
+        for item in raw_final_recs:
+            ex = item['ex']
+            prereqs = ex.prerequisites.all()
+            
+            if not prereqs.exists():
+                final_recs.append(item) 
+                continue
+                
+            # 校验前置条件是否全部达到 80 分以上
+            is_unlocked = True
+            for req in prereqs:
+                has_passed = UserExerciseRecord.objects.filter(
+                    user=user,
+                    exercise=req,
+                    accuracy_score__gte=80.0
+                ).exists()
+                
+                if not has_passed:
+                    is_unlocked = False
+                    break 
+                    
+            if is_unlocked:
+                final_recs.append(item)
+
+        # 4. 兜底策略：如果过滤后召回不足，使用热门冷启动补全
         if len(final_recs) < limit:
             remaining = limit - len(final_recs)
-            backups = ColdStartEngine().recommend(user, limit=remaining)
+            backups = ColdStartEngine().recommend(user, limit=remaining * 2) 
+            
             for ex, score in backups:
+                if len(final_recs) >= limit:
+                    break
                 if ex.id not in seen_ids:
+                    prereqs = ex.prerequisites.all()
+                    if prereqs.exists():
+                        if not all(UserExerciseRecord.objects.filter(user=user, exercise=req, accuracy_score__gte=80.0).exists() for req in prereqs):
+                            continue 
+                            
                     final_recs.append({
                         'ex': ex, 
                         'score': score, 

@@ -22,4 +22,6 @@ urlpatterns = [
 
     # AI 计划生成接口
     path('plan/create_smart/', views.generate_smart_plan, name='create-smart-plan'),
+
+    path('pre-workout-analysis/', views.pre_workout_analysis, name='pre_workout_analysis'),
 ]

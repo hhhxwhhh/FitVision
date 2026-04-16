@@ -1,10 +1,12 @@
+import os
+import requests
 import numpy as np
 import random
 from sklearn.metrics.pairwise import cosine_similarity
 from django.db.models import Q
 from users.models import UserProfile
 from training.models import UserTrainingSession
-from exercises.models import Exercise, ExerciseGraph
+from exercises.models import Exercise, ExerciseGraph, UserExerciseRecord
 from utils.vector_db import VectorDB  
 
 class UserSimilarityService:
@@ -135,3 +137,89 @@ class SmartRecommendationService:
                     break
                 
         return plan
+    
+    @staticmethod
+    def verify_manual_selection(user, exercise_ids, pass_score=80.0):
+        """严格校验用户手动选择的动作是否达标"""
+        exercises = Exercise.objects.filter(id__in=exercise_ids)
+        locked_reasons = []
+
+        for ex in exercises:
+            prereqs = ex.prerequisites.all()
+            if not prereqs.exists():
+                continue
+            
+            for req in prereqs:
+                has_passed = UserExerciseRecord.objects.filter(
+                    user=user,
+                    exercise=req,
+                    accuracy_score__gte=pass_score
+                ).exists()
+
+                if not has_passed:
+                    locked_reasons.append(f"【{ex.name}】未解锁：需先以{pass_score}分完成前置【{req.name}】")
+
+        return len(locked_reasons) == 0, locked_reasons
+    
+    @staticmethod
+    def evaluate_plan_difficulty(user, exercise_ids):
+        """调用 AI 评估当前选择的动作组合难度"""
+
+        exercises = Exercise.objects.filter(id__in=exercise_ids)
+        ex_names = [ex.name for ex in exercises]
+        
+        # 提取用户的专属数据，让 AI 评估更精准
+        try:
+            profile = UserProfile.objects.get(user=user)
+            user_info = f"身高: {profile.height}cm, 体重: {profile.weight}kg, 健身等级: {profile.fitness_level}"
+        except UserProfile.DoesNotExist:
+            user_info = "未知（新用户）"
+            
+        # 组装 Prompt
+        prompt = f"""
+        用户目前的身体数据是：{user_info}。
+        用户计划在本次训练中进行以下动作组合：{', '.join(ex_names)}。
+        请评估这个动作组合对该用户是否合理，并给出50字以内的简短建议（例如动作容量、体力分配提醒等）。直接返回文本，不要多余的寒暄。
+        """
+
+        try:
+            api_key = os.environ.get("DEEPSEEK_API_KEY") 
+            
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "model": "deepseek-chat",
+                "messages": [
+                    {"role": "system", "content": "你是一个严谨且专业的AI健身教练。"},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.7, # 稍微降低温度，让回答更稳定专业
+                "max_tokens": 150
+            }
+
+            response = requests.post(
+                "https://api.deepseek.com/chat/completions", 
+                json=payload, 
+                headers=headers, 
+                timeout=10 
+            )
+            response.raise_for_status() # 如果返回 4xx 或 5xx 状态码，直接抛出异常
+            
+            # 解析大模型返回的数据
+            result = response.json()
+            ai_advice = result['choices'][0]['message']['content'].strip()
+            
+        except requests.exceptions.RequestException as e:
+            print(f"DeepSeek 网络请求失败: {e}")
+            ai_advice = "网络开小差了，请根据自身状态合理安排训练节奏哦！"
+        except KeyError as e:
+            print(f"DeepSeek 返回数据解析异常: {e}")
+            ai_advice = "AI 评估暂时不可用，请注意控制各动作的组间休息。"
+        except Exception as e:
+            print(f"未知 AI 评估错误: {e}")
+            ai_advice = "系统繁忙，请量力而行，注意安全。"
+            
+        return ai_advice

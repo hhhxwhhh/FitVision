@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
+from .services import SmartRecommendationService 
 from django.shortcuts import get_object_or_404
 from django.db.models import Sum
 from django.utils import timezone
@@ -56,6 +57,8 @@ def start_training_session(request):
     plan_id = request.data.get('plan_id')
     plan_day_id = request.data.get('plan_day_id')
     
+    exercise_ids = request.data.get('exercise_ids', []) 
+
     try:
         plan = None
         plan_day = None
@@ -65,20 +68,51 @@ def start_training_session(request):
             
         if plan_day_id:
             plan_day = get_object_or_404(TrainingPlanDay, id=plan_day_id)
-            
-            # 如果提供了plan_day但没有提供plan，则从plan_day获取plan
             if not plan:
                 plan = plan_day.plan
-                
-        # 创建训练会话
+
         session = UserTrainingSession.objects.create(
             user=user,
             plan=plan,
             plan_day=plan_day,
             start_time=timezone.now(),
-            total_exercises=plan_day.exercises.count() if plan_day else 0
+            total_exercises=plan_day.exercises.count() if plan_day else len(exercise_ids)
         )
-        
+
+        records_to_create = []
+
+        # 场景 A: 走传统的静态模板路线
+        if plan_day:
+            plan_exercises = TrainingPlanExercise.objects.filter(training_day=plan_day).order_by('order')
+            for pe in plan_exercises:
+                records_to_create.append(
+                    UserTrainingExerciseRecord(
+                        session=session,
+                        plan_exercise=pe,
+                        exercise=pe.exercise,
+                        sets_completed=0,  
+                        form_score=0.0   
+                    )
+                )
+                
+        # 场景 B: 走 AI 推荐的动态散装动作路线
+        elif exercise_ids:
+            exercises = Exercise.objects.filter(id__in=exercise_ids)
+            ex_dict = {ex.id: ex for ex in exercises}
+            for ex_id in exercise_ids:
+                if ex_id in ex_dict:
+                    records_to_create.append(
+                        UserTrainingExerciseRecord(
+                            session=session,
+                            exercise=ex_dict[ex_id],
+                            sets_completed=0,
+                            form_score=0.0
+                        )
+                    )
+
+        if records_to_create:
+            UserTrainingExerciseRecord.objects.bulk_create(records_to_create)
+
         serializer = UserTrainingSessionSerializer(session)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
         
@@ -513,3 +547,35 @@ def generate_smart_plan(request):
     }
 
     return Response(final_response)
+
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def pre_workout_analysis(request):
+    """训练前：校验锁定状态"""
+    user = request.user
+    # 假设前端传过来的是动作 ID 数组，例如 {"exercise_ids": [1, 5, 8]}
+    exercise_ids = request.data.get('exercise_ids', [])
+    
+    if not exercise_ids:
+        return Response({"error": "请提供动作ID"}, status=400)
+
+    # 1. 硬校验：查锁
+    is_allowed, reasons = SmartRecommendationService.verify_manual_selection(user, exercise_ids)
+    
+    if not is_allowed:
+        return Response({
+            "status": "locked",
+            "message": "存在未解锁的动作",
+            "reasons": reasons
+        }, status=403)
+        
+    # 2. 软校验：调用 AI 评估计划难度 (补上这段代码！)
+    ai_advice = SmartRecommendationService.evaluate_plan_difficulty(user, exercise_ids)
+    
+    return Response({
+        "status": "success",
+        "message": "动作均已解锁，可以开始训练！",
+        "ai_advice": ai_advice  # 把大模型的建议传给前端 Vue
+    }, status=200)
