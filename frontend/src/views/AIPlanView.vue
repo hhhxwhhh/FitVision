@@ -131,7 +131,7 @@
     <el-dialog v-model="configDialogVisible" title="定制你的训练计划" width="500px" align-center>
       <el-form label-position="top">
         <el-form-item label="当前目标">
-          <el-radio-group v-model="userConfig.goal" fill="#3b82f6">
+          <el-radio-group v-model="userConfig.goal" :fill="MILAN_COLORS.accent">
             <el-radio-button label="减脂" />
             <el-radio-button label="增肌" />
             <el-radio-button label="力量" />
@@ -255,13 +255,25 @@ const userConfig = reactive({
 const editingItem = ref<ScheduleItem | null>(null)
 const editingIndex = ref(-1)
 
+// 米兰色系（当前页面专用）
+const MILAN_COLORS = {
+  pageBase: '#F5F2ED', // 页面背景 / 主容器底色
+  surface: '#E5E0D8', // 卡片边框 / 弱对比分隔
+  surfaceMid: '#DCCFBE', // 中间态底色 / 轻强调块
+  textPrimary: '#3C2F2F', // 标题 / 主正文
+  textSecondary: '#7D756D', // 注释 / 辅助说明
+  accent: '#BEA47E', // 主按钮 / 选中态
+  accentSoft: '#D5C6B0', // 次级强调 / 中段进度
+  accentDeep: '#9F8462', // 深强调 / 渐变深色端
+}
+
 // 进度条颜色
 const customColors = [
-  { color: '#f56c6c', percentage: 20 },
-  { color: '#e6a23c', percentage: 40 },
-  { color: '#5cb87a', percentage: 60 },
-  { color: '#1989fa', percentage: 80 },
-  { color: '#6f7ad3', percentage: 100 },
+  { color: MILAN_COLORS.surface, percentage: 20 }, // 低进度：浅米灰
+  { color: MILAN_COLORS.surfaceMid, percentage: 40 }, // 低中进度：浅暖米色
+  { color: MILAN_COLORS.accentSoft, percentage: 60 }, // 中进度：柔和金棕
+  { color: MILAN_COLORS.accent, percentage: 80 }, // 高进度：米兰主点缀
+  { color: MILAN_COLORS.accentDeep, percentage: 100 }, // 满进度：深金棕强调
 ]
 
 // --- 逻辑方法 ---
@@ -366,7 +378,24 @@ const showExerciseDetail = (ex: Exercise) => {
 <style scoped>
 /* 页面容器 */
 .plan-page {
+  --milan-bg-main: #F5F2ED; /* 页面主背景 */
+  --milan-bg-surface: #E5E0D8; /* 边框/分隔浅底 */
+  --milan-bg-soft-contrast: #DCCFBE; /* 中间态块背景 */
+  --milan-text-primary: #3C2F2F; /* 主标题/正文 */
+  --milan-text-secondary: #7D756D; /* 辅助说明文字 */
+  --milan-accent: #BEA47E; /* 主操作/选中态 */
+  --milan-accent-soft: #D5C6B0; /* 次级强调 */
+  --milan-accent-deep: #9F8462; /* 深层强调 */
+  --milan-on-accent: #F5F2ED; /* 强调色上的文字 */
+  --milan-shadow-soft: rgba(60, 47, 47, 0.08); /* 常规浮层阴影 */
+  --milan-shadow-medium: rgba(60, 47, 47, 0.14); /* 悬浮态阴影 */
+
+  --text-main: var(--milan-text-primary);
+  --text-secondary: var(--milan-text-secondary);
+
   min-height: calc(100vh - var(--header-height));
+  background: var(--milan-bg-main);
+  color: var(--milan-text-primary);
   padding: 0;
   display: flex;
   justify-content: center;
@@ -376,21 +405,22 @@ const showExerciseDetail = (ex: Exercise) => {
 
 /* 顶部 AI 卡片 */
 .ai-header-card {
-  background: white;
+  background: var(--milan-bg-main);
+  border: 1px solid var(--milan-bg-surface);
   border-radius: 24px;
   padding: 40px;
   display: flex; 
   align-items: center; 
   gap: 30px;
   margin-bottom: 32px;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  box-shadow: 0 4px 6px -1px var(--milan-shadow-soft), 0 2px 4px -2px var(--milan-shadow-soft);
 }
 
 .ai-avatar {
   font-size: 56px;
   position: relative;
   width: 100px; height: 100px;
-  background: var(--el-color-primary-light-9);
+  background: var(--milan-bg-soft-contrast);
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
@@ -398,7 +428,7 @@ const showExerciseDetail = (ex: Exercise) => {
 
 .pulse-ring {
   position: absolute; width: 100%; height: 100%;
-  border-radius: 50%; border: 3px solid var(--el-color-primary);
+  border-radius: 50%; border: 3px solid var(--milan-accent);
   animation: ripple 2s infinite;
 }
 
@@ -407,14 +437,14 @@ const showExerciseDetail = (ex: Exercise) => {
 .ai-greeting p { margin: 0; color: var(--text-secondary); font-size: 16px; line-height: 1.6; }
 /* 高亮样式穿透 */
 .ai-greeting :deep(.highlight-text) { 
-  color: var(--el-color-primary); font-weight: bold; background: var(--el-color-primary-light-9); padding: 0 4px; border-radius: 4px;
+  color: var(--milan-accent-deep); font-weight: bold; background: var(--milan-bg-soft-contrast); padding: 0 4px; border-radius: 4px;
 }
 
 /* 核心网格 */
 .dashboard-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 30px; }
 
 /* 左侧面板 */
-.left-panel { background: white; border-radius: 24px; padding: 24px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); }
+.left-panel { background: var(--milan-bg-main); border-radius: 24px; padding: 24px; border: 1px solid var(--milan-bg-surface); box-shadow: 0 4px 6px -1px var(--milan-shadow-soft); }
 .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .panel-title { font-size: 20px; font-weight: 700; color: var(--text-main); }
 
@@ -423,18 +453,19 @@ const showExerciseDetail = (ex: Exercise) => {
 /* 日程卡片 */
 .schedule-item {
   display: flex; gap: 20px; padding: 24px;
-  border-radius: 16px; background: #f8fafc;
-  border-left: 4px solid #e2e8f0;
+  border-radius: 16px; background: var(--milan-bg-main);
+  border: 1px solid var(--milan-bg-surface);
+  border-left: 4px solid var(--milan-bg-surface);
   transition: all 0.3s ease;
 }
-.schedule-item:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); }
+.schedule-item:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px var(--milan-shadow-medium); }
 
 /* 状态颜色 */
-.schedule-item.training-day { border-left-color: #10b981; }
-.schedule-item.rest-day { border-left-color: #94a3b8; }
+.schedule-item.training-day { border-left-color: var(--milan-accent); }
+.schedule-item.rest-day { border-left-color: var(--milan-text-secondary); }
 .schedule-item.is-today { 
-  border-left-color: var(--el-color-primary); 
-  background: var(--el-color-primary-light-9);
+  border-left-color: var(--milan-accent-deep); 
+  background: var(--milan-bg-soft-contrast);
 }
 
 .day-wrapper { text-align: center; width: 50px; flex-shrink: 0; }
@@ -452,14 +483,14 @@ const showExerciseDetail = (ex: Exercise) => {
 
 .mini-exercise-card {
   display: flex; align-items: center; gap: 12px;
-  background: white; padding: 12px; border-radius: 12px;
-  border: 1px solid #f1f5f9;
+  background: var(--milan-bg-main); padding: 12px; border-radius: 12px;
+  border: 1px solid var(--milan-bg-surface);
   cursor: pointer; transition: all 0.2s;
 }
-.mini-exercise-card:hover { border-color: var(--el-color-primary-light-5); background: var(--el-color-primary-light-9); }
+.mini-exercise-card:hover { border-color: var(--milan-accent-soft); background: var(--milan-bg-soft-contrast); }
 
-.ex-thumb { width: 44px; height: 44px; border-radius: 8px; background: #f1f5f9; }
-.ex-thumb-placeholder { width: 44px; height: 44px; border-radius: 8px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.ex-thumb { width: 44px; height: 44px; border-radius: 8px; background: var(--milan-bg-surface); }
+.ex-thumb-placeholder { width: 44px; height: 44px; border-radius: 8px; background: var(--milan-bg-surface); display: flex; align-items: center; justify-content: center; font-size: 20px; }
 
 .ex-info { display: flex; flex-direction: column; }
 .ex-name { font-size: 14px; font-weight: 600; color: var(--text-main); line-height: 1.2; }
@@ -469,27 +500,27 @@ const showExerciseDetail = (ex: Exercise) => {
 
 /* 右侧建议 */
 .right-panel { display: flex; flex-direction: column; gap: 20px; }
-.suggestion-card { background: white; padding: 24px; border-radius: 20px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); }
+.suggestion-card { background: var(--milan-bg-main); padding: 24px; border-radius: 20px; border: 1px solid var(--milan-bg-surface); box-shadow: 0 4px 6px -1px var(--milan-shadow-soft); }
 .card-icon { font-size: 28px; margin-bottom: 10px; }
 .suggestion-card h3 { margin: 0 0 8px 0; font-size: 18px; font-weight: 700; color: var(--text-main); }
 .suggestion-card p { margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
 
-.goal-progress { background: white; padding: 24px; border-radius: 20px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); }
+.goal-progress { background: var(--milan-bg-main); padding: 24px; border-radius: 20px; border: 1px solid var(--milan-bg-surface); box-shadow: 0 4px 6px -1px var(--milan-shadow-soft); }
 .progress-header { display: flex; justify-content: space-between; margin-bottom: 12px; font-weight: 600; color: var(--text-main); }
 
 /* 编辑弹窗样式 */
 .edit-container { padding: 10px; }
-.edit-header { margin-bottom: 24px; border-bottom: 1px solid #f1f5f9; padding-bottom: 16px; }
+.edit-header { margin-bottom: 24px; border-bottom: 1px solid var(--milan-bg-surface); padding-bottom: 16px; }
 .edit-header h3 { margin: 0; color: var(--text-main); font-size: 20px; }
 .sub-text { margin: 8px 0 0 0; color: var(--text-secondary); font-size: 14px; }
 
 .exercise-edit-list { display: flex; flex-direction: column; gap: 8px; }
 .edit-row {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 16px; background: #f8fafc; border-radius: 12px;
+  padding: 16px; background: var(--milan-bg-main); border-radius: 12px; border: 1px solid var(--milan-bg-surface);
 }
 .row-left { display: flex; align-items: center; gap: 12px; flex: 1; }
-.idx { background: var(--el-color-primary-light-8); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--el-color-primary); font-weight: bold; }
+.idx { background: var(--milan-bg-soft-contrast); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--milan-accent-deep); font-weight: bold; }
 .name { font-weight: 600; color: var(--text-main); }
 
 .row-inputs { display: flex; align-items: center; gap: 8px; }

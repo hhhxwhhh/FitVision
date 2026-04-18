@@ -152,11 +152,21 @@ const goLogin = () => {
 
 <style scoped>
 .register-container {
+  --milan-bg-main: #F5F2ED; /* 页面亮面主色 */
+  --milan-bg-surface: #E5E0D8; /* 边框 / 分隔 */
+  --milan-text-primary: #3C2F2F; /* 主标题 / 正文 */
+  --milan-text-secondary: #7D756D; /* 辅助文字 */
+  --milan-accent: #BEA47E; /* 主按钮 / 交互强调 */
+  --milan-accent-soft: #D5C6B0; /* 次级高亮 */
+  --milan-accent-deep: #9F8462; /* 深强调 */
+  --milan-overlay: rgba(245, 242, 237, 0.08); /* 玻璃蒙层 */
+  --milan-overlay-strong: rgba(60, 47, 47, 0.2); /* 输入框深底 */
+
   min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: radial-gradient(circle at top right, #0ea5e9, #0f172a);
+  background: radial-gradient(circle at top right, #CDB99A, #4C403A);
   background-size: cover;
   position: relative;
   overflow: hidden;
@@ -169,7 +179,7 @@ const goLogin = () => {
   right: -12%;
   width: 50%;
   height: 50%;
-  background: radial-gradient(circle, rgba(14, 165, 233, 0.18) 0%, rgba(0, 0, 0, 0) 70%);
+  background: radial-gradient(circle, rgba(245, 242, 237, 0.2) 0%, rgba(0, 0, 0, 0) 70%);
   border-radius: 50%;
   z-index: 1;
 }
@@ -181,7 +191,7 @@ const goLogin = () => {
   left: -10%;
   width: 60%;
   height: 60%;
-  background: radial-gradient(circle, rgba(34, 197, 94, 0.12) 0%, rgba(0, 0, 0, 0) 70%);
+  background: radial-gradient(circle, rgba(190, 164, 126, 0.22) 0%, rgba(0, 0, 0, 0) 70%);
   border-radius: 50%;
   z-index: 1;
 }
@@ -200,7 +210,7 @@ const goLogin = () => {
 .brand-section {
   text-align: center;
   margin-bottom: 30px;
-  color: white;
+  color: var(--milan-bg-main);
 }
 
 .brand-section h1 {
@@ -208,7 +218,7 @@ const goLogin = () => {
   font-weight: 800;
   margin: 0;
   letter-spacing: -1px;
-  background: linear-gradient(135deg, #ffffff 0%, #bae6fd 100%);
+  background: linear-gradient(135deg, #F5F2ED 0%, #E5E0D8 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -216,18 +226,18 @@ const goLogin = () => {
 .brand-slogan {
   margin-top: 8px;
   font-size: 16px;
-  color: #cbd5f5;
+  color: #E5E0D8;
   font-weight: 300;
 }
 
 .register-card {
   width: 100%;
   border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(229, 224, 216, 0.35);
+  background: var(--milan-overlay) !important;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+  box-shadow: 0 25px 50px -12px rgba(60, 47, 47, 0.45) !important;
 }
 
 .register-card :deep(.el-card__body) {
@@ -236,28 +246,28 @@ const goLogin = () => {
 
 .form-title {
   text-align: center;
-  color: #fff;
+  color: var(--milan-bg-main);
   margin: 0 0 24px 0;
   font-size: 20px;
   font-weight: 600;
 }
 
 .register-form :deep(.el-form-item__label) {
-  color: #cbd5e1;
+  color: #E5E0D8;
 }
 
 .register-form :deep(.el-input__wrapper) {
-  background-color: rgba(0, 0, 0, 0.2);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
-  color: white;
+  background-color: var(--milan-overlay-strong);
+  box-shadow: 0 0 0 1px rgba(229, 224, 216, 0.2) inset;
+  color: var(--milan-bg-main);
 }
 
 .register-form :deep(.el-input__inner) {
-  color: white;
+  color: var(--milan-bg-main);
 }
 
 .register-form :deep(.el-input__inner::placeholder) {
-  color: #64748b;
+  color: #B7ADA2;
 }
 
 .action-buttons {
@@ -275,7 +285,7 @@ const goLogin = () => {
 }
 
 .shadow-btn {
-  box-shadow: 0 4px 6px -1px rgba(14, 165, 233, 0.35), 0 2px 4px -1px rgba(14, 165, 233, 0.1);
+  box-shadow: 0 4px 6px -1px rgba(190, 164, 126, 0.35), 0 2px 4px -1px rgba(190, 164, 126, 0.18);
 }
 
 .mt-4 {
@@ -289,14 +299,33 @@ const goLogin = () => {
 }
 
 .footer-text {
-  color: #94a3b8;
+  color: #E5E0D8;
   margin-right: 4px;
 }
 
 .footer-copyright {
   margin-top: 40px;
-  color: #475569;
+  color: #D5C6B0;
   font-size: 12px;
+}
+
+.register-container :deep(.el-button--primary) {
+  --el-button-bg-color: var(--milan-accent);
+  --el-button-border-color: var(--milan-accent);
+  --el-button-hover-bg-color: var(--milan-accent-deep);
+  --el-button-hover-border-color: var(--milan-accent-deep);
+  --el-button-active-bg-color: var(--milan-accent-deep);
+  --el-button-active-border-color: var(--milan-accent-deep);
+  --el-button-text-color: var(--milan-bg-main);
+}
+
+.register-container :deep(.el-link.el-link--primary) {
+  --el-link-text-color: #F5F2ED;
+  --el-link-hover-text-color: var(--milan-accent-soft);
+}
+
+.register-container :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px var(--milan-accent-soft) inset !important;
 }
 
 @keyframes fadeInUp {

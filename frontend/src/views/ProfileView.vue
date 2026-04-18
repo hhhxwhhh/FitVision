@@ -330,6 +330,26 @@ const stats = reactive({
   best_accuracy_score: 0,
 })
 
+// 米兰色系（当前页面专用）
+const MILAN_COLORS = {
+  pageBase: '#F5F2ED', // 页面背景 / 卡片底色
+  surface: '#E5E0D8', // 边框 / 分隔
+  surfaceSoft: '#EFE8DD', // 弱强调背景
+  textPrimary: '#3C2F2F', // 标题 / 主文本
+  textSecondary: '#7D756D', // 辅助文字
+  accent: '#BEA47E', // 主强调
+  accentSoft: '#D5C6B0', // 次强调
+  accentDeep: '#9F8462', // 深强调
+}
+
+const HEATMAP_COLORS = [
+  '#E5E0D8', // level 0
+  '#DCCFBE', // level 1
+  '#D5C6B0', // level 2
+  '#BEA47E', // level 3
+  '#9F8462', // level 4
+]
+
 const heatmapData = ref<any[]>([])
 
 const heatmapOption = computed(() => {
@@ -351,11 +371,11 @@ const heatmapOption = computed(() => {
       top: 0,
       show: false,
       pieces: [
-        { min: 0, max: 0, color: '#ebedf0' },
-        { min: 1, max: 150, color: '#c6e48b' },
-        { min: 151, max: 300, color: '#7bc96f' },
-        { min: 301, max: 450, color: '#239a3b' },
-        { min: 451, color: '#196127' }
+        { min: 0, max: 0, color: HEATMAP_COLORS[0] },
+        { min: 1, max: 150, color: HEATMAP_COLORS[1] },
+        { min: 151, max: 300, color: HEATMAP_COLORS[2] },
+        { min: 301, max: 450, color: HEATMAP_COLORS[3] },
+        { min: 451, color: HEATMAP_COLORS[4] }
       ]
     },
     calendar: {
@@ -366,11 +386,11 @@ const heatmapOption = computed(() => {
       range: currentYear,
       itemStyle: {
         borderWidth: 0.5,
-        borderColor: '#fff'
+        borderColor: MILAN_COLORS.pageBase
       },
       yearLabel: { show: false },
-      dayLabel: { firstDay: 1, nameMap: 'cn', color: '#94a3b8', fontSize: 10 },
-      monthLabel: { nameMap: 'cn', color: '#94a3b8', fontSize: 10 }
+      dayLabel: { firstDay: 1, nameMap: 'cn', color: MILAN_COLORS.textSecondary, fontSize: 10 },
+      monthLabel: { nameMap: 'cn', color: MILAN_COLORS.textSecondary, fontSize: 10 }
     },
     series: {
       type: 'heatmap',
@@ -393,12 +413,12 @@ const radarOption = computed(() => {
       shape: 'polygon',
       splitNumber: 5,
       axisName: {
-        color: '#94a3b8',
+        color: MILAN_COLORS.textSecondary,
         fontSize: 10
       },
       splitLine: {
         lineStyle: {
-          color: 'rgba(148, 163, 184, 0.1)'
+          color: 'rgba(125, 117, 109, 0.18)'
         }
       },
       splitArea: {
@@ -406,7 +426,7 @@ const radarOption = computed(() => {
       },
       axisLine: {
         lineStyle: {
-          color: 'rgba(148, 163, 184, 0.1)'
+          color: 'rgba(125, 117, 109, 0.18)'
         }
       }
     },
@@ -426,14 +446,14 @@ const radarOption = computed(() => {
             name: '当前表现',
             symbol: 'none',
             itemStyle: {
-              color: '#3b82f6'
+              color: MILAN_COLORS.accent
             },
             areaStyle: {
-              color: 'rgba(59, 130, 246, 0.2)'
+              color: 'rgba(190, 164, 126, 0.28)'
             },
             lineStyle: {
                 width: 2,
-                color: '#3b82f6'
+                color: MILAN_COLORS.accentDeep
             }
           }
         ]
@@ -507,10 +527,10 @@ const getBMIType = (bmi: number) => {
 }
 
 const getBMIColor = (bmi: number) => {
-  if (bmi < 18.5) return '#e6a23c'
-  if (bmi < 24) return '#67c23a'
-  if (bmi < 28) return '#e6a23c'
-  return '#f56c6c'
+  if (bmi < 18.5) return MILAN_COLORS.accent
+  if (bmi < 24) return MILAN_COLORS.accentDeep
+  if (bmi < 28) return MILAN_COLORS.accent
+  return MILAN_COLORS.textSecondary
 }
 
 const getBMIText = (bmi: number) => {
@@ -654,9 +674,21 @@ const handleLogout = () => {
 
 <style scoped>
 .page-container {
+  --milan-bg-main: #F5F2ED; /* 页面主背景 / 卡片底色 */
+  --milan-bg-surface: #E5E0D8; /* 边框 / 分隔 */
+  --milan-bg-soft: #EFE8DD; /* 弱强调背景 */
+  --milan-text-primary: #3C2F2F; /* 主标题 / 主文本 */
+  --milan-text-secondary: #7D756D; /* 辅助说明文字 */
+  --milan-accent: #BEA47E; /* 主交互强调 */
+  --milan-accent-soft: #D5C6B0; /* 次级强调 */
+  --milan-accent-deep: #9F8462; /* 深层强调 */
+  --milan-shadow-soft: rgba(60, 47, 47, 0.08); /* 常规阴影 */
+
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px 20px 60px;
+  background: var(--milan-bg-main);
+  color: var(--milan-text-primary);
 }
 
 /* Hero Section */
@@ -664,10 +696,11 @@ const handleLogout = () => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: white;
+    background: var(--milan-bg-main);
+    border: 1px solid var(--milan-bg-surface);
     padding: 32px;
     border-radius: 20px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 4px 20px var(--milan-shadow-soft);
     margin-bottom: 24px;
 }
 
@@ -692,11 +725,11 @@ const handleLogout = () => {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(60, 47, 47, 0.4);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: var(--milan-bg-main);
     font-size: 20px;
     opacity: 0;
     transition: opacity 0.3s;
@@ -711,23 +744,23 @@ const handleLogout = () => {
 }
 
 .hero-avatar {
-    background-color: #f1f5f9;
-    color: #64748b;
-    border: 4px solid #fff;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background-color: var(--milan-bg-soft);
+  color: var(--milan-text-secondary);
+  border: 4px solid var(--milan-bg-main);
+  box-shadow: 0 4px 12px var(--milan-shadow-soft);
 }
 
 .username-display {
     margin: 0;
     font-size: 28px;
     font-weight: 700;
-    color: #1e293b;
+    color: var(--milan-text-primary);
 }
 
 .account-id {
     margin: 4px 0 12px;
     font-size: 14px;
-    color: #94a3b8;
+    color: var(--milan-text-secondary);
 }
 
 .account-badges {
@@ -744,13 +777,14 @@ const handleLogout = () => {
 }
 
 .stat-card {
-    background: white;
+  background: var(--milan-bg-main);
+  border: 1px solid var(--milan-bg-surface);
     padding: 20px;
     border-radius: 16px;
     display: flex;
     align-items: center;
     gap: 16px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.03);
+    box-shadow: 0 2px 12px var(--milan-shadow-soft);
     transition: transform 0.2s;
 }
 
@@ -768,9 +802,9 @@ const handleLogout = () => {
     font-size: 24px;
 }
 
-.stat-icon.purple { background: #f3e8ff; color: #a855f7; }
-.stat-icon.orange { background: #ffedd5; color: #f97316; }
-.stat-icon.blue { background: #e0f2fe; color: #0ea5e9; }
+.stat-icon.purple { background: var(--milan-bg-soft); color: var(--milan-accent-deep); }
+.stat-icon.orange { background: var(--milan-accent-soft); color: var(--milan-accent-deep); }
+.stat-icon.blue { background: var(--milan-bg-surface); color: var(--milan-accent); }
 
 .stat-content {
     display: flex;
@@ -779,7 +813,7 @@ const handleLogout = () => {
 
 .stat-label {
     font-size: 13px;
-    color: #94a3b8;
+  color: var(--milan-text-secondary);
 }
 
 .stat-value-box {
@@ -791,24 +825,24 @@ const handleLogout = () => {
 .stat-value {
     font-size: 24px;
     font-weight: 700;
-    color: #1e293b;
+  color: var(--milan-text-primary);
 }
 
 .stat-unit {
     font-size: 12px;
-    color: #94a3b8;
+  color: var(--milan-text-secondary);
 }
 
 .profile-card {
   border-radius: 20px;
-  border: none;
+  border: 1px solid var(--milan-bg-surface);
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 20px var(--milan-shadow-soft);
 }
 
 .card-title-bar {
     padding-bottom: 24px;
-    border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--milan-bg-surface);
     margin-bottom: 24px;
 }
 
@@ -816,11 +850,11 @@ const handleLogout = () => {
     margin: 0;
     font-size: 20px;
     font-weight: 700;
-    color: #1e293b;
+    color: var(--milan-text-primary);
 }
 
 .card-title-bar small {
-    color: #94a3b8;
+    color: var(--milan-text-secondary);
     font-size: 13px;
 }
 
@@ -833,11 +867,11 @@ const handleLogout = () => {
 .form-section-header {
     font-size: 14px;
     font-weight: 600;
-    color: var(--el-color-primary);
+  color: var(--milan-accent-deep);
     margin: 24px 0 16px;
     padding-left: 12px;
-    border-left: 4px solid var(--el-color-primary);
-    background: rgba(var(--el-color-primary-rgb), 0.05);
+  border-left: 4px solid var(--milan-accent);
+  background: var(--milan-bg-soft);
     line-height: 2;
 }
 
@@ -853,7 +887,7 @@ const handleLogout = () => {
 
 .option-desc {
     font-size: 12px;
-    color: #909399;
+  color: var(--milan-text-secondary);
     line-height: 1.2;
 }
 
@@ -897,15 +931,15 @@ const handleLogout = () => {
 }
 
 .logout-btn {
-    border: 1px solid #e2e8f0;
-    color: #64748b;
+  border: 1px solid var(--milan-bg-surface);
+  color: var(--milan-text-secondary);
     font-weight: 500;
 }
 
 .logout-btn:hover {
-    background-color: #fef2f2;
-    color: #ef4444;
-    border-color: #fee2e2;
+  background-color: var(--milan-bg-soft);
+  color: var(--milan-accent-deep);
+  border-color: var(--milan-accent-soft);
 }
 
 .save-btn {
@@ -913,18 +947,18 @@ const handleLogout = () => {
 }
 
 .shadow-btn {
-    box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 4px 6px -1px rgba(190, 164, 126, 0.36);
 }
 
 /* Right Col Metrics */
 .metrics-card {
-   background: white; 
-   color: #1e293b;
-   border: none;
+  background: var(--milan-bg-main);
+  color: var(--milan-text-primary);
+  border: 1px solid var(--milan-bg-surface);
    border-radius: 20px;
    position: sticky;
    top: 24px;
-   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 20px var(--milan-shadow-soft);
 }
 
 .metrics-header {
@@ -938,12 +972,12 @@ const handleLogout = () => {
     margin: 0;
     font-size: 18px;
     font-weight: 700;
-    color: #1e293b;
+    color: var(--milan-text-primary);
 }
 
 .last-update {
     font-size: 11px;
-    color: #94a3b8;
+  color: var(--milan-text-secondary);
     display: block;
     margin-top: 4px;
 }
@@ -953,15 +987,15 @@ const handleLogout = () => {
 }
 
 .highlight-metric {
-    background: #f8fafc;
+  background: var(--milan-bg-soft);
     padding: 16px;
     border-radius: 12px;
-    border-left: 4px solid #60a5fa;
+    border-left: 4px solid var(--milan-accent);
 }
 
 .metric-label {
     font-size: 13px;
-    color: #64748b;
+  color: var(--milan-text-secondary);
     margin-bottom: 8px;
     display: block;
 }
@@ -976,17 +1010,17 @@ const handleLogout = () => {
 .metric-value {
     font-size: 32px;
     font-weight: 700;
-    color: #1e293b;
+  color: var(--milan-text-primary);
     line-height: 1;
 }
 
 .metric-value.colored {
-    color: #3b82f6;
+  color: var(--milan-accent-deep);
 }
 
 .metric-value .unit {
     font-size: 14px;
-    color: #94a3b8;
+  color: var(--milan-text-secondary);
     font-weight: 400;
     margin-left: 4px;
 }
@@ -995,20 +1029,20 @@ const handleLogout = () => {
     font-size: 12px;
     padding: 2px 8px;
     border-radius: 4px;
-    background: #f0fdf4;
-    color: #16a34a;
+    background: var(--milan-accent-soft);
+    color: var(--milan-accent-deep);
 }
 
 .metric-desc {
     font-size: 12px;
-    color: #64748b;
+  color: var(--milan-text-secondary);
     margin-top: 10px;
     line-height: 1.6;
 }
 
 .metric-divider {
     height: 1px;
-    background: #f1f5f9;
+  background: var(--milan-bg-surface);
     margin: 20px 0;
 }
 
@@ -1019,7 +1053,7 @@ const handleLogout = () => {
 }
 
 .data-badge {
-    background: #f1f5f9;
+  background: var(--milan-bg-soft);
     padding: 8px 12px;
     border-radius: 8px;
     display: flex;
@@ -1029,7 +1063,7 @@ const handleLogout = () => {
 
 .badge-text {
     font-size: 13px;
-    color: #475569;
+  color: var(--milan-text-secondary);
 }
 
 .mt-2 {
@@ -1043,9 +1077,9 @@ const handleLogout = () => {
 /* Heatmap Section */
 .heatmap-card {
     border-radius: 20px;
-    border: none;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-    background: white;
+  border: 1px solid var(--milan-bg-surface);
+  box-shadow: 0 4px 20px var(--milan-shadow-soft);
+  background: var(--milan-bg-main);
 }
 
 .heatmap-card :deep(.el-card__body) {
@@ -1064,7 +1098,7 @@ const handleLogout = () => {
     align-items: center;
     gap: 8px;
     font-size: 12px;
-    color: #94a3b8;
+    color: var(--milan-text-secondary);
 }
 
 .legend-scale {
@@ -1078,11 +1112,11 @@ const handleLogout = () => {
     border-radius: 2px;
 }
 
-.scale-item.level-0 { background: #ebedf0; }
-.scale-item.level-1 { background: #c6e48b; }
-.scale-item.level-2 { background: #7bc96f; }
-.scale-item.level-3 { background: #239a3b; }
-.scale-item.level-4 { background: #196127; }
+.scale-item.level-0 { background: #E5E0D8; }
+.scale-item.level-1 { background: #DCCFBE; }
+.scale-item.level-2 { background: #D5C6B0; }
+.scale-item.level-3 { background: #BEA47E; }
+.scale-item.level-4 { background: #9F8462; }
 
 .heatmap-container {
     height: 200px;
@@ -1101,8 +1135,8 @@ const handleLogout = () => {
 /* Radar Section */
 .radar-card {
     border-radius: 20px;
-    border: none;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--milan-bg-surface);
+  box-shadow: 0 4px 20px var(--milan-shadow-soft);
 }
 
 .radar-card :deep(.el-card__body) {
@@ -1128,15 +1162,55 @@ const handleLogout = () => {
 }
 
 .styled-textarea :deep(.el-textarea__inner) {
-    background-color: #f8fafc;
-    border: 1px solid #e2e8f0;
+  background-color: var(--milan-bg-soft);
+  border: 1px solid var(--milan-bg-surface);
     padding: 12px;
     font-size: 14px;
     line-height: 1.6;
 }
 
 .styled-textarea :deep(.el-textarea__inner:focus) {
-    background-color: white;
+    background-color: var(--milan-bg-main);
+}
+
+.page-container :deep(.el-button--primary) {
+  --el-button-bg-color: var(--milan-accent);
+  --el-button-border-color: var(--milan-accent);
+  --el-button-hover-bg-color: var(--milan-accent-deep);
+  --el-button-hover-border-color: var(--milan-accent-deep);
+  --el-button-active-bg-color: var(--milan-accent-deep);
+  --el-button-active-border-color: var(--milan-accent-deep);
+  --el-button-text-color: var(--milan-bg-main);
+}
+
+.page-container :deep(.el-input__wrapper),
+.page-container :deep(.el-select__wrapper),
+.page-container :deep(.el-input-number__wrapper) {
+  background: var(--milan-bg-main);
+  box-shadow: 0 0 0 1px var(--milan-bg-surface) inset;
+}
+
+.page-container :deep(.el-input__wrapper.is-focus),
+.page-container :deep(.el-select__wrapper.is-focused),
+.page-container :deep(.el-input-number__wrapper:focus-within) {
+  box-shadow: 0 0 0 1px var(--milan-accent-soft) inset;
+}
+
+.page-container :deep(.el-radio-button__inner) {
+  border-color: var(--milan-bg-surface);
+  color: var(--milan-text-secondary);
+  background: var(--milan-bg-main);
+}
+
+.page-container :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: var(--milan-accent);
+  border-color: var(--milan-accent);
+  color: var(--milan-bg-main);
+  box-shadow: -1px 0 0 0 var(--milan-accent);
+}
+
+.page-container :deep(.el-card) {
+  background: var(--milan-bg-main);
 }
 
 @media (min-width: 992px) {
