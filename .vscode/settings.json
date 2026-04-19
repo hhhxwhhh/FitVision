@@ -1,0 +1,7 @@
+{
+    "python.defaultInterpreterPath": "E:\\111\\python.exe",
+    "python.terminal.activateEnvInCurrentTerminal": true,
+    "python.analysis.extraPaths": [
+        "./backend"
+    ]
+}
