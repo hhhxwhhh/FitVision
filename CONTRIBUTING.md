@@ -31,6 +31,22 @@ cp .env.docker.example .env
 docker compose up --build
 ```
 
+## 快捷命令
+
+仓库根目录提供 `Makefile`（Git Bash / macOS / Linux / WSL）：
+
+```bash
+make install     # 安装前后端依赖
+make migrate     # 数据库迁移
+make seed        # 导入示例动作与训练数据
+make backend     # 启动 Django
+make frontend    # 启动 Vite
+make test        # 后端测试 + 前端 lint/类型检查
+make docker-up   # Docker Compose 一键启动
+```
+
+运行 `make help` 可查看全部命令；Windows 下没有 `make` 时可直接执行命令本身。
+
 ## 分支与提交
 
 - 从 `main` 创建分支：`feat/xxx`、`fix/xxx`、`docs/xxx`、`refactor/xxx`。
