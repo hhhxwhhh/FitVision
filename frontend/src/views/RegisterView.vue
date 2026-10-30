@@ -60,7 +60,7 @@
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import axios from 'axios'
+import apiClient from '../api'
 import { useRouter } from 'vue-router'
 import { User, Lock } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -104,8 +104,6 @@ const message = ref('')
 const msgType = ref<'success' | 'error' | 'info' | 'warning'>('info')
 const loading = ref(false)
 
-const API_BASE = 'http://127.0.0.1:8000/api/auth'
-
 const handleRegister = async () => {
   if (!formRef.value) return
 
@@ -115,7 +113,7 @@ const handleRegister = async () => {
   loading.value = true
   message.value = ''
   try {
-    await axios.post(`${API_BASE}/register/`, {
+    await apiClient.post('/auth/register/', {
       username: form.username,
       password: form.password,
       password_confirm: form.passwordConfirm
@@ -123,7 +121,7 @@ const handleRegister = async () => {
     message.value = '注册成功，正在登录...'
     msgType.value = 'success'
 
-    const loginRes = await axios.post(`${API_BASE}/login/`, {
+    const loginRes = await apiClient.post('/auth/login/', {
       username: form.username,
       password: form.password
     })

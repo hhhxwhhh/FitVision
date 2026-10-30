@@ -431,7 +431,7 @@ import { reactive, ref, watch, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { VideoCamera, InfoFilled, Trophy, Edit, MagicStick, Compass } from '@element-plus/icons-vue'
-import apiClient from '../api'
+import apiClient, { resolveMediaUrl } from '../api'
 import PosePreview from '../components/ai/PosePreview.vue'
 import NextExerciseRecommendation from '../components/NextExerciseRecommendation.vue'
 import { ArrowRight, View, Sort } from '@element-plus/icons-vue'
@@ -474,11 +474,7 @@ const selectedExerciseName = ref('')
 const completedExerciseIds = ref<Set<string>>(new Set())
 const sessionRecords = ref<any[]>([])
 
-const getFullGifUrl = (path: string | null) => {
-    if (!path) return '';
-    if (path.startsWith('http')) return path;
-    return `http://127.0.0.1:8000${path}`;
-}
+const getFullGifUrl = (path: string | null) => resolveMediaUrl(path)
 
 const handleAiReps = (count: number) => {
     recordForm.reps_completed = String(count);
@@ -835,15 +831,7 @@ const fillRecordFromPlanExercise = (item: any) => {
     // 1. 预览与图片逻辑 (保持不变)
     selectedExerciseName.value = item.exercise_name || '';
 
-    if (item.demo_gif) {
-        if (!item.demo_gif.startsWith('http')) {
-            currentGifUrl.value = `http://127.0.0.1:8000${item.demo_gif}`;
-        } else {
-            currentGifUrl.value = item.demo_gif;
-        }
-    } else {
-        currentGifUrl.value = '';
-    }
+    currentGifUrl.value = resolveMediaUrl(item.demo_gif)
 
     // 2. 表单初始化 (🔥 修改核心)
     // 记录 ID 方便后端处理，但界面上不显示了

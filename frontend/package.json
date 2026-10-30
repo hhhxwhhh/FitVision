@@ -1,12 +1,26 @@
 {
-  "name": "frontend",
+  "name": "fitvision-frontend",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Vue 3 web client for FitVision, an AI-powered fitness coach.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hhhxwhhh/FitVision.git"
+  },
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "type-check": "vue-tsc -b",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"src/**/*.{ts,vue,css}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,vue,css}\""
   },
   "dependencies": {
     "@mediapipe/camera_utils": "^0.3.1675466862",
@@ -26,6 +40,7 @@
     "vuelidate": "^0.7.7"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.1",
     "@types/node": "^24.10.1",
     "@typescript-eslint/eslint-plugin": "^8.48.0",
     "@typescript-eslint/parser": "^8.48.0",
@@ -33,8 +48,7 @@
     "@vue/tsconfig": "^0.8.1",
     "eslint": "^9.39.1",
     "eslint-plugin-vue": "^10.6.0",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.2.7",
+    "globals": "^14.0.0",
     "prettier": "^3.6.2",
     "typescript": "~5.9.3",
     "vite": "^7.2.4",

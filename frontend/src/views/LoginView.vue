@@ -52,7 +52,7 @@
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import axios from 'axios'
+import apiClient from '../api'
 import { useRouter } from 'vue-router'
 import { User, Lock } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -82,8 +82,6 @@ const loading = reactive({
   login: false
 })
 
-const API_BASE = 'http://127.0.0.1:8000/api/auth'
-
 const handleLogin = async () => {
   if (!formRef.value) return
 
@@ -93,7 +91,7 @@ const handleLogin = async () => {
   loading.login = true
   message.value = ''
   try {
-    const res = await axios.post(`${API_BASE}/login/`, form)
+    const res = await apiClient.post('/auth/login/', form)
 
     localStorage.setItem('jwt_token', res.data.access)
     localStorage.setItem('username', res.data.username)
