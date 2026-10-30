@@ -1,173 +1,173 @@
-# FitVision 项目运行指南 (Project Operation Guide)
+# 本地运行指南
 
-本文档旨在指导开发人员如何在本地环境中搭建并运行 FitVision 前后端项目。
+本指南介绍如何从零运行 FitVision。推荐使用 **Docker Compose** 一键启动；
+需要调试 AI / 推荐代码时使用本地开发模式。
 
-## 📋 环境准备 (Environment Preparation)
+---
 
-在运行 FitVision 项目之前，请按照以下步骤安装并验证必要的开发环境。
+## 1. 环境要求
 
-### 1. Node.js (前端运行环境)
+| 工具 | 版本 | 用途 |
+| --- | --- | --- |
+| Python | 3.12（≥ 3.10） | 后端 |
+| Node.js | ≥ 20.19（推荐 22 LTS） | 前端 |
+| Git | 任意较新版本 | 版本控制 |
+| Docker + Compose | 可选 | 一键部署 |
+| PostgreSQL 16 | 可选 | 默认使用 SQLite |
+| Redis 7 | 可选 | 默认使用 LocMem 缓存 |
 
-*   **要求**: Node.js 版本需 >= 16.0 (推荐使用 LTS 版本，如 v18.x 或 v20.x)。
-*   **安装**:
-    *   访问 [Node.js 官网](https://nodejs.org/) 下载并安装 Windows 版本 (推荐下载 LTS 版本)。
-    *   安装过程中一路点击 "Next" 即可。
-*   **验证**:
-    打开 PowerShell 或 CMD，运行以下命令：
-    ```bash
-    node -v
-    # 输出示例: v18.17.0 (只要大于 v16.0.0 即可)
+> 未安装 PostgreSQL / Redis 时项目依然可以完整启动：
+> 后端会自动回退到 SQLite 与进程内缓存。
 
-    npm -v
-    # 输出示例: 9.6.7
-    ```
+---
 
-### 2. Python (后端运行环境)
+## 2. 方式一：Docker Compose（推荐）
 
-*   **要求**: Python 版本需 >= 3.9。
-*   **安装**:
-    *   访问 [Python 官网](https://www.python.org/downloads/) 下载最新的 Python 3.x 安装包。
-    *   **重要**: 安装时务必勾选 **"Add Python to PATH"** (将 Python 添加到环境变量)。
-*   **验证**:
-    ```bash
-    python --version
-    # 输出示例: Python 3.11.4
-    
-    pip --version
-    # 输出示例: pip 23.1.2 from ...
-    ```
-
-### 3. Git (版本控制工具)
-
-*   **要求**: 任意较新版本。
-*   **安装**:
-    *   访问 [Git 官网](https://git-scm.com/download/win) 下载 Windows 安装程序。
-    *   安装过程中推荐选择 "Git from the command line and also from 3rd-party software"。
-*   **验证**:
-    ```bash
-    git --version
-    # 输出示例: git version 2.41.0.windows.1
-    ```
-
-### 4. PostgreSQL (数据库 - 可选)
-
-*   **说明**: 本项目默认配置为使用 SQLite (无需安装，开箱即用)，适合开发和测试。如果您希望使用 PostgreSQL：
-*   **安装**:
-    *   访问 [PostgreSQL 官网](https://www.postgresql.org/download/windows/) 下载并安装。
-    *   记录下安装时设置的 `postgres` 超级用户密码。
-*   **验证**:
-    ```bash
-    psql --version
-    # 输出示例: psql (PostgreSQL) 15.3
-    ```
-
-## 🚀 后端启动流程 (Backend Setup)
-
-后端基于 Django，位于 `FitVision/backend` 目录。
-
-### 1. 进入后端目录
 ```bash
-cd d:\code\forvue\FitVision\backend
+cp .env.docker.example .env
+# 至少修改 SECRET_KEY 与 DB_PASSWORD
+docker compose up --build
 ```
 
-### 2. 创建并激活虚拟环境 (推荐)
-```bash
-# Windows
-python -m venv venv
-.\venv\Scripts\activate
+启动后：
 
-# macOS/Linux
-python3 -m venv venv
-source venv/bin/activate
+- 前端：http://localhost:8080
+- 后端 API：http://localhost:8000/api/
+- Swagger：http://localhost:8000/api/docs/
+- 健康检查：http://localhost:8000/api/health/
+
+常用命令：
+
+```bash
+docker compose logs -f backend     # 查看后端日志
+docker compose exec backend python manage.py createsuperuser
+docker compose exec backend python manage.py loaddata exercises/fixtures/data.json
+docker compose down                # 停止
+docker compose down -v             # 停止并删除数据卷
 ```
 
-### 3. 安装依赖
+---
+
+## 3. 方式二：本地开发
+
+### 3.1 后端
+
 ```bash
-pip install -r requirements.txt
+cd backend
+
+python -m venv .venv
+# Windows (PowerShell): .venv\Scripts\Activate.ps1
+# Windows (Git Bash):   source .venv/Scripts/activate
+# macOS / Linux:        source .venv/bin/activate
+
+pip install -r requirements-dev.txt
 ```
 
-### 4. 配置环境变量
-在 `backend` 目录下创建 `.env` 文件，并添加以下配置 (根据实际情况修改)：
+配置环境变量（**可跳过**，默认 SQLite + LocMem）：
+
+```bash
+cp .env.example .env
+```
+
+`backend/.env` 中与本地开发最相关的几项：
 
 ```ini
-# 数据库配置 (默认使用 SQLite，可跳过)
+DEBUG=True
+SECRET_KEY=dev-only-change-me
+
+# 不填 DB_* 则使用 SQLite
 # DB_NAME=fitvision
 # DB_USER=postgres
-# DB_PASSWORD=your_password
-# DB_HOST=localhost
+# DB_PASSWORD=postgres
+# DB_HOST=127.0.0.1
 # DB_PORT=5432
 
-# VLM 视觉大模型配置 (必填，否则无法使用 AI 诊断)
-CN_VLM_API_KEY=your_api_key_here
+# 默认 locmem；需要 Redis 时改为 redis
+CACHE_BACKEND=locmem
+REDIS_URL=redis://127.0.0.1:6379/0
+
+# AI 能力（可选）
+CN_VLM_API_KEY=
 CN_VLM_MODEL=doubao-1.5-vision-pro-250328
 CN_VLM_BASE_URL=https://openkey.cloud/v1
-
-# Django 密钥 (生产环境请修改)
-SECRET_KEY=django-insecure-your-secret-key
-DEBUG=True
+DEEPSEEK_API_KEY=
 ```
 
-### 5. 数据库迁移
-初始化数据库表结构。
+初始化数据库并导入示例数据：
+
 ```bash
 python manage.py migrate
-```
-
-### 6. 导入初始数据 (可选)
-如果项目包含预设的动作库数据，可以通过以下命令导入：
-```bash
-# 假设存在 fixtures 数据
-python manage.py loaddata exercises/fixtures/data.json
-```
-
-### 7. 启动服务器
-```bash
+python manage.py loaddata exercises/fixtures/data.json   # 动作库
+python manage.py loaddata training/fixtures/seed.json    # 训练种子数据（可选）
+python manage.py createsuperuser                         # 按需
 python manage.py runserver
 ```
-后端服务将运行在 `http://127.0.0.1:8000/`。
-*   API 文档地址: `http://127.0.0.1:8000/api/docs/`
 
----
+后端运行在 http://127.0.0.1:8000 。
 
-## 🎨 前端启动流程 (Frontend Setup)
+### 3.2 前端
 
-前端基于 Vue 3 + Vite，位于 `FitVision/frontend` 目录。
+另开一个终端：
 
-### 1. 进入前端目录
-打开一个新的终端窗口：
 ```bash
-cd d:\code\forvue\FitVision\frontend
-```
-
-### 2. 安装依赖
-```bash
+cd frontend
 npm install
-# 或者使用 yarn
-yarn
-```
-
-### 3. 启动开发服务器
-```bash
+cp .env.example .env
 npm run dev
 ```
-前端服务通常运行在 `http://localhost:5173/` (具体端口请查看终端输出)。
 
-## 🔗 联调测试
-
-1.  确保后端服务已启动并运行在 `8000` 端口。
-2.  在浏览器打开前端页面 (如 `http://localhost:5173/`)。
-3.  **注册/登录**: 尝试注册一个新用户并登录，验证 Auth 流程。
-4.  **AI 诊断**: 进入“姿态诊断”页面，确保摄像头权限已开启，尝试拍摄一张照片进行分析 (需配置有效的 VLM API Key)。
-5.  **训练**: 进入“训练”页面，尝试做一个深蹲动作，观察计数器是否工作。
-
-## ⚠️ 常见问题 (Troubleshooting)
-
-*   **Q: 摄像头无法打开？**
-    *   A: 请检查浏览器权限设置，确保允许网站访问摄像头。同时确保没有其他应用占用摄像头。
-*   **Q: AI 分析报错？**
-    *   A: 请检查 `.env` 文件中的 `CN_VLM_API_KEY` 是否正确配置，以及网络是否能访问 `CN_VLM_BASE_URL`。
-*   **Q: 跨域错误 (CORS)？**
-    *   A: 检查后端 `settings.py` 中的 `CORS_ALLOWED_ORIGINS` 配置，确保包含前端的地址 (如 `http://localhost:5173`)。
+前端运行在 http://localhost:5173 ，`/api`、`/media`、`/static`
+会由 Vite 代理到 `VITE_DEV_PROXY_TARGET`（默认 `http://127.0.0.1:8000`）。
 
 ---
-*文档生成时间: 2026-03-07*
+
+## 4. 联调验证
+
+1. 打开前端，注册并登录，确认拿到 access / refresh token。
+2. 进入动作库，确认列表与详情可加载。
+3. 进入训练页，允许摄像头权限，确认姿态关键点与计数正常。
+4. 完成一次训练，查看训练报告与推荐结果。
+5. AI 诊断需要有效的 `CN_VLM_API_KEY`，未配置时会提示服务不可用。
+
+---
+
+## 5. 运行测试与检查
+
+```bash
+# 后端（不依赖 PostgreSQL / Redis）
+cd backend
+DB_ENGINE=sqlite CACHE_BACKEND=locmem python manage.py check
+DB_ENGINE=sqlite CACHE_BACKEND=locmem python manage.py test
+
+# 前端
+cd frontend
+npm run lint
+npm run type-check
+npm run build
+```
+
+---
+
+## 6. 常见问题
+
+**摄像头无法打开**
+检查浏览器站点权限，关闭占用摄像头的其他应用；`localhost` 与 HTTPS 才允许调用摄像头。
+
+**AI 分析失败**
+确认 `CN_VLM_API_KEY` 有效、`CN_VLM_BASE_URL` 可访问；查看后端日志中的上游状态码。
+未配置密钥时，注册、训练记录、推荐等核心功能不受影响。
+
+**CORS 错误**
+在 `backend/.env` 中把前端地址加入 `CORS_ALLOWED_ORIGINS`，例如
+`http://localhost:5173,http://localhost:8080`。
+
+**Redis 连接失败 / Authentication required**
+本地未配置 Redis 密码时，保持 `CACHE_BACKEND=locmem`；或把正确的密码写入 `REDIS_URL`。
+
+**向量模型下载慢**
+设置 `HF_ENDPOINT=https://hf-mirror.com`（默认值），或提前在本地缓存模型。
+首次使用推荐 / 语义检索时会下载 M3E 模型。
+
+**端口冲突**
+后端：`python manage.py runserver 8001`；前端：`npm run dev -- --port 5174`，
+同时更新 `VITE_DEV_PROXY_TARGET` 并重新启动 Vite。

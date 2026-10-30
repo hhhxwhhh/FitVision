@@ -1,37 +1,323 @@
 # FitVision
 
-FitVision 是一个现代化的健身追踪应用程序，旨在帮助用户监控和改善他们的健康状况和运动表现。
+**AI 驱动的个人健身教练：姿态识别 · 动作纠错 · 个性化推荐 · 训练数据分析**
 
-## 项目概述
+[![CI](https://github.com/hhhxwhhh/FitVision/actions/workflows/ci.yml/badge.svg)](https://github.com/hhhxwhhh/FitVision/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Vue 3](https://img.shields.io/badge/Vue-3-42b883.svg)](https://vuejs.org/)
+[![Django](https://img.shields.io/badge/Django-5.2-092e20.svg)](https://www.djangoproject.com/)
+[![Python](https://img.shields.io/badge/Python-3.12-3776ab.svg)](https://www.python.org/)
 
-FitVision 提供全面的健身追踪功能，让用户能够记录日常活动、制定健身目标、监控进度并与社区分享成果。本项目采用前后端分离架构，支持跨平台使用。
+> FitVision is an AI-powered fitness coach. It uses browser-based pose estimation and
+> vision-language models to score exercise form, recommends the next exercise with a
+> hybrid recommendation pipeline, and turns every session into actionable analytics.
+> The whole stack runs locally with one `docker compose up`.
+
+---
+
+## 目录
+
+- [功能特性](#功能特性)
+- [系统架构](#系统架构)
+- [技术栈](#技术栈)
+- [快速开始](#快速开始)
+- [环境变量](#环境变量)
+- [API 与文档](#api-与文档)
+- [测试与代码质量](#测试与代码质量)
+- [项目结构](#项目结构)
+- [设计要点](#设计要点)
+- [路线图](#路线图)
+- [贡献](#贡献)
+
+---
 
 ## 功能特性
 
-- 🏃‍♂️ **活动追踪**: 实时记录步数、距离、消耗的卡路里等运动数据
-- 📊 **数据分析**: 可视化展示用户的运动历史和趋势
-- 🎯 **目标设定**: 允许用户设置个性化健身目标并跟踪完成情况
-- 💬 **社交互动**: 用户可以与朋友分享成就，参与挑战赛
-- 📱 **多平台支持**: 支持 iOS、Android 和 Web 端使用
-- 🔔 **提醒功能**: 自定义通知，帮助用户保持锻炼习惯
+### 🤖 AI 训练闭环
+
+- **实时姿态识别**：浏览器端 MediaPipe Pose 识别关键点，统计次数、计算动作标准度。
+- **视觉大模型纠错**：关键帧上传至兼容 OpenAI 协议的视觉模型（默认豆包），生成动作问题与改进建议。
+- **AI 训练计划**：结合用户画像、目标、疲劳度与器械条件生成训练计划。
+- **训练报告**：本次亮点、需要改进、下一次建议，以及可继续训练的一键入口。
+
+### 🎯 混合推荐系统
+
+多路召回 + 加权融合，而不是单一规则：
+
+| 引擎 | 作用 |
+| --- | --- |
+| DL Sequence（GRU + Attention） | 基于最近训练序列预测下一个动作 |
+| Knowledge Graph（GCN） | 沿前置依赖与相似用户路径推荐 |
+| Content-Based（M3E + Chroma） | 语义相似动作检索 |
+| RL Adaptive | 根据疲劳与历史表现动态调节 |
+| Time-Travel CF | 冷启动阶段匹配相似体质用户 |
+| Cold Start | 热门动作兜底 |
+
+召回后会继续做**目标导向重排**（减脂 / 增肌）、**疲劳联动抑制**、**肌群多样性重排**、
+**自适应探索**，并保留前置动作解锁校验。
+
+### 📈 成长与激励
+
+- 连续训练天数、本周训练次数、本周进步动作、成就系统。
+- 动作知识图谱与前置解锁，训练路径一目了然。
+- 数据中心展示训练量、卡路里、动作标准度趋势。
+
+### 📱 现代 Web 体验
+
+- Vue 3 + TypeScript + Element Plus，路由级代码分割。
+- **可安装 PWA**：离线应用外壳、桌面/移动端安装、快捷方式。
+- JWT 自动续期、401 统一跳转、响应式布局、减少动效偏好支持。
+
+---
+
+## 系统架构
+
+```mermaid
+flowchart LR
+    subgraph Browser
+        Vue[Vue 3 + TypeScript]
+        MP[MediaPipe Pose]
+        PWA[Service Worker / PWA]
+    end
+
+    subgraph Django["Django 5 + DRF"]
+        Auth[JWT 认证 / 限流]
+        Exercise[动作库 / 知识图谱]
+        Training[训练会话 / 报告]
+        Rec[混合推荐]
+        VLM[VLM 服务]
+        Health[健康检查]
+    end
+
+    subgraph Data
+        PG[(PostgreSQL / SQLite)]
+        Redis[(Redis Cache / Celery)]
+        Chroma[(Chroma 向量库)]
+    end
+
+    LLM[DeepSeek / 视觉大模型]
+
+    Vue -->|REST /api| Auth
+    Vue --> Exercise
+    Vue --> Training
+    Vue --> Rec
+    MP -->|姿态关键点| Vue
+    VLM --> LLM
+    Training --> VLM
+    Rec --> Chroma
+    Rec --> PG
+    Exercise --> PG
+    Auth --> Redis
+    Health --> PG
+    Health --> Redis
+```
+
+---
 
 ## 技术栈
 
-### 前端 (frontend/)
-- React/Vue.js + TypeScript
-- Redux/Vuex 状态管理
-- CSS3/SCSS 样式框架
-- Responsive Design 响应式设计
+| 层 | 技术 |
+| --- | --- |
+| 前端 | Vue 3、TypeScript、Vite 7、Pinia、Vue Router、Element Plus、ECharts、MediaPipe Pose |
+| 后端 | Python 3.12、Django 5.2、Django REST Framework、SimpleJWT、drf-spectacular |
+| AI / 推荐 | PyTorch、GCN、GRU + Attention、scikit-learn、Chroma、sentence-transformers（M3E） |
+| 数据 | PostgreSQL 16（生产）/ SQLite（开发与测试）、Redis、Celery |
+| 工程化 | ESLint 9、Prettier、Black、isort、flake8、GitHub Actions、Docker Compose |
 
-### 后端 (backend/)
-- Node.js/Java Spring Boot
-- Express.js/Spring MVC
-- MongoDB/PostgreSQL 数据库
-- RESTful API 接口
+> 机器学习依赖（torch / chromadb / sentence-transformers）采用**按需加载**：
+> 未安装时项目仍可启动，非 AI 接口与测试不受影响。
+
+---
 
 ## 快速开始
 
-### 环境要求
-- Node.js >= 14.x
-- npm/yarn
-- MongoDB/PostgreSQL 
+### 方式一：Docker Compose（推荐）
+
+```bash
+git clone https://github.com/hhhxwhhh/FitVision.git
+cd FitVision
+
+cp .env.docker.example .env
+# 编辑 .env：至少设置 SECRET_KEY 与 DB_PASSWORD
+
+docker compose up --build
+```
+
+| 服务 | 地址 |
+| --- | --- |
+| 前端 | http://localhost:8080 |
+| API 根 | http://localhost:8000/api/ |
+| Swagger 文档 | http://localhost:8000/api/docs/ |
+| 健康检查 | http://localhost:8000/api/health/ |
+
+> 首次构建需要下载 PyTorch（CPU 版）与向量模型，耗时较长；后续启动会复用缓存。
+
+### 方式二：本地开发
+
+**环境要求**：Python 3.12、Node.js ≥ 20.19（推荐 22）。数据库可省略，后端会自动使用 SQLite。
+
+```bash
+# 1. 后端
+cd backend
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# macOS / Linux: source .venv/bin/activate
+pip install -r requirements-dev.txt
+cp .env.example .env              # 可全部留空，使用 SQLite + LocMem
+python manage.py migrate
+python manage.py loaddata exercises/fixtures/data.json   # 可选：动作库
+python manage.py loaddata training/fixtures/seed.json    # 可选：训练种子数据
+python manage.py runserver
+
+# 2. 前端（另开终端）
+cd frontend
+npm install
+cp .env.example .env
+npm run dev
+```
+
+打开 http://localhost:5173 。Vite 会将 `/api` 与 `/media` 代理到 `http://127.0.0.1:8000`。
+
+> 需要 AI 诊断功能时，在 `backend/.env` 中配置 `CN_VLM_API_KEY`（视觉模型）与
+> `DEEPSEEK_API_KEY`（文本 / 计划生成）。不配置不影响注册、训练记录与推荐等核心功能。
+
+---
+
+## 环境变量
+
+### 后端（`backend/.env`）
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `DEBUG` | `True` | 生产环境必须为 `False` |
+| `SECRET_KEY` | 开发用临时值 | 生产环境必填，建议随机 50+ 字符 |
+| `ALLOWED_HOSTS` | `127.0.0.1,localhost` | 逗号分隔 |
+| `CORS_ALLOWED_ORIGINS` | 本地 5173 / 8080 | 逗号分隔的前端源 |
+| `DB_NAME` | 空 | 留空使用 SQLite；填写则连接 PostgreSQL |
+| `DB_USER` / `DB_PASSWORD` / `DB_HOST` / `DB_PORT` | — | PostgreSQL 连接信息 |
+| `CACHE_BACKEND` | `locmem` | `locmem` 或 `redis` |
+| `REDIS_URL` | `redis://127.0.0.1:6379/0` | 缓存与 Celery |
+| `DEEPSEEK_API_KEY` | 空 | 文本生成 / 计划 |
+| `CN_VLM_API_KEY` | 空 | 视觉模型 API Key |
+| `CN_VLM_MODEL` / `CN_VLM_BASE_URL` | 豆包 / OpenKey | OpenAI 兼容接口 |
+| `SENTRY_DSN` | 空 | 可选错误上报 |
+| `THROTTLE_ANON` / `THROTTLE_USER` / `THROTTLE_AUTH` | `60/min` / `600/min` / `10/min` | 限流 |
+| `HF_ENDPOINT` | `https://hf-mirror.com` | 向量模型下载镜像 |
+
+完整模板见 [`backend/.env.example`](backend/.env.example)。
+
+### 前端（`frontend/.env`）
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `VITE_API_BASE_URL` | `/api` | 生产环境可填完整地址 |
+| `VITE_DEV_PROXY_TARGET` | `http://127.0.0.1:8000` | 开发代理目标 |
+
+---
+
+## API 与文档
+
+- Swagger UI：`/api/docs/`
+- OpenAPI Schema：`/api/schema/`
+- 健康检查：`GET /api/health/`（检查数据库与缓存，供容器 / 负载均衡探活）
+- 令牌刷新：`POST /api/auth/refresh/`
+
+主要路由：
+
+```
+/api/auth/            注册、登录、刷新、用户档案、目标、统计
+/api/exercises/       动作库、分类、知识图谱、训练记录
+/api/training/        训练会话、计划、报告、AI 分析
+/api/recommendations/ 个性化推荐与反馈
+/api/analytics/       训练数据分析
+/api/ai/              姿态诊断 / VLM 分析
+```
+
+---
+
+## 测试与代码质量
+
+```bash
+# 后端（无需 PostgreSQL / Redis）
+cd backend
+DB_ENGINE=sqlite CACHE_BACKEND=locmem python manage.py check
+DB_ENGINE=sqlite CACHE_BACKEND=locmem python manage.py test
+
+# 前端
+cd frontend
+npm run lint
+npm run type-check
+npm run build
+```
+
+CI 会在每次 Push / PR 时执行以上检查，并验证 Docker Compose 配置。
+
+---
+
+## 项目结构
+
+```text
+FitVision/
+├── backend/
+│   ├── fitvision/          # 配置、URL、健康检查
+│   ├── users/              # 认证、档案、目标、统计
+│   ├── exercises/          # 动作库、分类、知识图谱
+│   ├── training/           # 训练会话、计划、报告
+│   ├── recommendations/    # 多引擎混合推荐
+│   ├── analytics/          # 数据统计
+│   ├── ai_models/          # VLM 与姿态诊断
+│   ├── utils/              # 向量库等基础设施
+│   ├── requirements*.txt
+│   ├── Dockerfile
+│   └── .env.example
+├── frontend/
+│   ├── src/
+│   │   ├── api/            # axios 客户端、自动刷新、媒体地址
+│   │   ├── components/     # 通用组件与姿态预览
+│   │   ├── composables/    # 姿态检测、诊断逻辑
+│   │   ├── layouts/        # 应用外壳
+│   │   ├── router/         # 懒加载路由与守卫
+│   │   ├── stores/         # Pinia
+│   │   └── views/          # 页面
+│   ├── public/             # PWA manifest、Service Worker、图标
+│   ├── Dockerfile
+│   └── nginx.conf
+├── docs/                   # 架构与开发文档
+├── scripts/                # 资源生成脚本
+├── docker-compose.yml
+├── CONTRIBUTING.md
+├── SECURITY.md
+└── LICENSE
+```
+
+---
+
+## 设计要点
+
+- **安全优先**：密钥只存在于 `.env`；生产强制随机 `SECRET_KEY`；JWT + 限流；
+  CORS / CSRF / HSTS / X-Frame-Options 可配置；容器以环境变量注入配置。
+- **可降级**：SQLite / LocMem / 可选 ML 依赖均有回退路径，新贡献者无需完整 ML 环境即可跑通测试。
+- **可解释推荐**：每个推荐结果都带有来源标签与推荐理由，前端展示“为什么推荐它”。
+- **体验细节**：路由级懒加载、PWA 离线外壳、自动令牌续期、减少动效偏好、统一焦点样式。
+
+---
+
+## 路线图
+
+- [ ] 使用 MediaPipe Tasks Vision（WASM）替换旧版 Pose 方案
+- [ ] WebSocket 实时训练会话与多端同步
+- [ ] 推荐算法离线评测集与 A/B 实验框架
+- [ ] 中英文 i18n 与完整无障碍（a11y）审计
+- [ ] 移动端封装（Capacitor / React Native）
+- [ ] 更多端到端测试与性能预算
+
+---
+
+## 贡献
+
+欢迎提交 Issue 与 PR！请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 与
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。安全问题请按 [SECURITY.md](SECURITY.md) 私密报告。
+
+## License
+
+[MIT](LICENSE) © 2026 FitVision contributors
