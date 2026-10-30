@@ -28,6 +28,33 @@ class AuthAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(User.objects.filter(username="bob").exists())
 
+    def test_register_rejects_weak_password(self):
+        response = self.client.post(
+            reverse("register"),
+            {"username": "weakuser", "password": "12345678", "password_confirm": "12345678"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(User.objects.filter(username="weakuser").exists())
+
+    def test_refresh_returns_new_access_token(self):
+        User.objects.create_user(username="frank", password="s3cret-pass")
+        login = self.client.post(
+            reverse("login"),
+            {"username": "frank", "password": "s3cret-pass"},
+            format="json",
+        )
+
+        response = self.client.post(
+            reverse("token_refresh"),
+            {"refresh": login.data["refresh"]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access", response.data)
+
     def test_login_returns_jwt_tokens(self):
         User.objects.create_user(username="carol", password="s3cret-pass")
 
