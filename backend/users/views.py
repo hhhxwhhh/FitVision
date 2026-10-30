@@ -7,12 +7,14 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import UserProfile, TrainingLog, UserGoal, UserStats
-from .serializers import (UserRegisterSerializer, UserProfileSerializer, 
-                         TrainingLogSerializer, UserGoalSerializer, 
+from .serializers import (UserRegisterSerializer, UserProfileSerializer,
+                         TrainingLogSerializer, UserGoalSerializer,
                          UserStatsSerializer)
+from .throttles import AuthRateThrottle
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [AuthRateThrottle]
 
     def post(self, request):
         serializer = UserRegisterSerializer(data=request.data)
@@ -26,6 +28,7 @@ class RegisterView(APIView):
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [AuthRateThrottle]
 
     def post(self, request):
         username = request.data.get('username')

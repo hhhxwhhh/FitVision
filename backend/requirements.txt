@@ -11,6 +11,11 @@ django-filter==25.2.0
 adrf==0.1.0
 python-dotenv==1.2.1
 
+# --- Production serving -----------------------------------------------------
+gunicorn>=22,<24
+whitenoise>=6.6,<7
+sentry-sdk[django]>=2,<3
+
 # --- Database / cache / tasks ----------------------------------------------
 psycopg2-binary==2.9.10
 django-redis==6.0.0

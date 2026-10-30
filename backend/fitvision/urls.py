@@ -8,6 +8,8 @@ from django.conf.urls.static import static
 from django.http import JsonResponse
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
+from .health import api_index, health
+
 def simple_test_api(request):
     return JsonResponse({
         'message': 'hello from django rest framework backend',
@@ -16,7 +18,9 @@ def simple_test_api(request):
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    
+
+    path('api/', api_index, name='api-index'),
+    path('api/health/', health, name='health'),
     path('api/test/', simple_test_api, name='simple_test_api'),
     path('api/auth/', include('users.urls')),
     path('api/exercises/', include('exercises.urls')),

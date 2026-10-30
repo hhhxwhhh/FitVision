@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
 from .models import UserProfile, TrainingLog, UserGoal, UserStats
 
 class UserRegisterSerializer(serializers.ModelSerializer):
@@ -16,6 +17,10 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         if attrs['password'] != attrs['password_confirm']:
             raise serializers.ValidationError("两次输入的密码不一致")
         return attrs
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
     
     def create(self, validated_data):
         validated_data.pop('password_confirm')
