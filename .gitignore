@@ -1,0 +1,69 @@
+# ---------------------------------------------------------------------------
+# Secrets & local configuration
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ---------------------------------------------------------------------------
+# Python / Django
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+.venv/
+venv/
+env/
+ENV/
+
+*.sqlite3
+db.sqlite3
+db.sqlite3-journal
+
+# Django generated content
+/backend/staticfiles/
+/backend/media/
+/backend/chroma_db_data/
+/backend/.pytest_cache/
+/backend/htmlcov/
+/backend/.coverage
+/backend/coverage.xml
+
+# Machine-learning artifacts (download or regenerate locally)
+*.ipynb_checkpoints/
+.ipynb_checkpoints/
+*.log
+*.pth.tmp
+*.onnx
+
+# ---------------------------------------------------------------------------
+# Node / Vue
+# ---------------------------------------------------------------------------
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm/
+.pnpm-store/
+
+# Vite / TypeScript build info
+*.tsbuildinfo
+
+# ---------------------------------------------------------------------------
+# Editors & OS
+# ---------------------------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
