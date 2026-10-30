@@ -75,6 +75,8 @@ services:
       context: ./backend
     command: ["celery", "-A", "fitvision", "worker", "-l", "info"]
     environment: *backend-environment
+    volumes:
+      - media:/app/media
     depends_on:
       backend:
         condition: service_healthy
@@ -85,6 +87,8 @@ services:
       context: ./frontend
       args:
         VITE_API_BASE_URL: /api
+    volumes:
+      - media:/usr/share/nginx/media:ro
     ports:
       - "8080:80"
     depends_on:
