@@ -200,6 +200,8 @@ export function usePostureDiagnosis() {
     pose?.close();
   };
 
+  onUnmounted(stop);
+
   return {
     videoElement,
     canvasElement,

@@ -124,7 +124,7 @@
 <script setup lang="ts">
 // Vue 组合式 API：
 // ref/watch/onMounted 用于状态与生命周期控制
-import { ref, watch, computed, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 // 路由实例：用于页面跳转和读取当前路径
 import { useRouter, useRoute } from 'vue-router'
 // 头像与下拉菜单图标

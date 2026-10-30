@@ -280,7 +280,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/userStore'
 import { 
   User, UserFilled, Calendar, Medal, Timer, Chicken, 
-  TrendCharts, Message, Location, Promotion, Edit, Delete
+  TrendCharts, Message, Edit
 } from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
 import dayjs from 'dayjs'

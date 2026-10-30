@@ -2,7 +2,7 @@ import { ref, onUnmounted } from 'vue';
 import { Pose, type Results, POSE_CONNECTIONS } from '@mediapipe/pose';
 import { Camera } from '@mediapipe/camera_utils';
 import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
-import { calculateAngle, OneEuroFilter, normalizeLandmarks, matchPoseSignature } from '../utils/poseMatching';
+import { calculateAngle, OneEuroFilter, matchPoseSignature } from '../utils/poseMatching';
 import apiClient from '../api';
 
 type VoiceCategory = 'count' | 'encourage' | 'corrective' | 'cadence';

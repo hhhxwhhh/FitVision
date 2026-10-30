@@ -80,7 +80,7 @@
                         
                         <div class="card-footer">
                             <el-button text bg size="small" @click="viewDetail(ex)">详情</el-button>
-                            <el-button type="primary" size="small" icon="VideoPlay" @click="startTraining(ex)">
+                            <el-button type="primary" size="small" :icon="VideoPlay" @click="startTraining(ex)">
                                 练这个
                             </el-button>
                         </div>

@@ -156,7 +156,7 @@ const handleFeedback = async (rec: any, action: string) => {
     ElMessage.success(action === 'like' ? '感谢您的好评，AI 会为您推荐更多此类内容' : '已减少此类推荐')
     // 移除当前卡片
     recommendations.value = recommendations.value.filter(r => r.id !== rec.id)
-  } catch (err) {
+  } catch {
     ElMessage.error('操作失败')
   }
 }

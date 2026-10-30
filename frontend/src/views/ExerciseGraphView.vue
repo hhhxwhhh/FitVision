@@ -2,7 +2,7 @@
   <div class="graph-container" v-loading="loading">
     <div class="graph-header">
       <div class="header-left">
-        <el-button icon="ArrowLeft" circle @click="router.back()" />
+        <el-button :icon="ArrowLeft" circle @click="router.back()" />
         <h1 class="page-title">动作知识图谱</h1>
       </div>
       <div class="header-right">

@@ -430,12 +430,12 @@
 import { reactive, ref, watch, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { VideoCamera, InfoFilled, Trophy, Edit, MagicStick, Compass } from '@element-plus/icons-vue'
+import { VideoCamera, InfoFilled, Trophy, MagicStick, Compass } from '@element-plus/icons-vue'
 import apiClient, { resolveMediaUrl } from '../api'
 import PosePreview from '../components/ai/PosePreview.vue'
 import NextExerciseRecommendation from '../components/NextExerciseRecommendation.vue'
 import { ArrowRight, View, Sort } from '@element-plus/icons-vue'
-import { CircleCheck, Timer, DataLine, Medal } from '@element-plus/icons-vue'
+import { Medal } from '@element-plus/icons-vue'
 
 import { useRouter } from 'vue-router'
 const router = useRouter()
@@ -467,7 +467,6 @@ const initialRestTime = ref(45)
 const nextExerciseItem = ref<any>(null)
 let timerInterval: any = null
 
-const lastResponse = ref('')
 const posePreviewRef = ref<any>(null)
 
 const selectedExerciseName = ref('')

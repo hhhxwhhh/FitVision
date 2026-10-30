@@ -187,12 +187,12 @@
               <span class="x">×</span>
               <el-input v-model="ex.reps" size="small" style="width: 80px" />
             </div>
-            <el-button type="danger" link icon="Delete" @click="removeExercise(idx)"></el-button>
+            <el-button type="danger" link :icon="Delete" @click="removeExercise(idx)"></el-button>
           </div>
         </div>
         
         <div class="add-row">
-          <el-button type="primary" link icon="Plus" @click="addEmptyExercise">添加自定义动作</el-button>
+          <el-button type="primary" link :icon="Plus" @click="addEmptyExercise">添加自定义动作</el-button>
         </div>
       </div>
       <template #footer>
