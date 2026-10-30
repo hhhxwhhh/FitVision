@@ -1,5 +1,10 @@
 # dev_y 分支被处理掉的后端差异说明
 
+> 更新（2026-10-30）：推荐系统中的「目标导向重排、疲劳联动抑制、多样性重排、自适应探索」
+> 已回补到 main（保留 main 原有的动作解锁校验）。对应实现位于
+> `backend/recommendations/services.py` 的 `HybridRecommender`，测试位于
+> `backend/recommendations/tests.py`。其余差异仍按本文档记录的状态保留。
+
 ## 1. 背景与基线
 
 - 合并提交: 403ae7af429a3e3291ce2fae3c4d2098bc4199a6

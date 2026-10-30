@@ -1,0 +1,10 @@
+# Development and CI tooling.
+# Install with: pip install -r requirements-dev.txt
+-r requirements.txt
+
+black==25.11.0
+isort==7.0.0
+flake8==7.3.0
+pylint==4.0.2
+coverage==7.12.0
+django-extensions==4.1

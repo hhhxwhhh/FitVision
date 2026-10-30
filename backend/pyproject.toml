@@ -1,0 +1,27 @@
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+extend-exclude = '''
+/(
+  migrations
+  | __pycache__
+  | \.venv
+  | venv
+  | chroma_db_data
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+skip_glob = ["*/migrations/*", "*/venv/*", "*/.venv/*"]
+known_first_party = [
+  "fitvision",
+  "users",
+  "exercises",
+  "training",
+  "recommendations",
+  "analytics",
+  "ai_models",
+  "utils",
+]

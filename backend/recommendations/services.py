@@ -1,20 +1,19 @@
 import numpy as np
 import random
+from collections import defaultdict
 from datetime import timedelta
 from django.utils import timezone
-from django.db.models import Count, Avg, F 
+from django.db.models import Count, Avg, F
 from django.contrib.auth.models import User
 from exercises.models import Exercise
+from users.models import UserGoal
 from .models import UserInteraction, RecommendedExercise, UserState
 from utils.vector_db import VectorDB
-from .model_utils import DLModelManager
-from .gnn_models import KnowledgeGraphGNN
 from exercises.models import UserExerciseRecord
 
-# 高级算法库依赖
-import torch
-import torch.nn.functional as F_torch 
-from sklearn.metrics.pairwise import cosine_similarity
+# Heavy ML dependencies (torch / scikit-learn) and the model classes that need
+# them are imported lazily inside the engines below. This keeps Django startup
+# and non-ML endpoints usable when the optional ML stack is not installed.
 
 class RecommendationEngine:
     """推荐系统核心抽象类"""
@@ -24,6 +23,10 @@ class RecommendationEngine:
 class KnowledgeGraphEngine(RecommendationEngine):
     """基于图神经网络 (GNN) 的知识图谱路径推荐"""
     def recommend(self, user, limit=5):
+        import torch
+        import torch.nn.functional as F_torch
+        from .gnn_models import KnowledgeGraphGNN
+
         # 1. 构建图结构
         exercises = list(Exercise.objects.filter(is_active=True).prefetch_related('prerequisites'))
         ex_id_to_idx = {ex.id: i for i, ex in enumerate(exercises)}
@@ -250,6 +253,8 @@ class DLSequenceEngine(RecommendationEngine):
         
         # 2. 调用 DL 模型管理器进行推理
         try:
+            from .model_utils import DLModelManager
+
             model_manager = DLModelManager()
             predictions = model_manager.predict(exercise_ids, limit=limit)
             
@@ -452,7 +457,213 @@ class TimeTravelCFEngine(RecommendationEngine):
 
 class HybridRecommender:
     """高级混合推荐调度器：支持多路召回、策略路由与结果持久化"""
-    
+
+    # ------------------------------------------------------------------
+    # Ranking helpers (backported from dev_y; see docs/dev_y_backend_diff_discarded.md)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _recent_blocked_ids(user, days=3):
+        """Actions the user recently finished/skipped should not be re-recommended."""
+        since = timezone.now() - timedelta(days=days)
+        recent_actions = UserInteraction.objects.filter(
+            user=user,
+            timestamp__gte=since,
+            interaction_type__in=["finish", "skip"],
+        ).values_list("exercise_id", flat=True)
+        seen_recent_recs = RecommendedExercise.objects.filter(
+            user=user,
+            is_seen=True,
+            created_at__gte=since,
+        ).values_list("exercise_id", flat=True)
+        return set(recent_actions).union(set(seen_recent_recs))
+
+    @staticmethod
+    def _rerank_with_diversity(candidates, limit):
+        """Greedily pick candidates while penalising repeated muscle groups."""
+        if not candidates:
+            return []
+
+        pending = list(candidates)
+        selected = []
+        muscle_counter = defaultdict(int)
+
+        while pending and len(selected) < limit:
+            best_idx = 0
+            best_adjusted = -1.0
+
+            # Limit the scan window to keep this O(n) in practice.
+            for idx, item in enumerate(pending[:40]):
+                muscle = getattr(item["ex"], "target_muscle", "unknown") or "unknown"
+                adjusted = item["score"] - 0.12 * muscle_counter[muscle]
+                if adjusted > best_adjusted:
+                    best_adjusted = adjusted
+                    best_idx = idx
+
+            chosen = pending.pop(best_idx)
+            chosen["score"] = max(0.0, best_adjusted)
+            selected.append(chosen)
+            muscle = getattr(chosen["ex"], "target_muscle", "unknown") or "unknown"
+            muscle_counter[muscle] += 1
+
+        return selected
+
+    @staticmethod
+    def _compute_exploration_ratio(positive_count, negative_count, default=0.18):
+        total = positive_count + negative_count
+        if total <= 0:
+            return default
+
+        negative_ratio = negative_count / total
+        adaptive = default + (negative_ratio - 0.4) * 0.35
+        return max(0.08, min(0.35, adaptive))
+
+    @staticmethod
+    def _select_with_exploration(candidates, limit, exploration_ratio, rng=None):
+        if not candidates or limit <= 0:
+            return []
+        if len(candidates) <= limit:
+            return candidates[:limit]
+
+        rng = rng or random
+        # Exploration never takes more than half of the slots.
+        explore_slots = min(limit // 2, int(round(limit * exploration_ratio)))
+        exploit_slots = max(limit - explore_slots, 1)
+
+        exploit_part = candidates[:exploit_slots]
+        if explore_slots <= 0:
+            return exploit_part[:limit]
+
+        explore_pool = candidates[exploit_slots:]
+        if not explore_pool:
+            return exploit_part[:limit]
+
+        pick_n = min(explore_slots, len(explore_pool))
+        if len(explore_pool) <= pick_n:
+            explore_pick = list(explore_pool)
+        else:
+            explore_pick = rng.sample(explore_pool, pick_n)
+
+        merged = exploit_part + explore_pick
+        merged.sort(key=lambda x: x["score"], reverse=True)
+        return merged[:limit]
+
+    @staticmethod
+    def _resolve_user_goal(user):
+        """Prefer an explicit active goal, then infer it from the weight target."""
+        active_goal = (
+            UserGoal.objects.filter(user=user, is_active=True, achieved=False)
+            .order_by("-updated_at", "-created_at")
+            .first()
+        )
+        if active_goal and active_goal.goal_type:
+            return active_goal.goal_type
+
+        profile = getattr(user, "profile", None)
+        if profile and profile.target_weight and profile.weight:
+            delta = profile.target_weight - profile.weight
+            if delta <= -1.0:
+                return "weight_loss"
+            if delta >= 1.0:
+                return "muscle_gain"
+
+        return "fitness"
+
+    @staticmethod
+    def _goal_fit_bonus(exercise, goal_type):
+        target = getattr(exercise, "target_muscle", "") or ""
+        equipment = getattr(exercise, "equipment", "none") or "none"
+        calories = float(getattr(exercise, "calories_burned", 5.0) or 5.0)
+        tags = set(getattr(exercise, "tags", []) or [])
+
+        if goal_type == "weight_loss":
+            bonus = 0.0
+            if target == "full_body":
+                bonus += 0.22
+            if calories >= 8.0:
+                bonus += 0.10
+            if equipment == "none":
+                bonus += 0.05
+            if "cardio" in tags:
+                bonus += 0.08
+            return min(bonus, 0.4)
+
+        if goal_type == "muscle_gain":
+            bonus = 0.0
+            if target in {"chest", "back", "legs", "shoulders", "glutes"}:
+                bonus += 0.18
+            if equipment != "none":
+                bonus += 0.12
+            if calories >= 6.0:
+                bonus += 0.05
+            if "strength" in tags:
+                bonus += 0.08
+            return min(bonus, 0.4)
+
+        return 0.0
+
+    @classmethod
+    def _rerank_by_user_goal(cls, candidates, goal_type):
+        if not candidates:
+            return []
+
+        reranked = []
+        for item in candidates:
+            bonus = cls._goal_fit_bonus(item["ex"], goal_type)
+            updated = dict(item)
+            updated["score"] = item["score"] * (1.0 + bonus)
+            reranked.append(updated)
+
+        reranked.sort(key=lambda x: x["score"], reverse=True)
+        return reranked
+
+    @staticmethod
+    def _strength_intensity(exercise):
+        target = getattr(exercise, "target_muscle", "") or ""
+        equipment = getattr(exercise, "equipment", "none") or "none"
+        difficulty = getattr(exercise, "difficulty", "beginner") or "beginner"
+        calories = float(getattr(exercise, "calories_burned", 5.0) or 5.0)
+        tags = set(getattr(exercise, "tags", []) or [])
+
+        intensity = 0.0
+        if target in {"chest", "back", "legs", "shoulders", "glutes", "arms"}:
+            intensity += 0.35
+        if equipment != "none":
+            intensity += 0.25
+        if difficulty in {"intermediate", "advanced"}:
+            intensity += 0.2
+        if calories >= 8.0:
+            intensity += 0.15
+        if "strength" in tags:
+            intensity += 0.15
+        return min(intensity, 1.0)
+
+    @classmethod
+    def _rerank_by_goal_and_fatigue(cls, candidates, goal_type, fatigue_level):
+        """High fatigue suppresses high-intensity strength work for muscle-gain goals."""
+        if not candidates:
+            return []
+
+        try:
+            fatigue = float(fatigue_level)
+        except (TypeError, ValueError):
+            fatigue = 0.0
+
+        if goal_type != "muscle_gain" or fatigue < 0.65:
+            return list(candidates)
+
+        fatigue_factor = min(max((fatigue - 0.65) / 0.35, 0.0), 1.0)
+        adjusted = []
+        for item in candidates:
+            intensity = cls._strength_intensity(item["ex"])
+            penalty = 0.45 * fatigue_factor * intensity
+
+            updated = dict(item)
+            updated["score"] = item["score"] * (1.0 - penalty)
+            adjusted.append(updated)
+
+        adjusted.sort(key=lambda x: x["score"], reverse=True)
+        return adjusted
+
     @staticmethod
     def get_recommendations(user, scenario='default', limit=6):
         # 1. 缓存/持久化检查：如果过去 6 小时内已经为该场景生成过充分的推荐，则直接返回
@@ -513,12 +724,13 @@ class HybridRecommender:
         except Exception as e:
             print(f"推荐场景 [{scenario}] 执行异常: {e}")
 
-        # 3. 结果合并、去重与排序
+        # 3. 结果合并、去重与排序（跳过最近已完成/已跳过的动作）
         seen_ids = set()
-        raw_final_recs = [] 
-        
+        blocked_ids = HybridRecommender._recent_blocked_ids(user)
+        raw_final_recs = []
+
         for ex, score, algo in rec_sources:
-            if ex and ex.id not in seen_ids:
+            if ex and ex.id not in seen_ids and ex.id not in blocked_ids:
                 valid_score = float(score) if not np.isnan(score) else 0.5
                 raw_final_recs.append({
                     'ex': ex,
@@ -560,18 +772,44 @@ class HybridRecommender:
             for ex, score in backups:
                 if len(final_recs) >= limit:
                     break
-                if ex.id not in seen_ids:
+                if ex.id not in seen_ids and ex.id not in blocked_ids:
                     prereqs = ex.prerequisites.all()
                     if prereqs.exists():
                         if not all(UserExerciseRecord.objects.filter(user=user, exercise=req, accuracy_score__gte=80.0).exists() for req in prereqs):
-                            continue 
-                            
+                            continue
+
                     final_recs.append({
-                        'ex': ex, 
-                        'score': score, 
+                        'ex': ex,
+                        'score': score,
                         'algorithm': 'popularity'
                     })
                     seen_ids.add(ex.id)
+
+        # 4.5 目标/疲劳感知重排 + 多样性 + 自适应探索
+        user_goal = HybridRecommender._resolve_user_goal(user)
+        ranked = HybridRecommender._rerank_with_diversity(final_recs, limit=max(limit * 3, limit))
+        ranked = HybridRecommender._rerank_by_user_goal(ranked, goal_type=user_goal)
+
+        rec_state = UserState.objects.filter(user=user).only('fatigue_level').first()
+        fatigue_level = rec_state.fatigue_level if rec_state else 0.0
+        ranked = HybridRecommender._rerank_by_goal_and_fatigue(
+            ranked, goal_type=user_goal, fatigue_level=fatigue_level
+        )
+
+        recent_feedback = UserInteraction.objects.filter(
+            user=user,
+            timestamp__gte=timezone.now() - timedelta(days=14),
+            interaction_type__in=['finish', 'like', 'bookmark', 'skip'],
+        ).values_list('interaction_type', flat=True)
+        positive_count = sum(1 for action in recent_feedback if action in ('finish', 'like', 'bookmark'))
+        negative_count = sum(1 for action in recent_feedback if action == 'skip')
+        exploration_ratio = HybridRecommender._compute_exploration_ratio(
+            positive_count=positive_count, negative_count=negative_count
+        )
+
+        final_recs = HybridRecommender._select_with_exploration(
+            ranked, limit=limit, exploration_ratio=exploration_ratio
+        )
 
         # 5. 结果持久化与理由生成
         results = []

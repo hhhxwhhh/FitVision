@@ -58,14 +58,13 @@ class ExerciseDetail(generics.RetrieveAPIView):
         context['request'] = self.request
         return context
 
-from recommendations.services import KnowledgeGraphEngine
-from recommendations.gnn_models import KnowledgeGraphGNN
-import torch
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def exercise_graph_data(request):
     """获取动作知识图谱数据 (集成 GNN 结构分析与个人进度)"""
+    import torch
+    from recommendations.gnn_models import KnowledgeGraphGNN
+
     exercises = list(Exercise.objects.all().prefetch_related('prerequisites', 'unlocks')) # 获取所有动作
     ex_id_to_idx = {ex.id: i for i, ex in enumerate(exercises)}
     num_nodes = len(exercises)

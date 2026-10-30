@@ -2,7 +2,6 @@ import os
 import requests
 import numpy as np
 import random
-from sklearn.metrics.pairwise import cosine_similarity
 from django.db.models import Q
 from users.models import UserProfile
 from training.models import UserTrainingSession
@@ -37,6 +36,8 @@ class UserSimilarityService:
             
             target_profile = target_user.userprofile
             target_vec = UserSimilarityService.get_user_vector(target_profile)
+
+            from sklearn.metrics.pairwise import cosine_similarity
 
             other_profiles = UserProfile.objects.exclude(user=target_user).order_by('-updated_at')[:50]
             candidates = []
