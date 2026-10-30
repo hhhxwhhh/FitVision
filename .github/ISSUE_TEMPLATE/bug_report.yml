@@ -1,0 +1,58 @@
+name: Bug 报告
+description: 报告一个可复现的问题
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请尽量提供可复现的信息。安全漏洞请勿在此公开，见 SECURITY.md。
+  - type: dropdown
+    id: area
+    attributes:
+      label: 影响范围
+      options:
+        - 前端（界面 / 交互）
+        - 后端（API / 数据库）
+        - AI / 推荐 / 姿态识别
+        - 部署 / Docker / CI
+        - 文档
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 问题描述
+      description: 实际发生了什么？期望是什么？
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开 …
+        2. 点击 …
+        3. 看到 …
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / 截图
+      description: 请粘贴相关错误日志（注意删除密钥与个人信息）
+      render: shell
+  - type: input
+    id: environment
+    attributes:
+      label: 环境
+      placeholder: "Windows 11 / Chrome 130 / Python 3.12 / Node 22"
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 确认
+      options:
+        - label: 我已搜索现有 Issue，未发现重复
+          required: true
+        - label: 我已移除日志中的密钥与个人隐私
+          required: true

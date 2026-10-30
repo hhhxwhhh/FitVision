@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全问题
+    url: https://github.com/hhhxwhhh/FitVision/security/advisories/new
+    about: 请通过私密渠道报告安全漏洞，不要公开提交 Issue。
+  - name: 使用与部署文档
+    url: https://github.com/hhhxwhhh/FitVision#快速开始
+    about: 先在 README 中查找安装、配置与常见问题。
