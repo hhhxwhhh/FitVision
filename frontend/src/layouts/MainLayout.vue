@@ -103,7 +103,9 @@
                 <div class="content-wrapper container">
                     <!-- Router View with Component Caching Strategy -->
                     <router-view v-slot="{ Component, route }">
-                        <component :is="Component" :key="route.path" />
+                        <Transition name="fade-slide" mode="out-in">
+                            <component :is="Component" :key="route.path" />
+                        </Transition>
                     </router-view>
                 </div>
             </el-main>

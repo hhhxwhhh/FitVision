@@ -23,5 +23,19 @@ export default defineConfig(({ mode }) => {
         '/static': { target: proxyTarget, changeOrigin: true },
       },
     },
+    build: {
+      // Long-lived vendor chunks improve caching across app releases.
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vue-vendor': ['vue', 'vue-router', 'pinia'],
+            'element-plus': ['element-plus'],
+            charts: ['echarts', 'vue-echarts'],
+            mediapipe: ['@mediapipe/pose', '@mediapipe/camera_utils', '@mediapipe/drawing_utils'],
+          },
+        },
+      },
+      chunkSizeWarningLimit: 1200,
+    },
   }
 })

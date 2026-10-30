@@ -1,87 +1,108 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import LoginView from '../views/LoginView.vue'
-import RegisterView from '../views/RegisterView.vue'
-import MainLayout from '../layouts/MainLayout.vue'
-import HomeView from '../views/HomeView.vue'
-import ProfileView from '../views/ProfileView.vue'
-import TrainingView from '../views/TrainingView.vue'
-import AnalyticsView from '../views/AnalyticsView.vue'
-import ExercisesView from '../views/ExercisesView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
+  scrollBehavior: () => ({ top: 0 }),
   routes: [
     {
       path: '/login',
       name: 'login',
-      component: LoginView
+      component: () => import('../views/LoginView.vue'),
+      meta: { public: true, title: '登录' },
     },
     {
       path: '/register',
       name: 'register',
-      component: RegisterView
+      component: () => import('../views/RegisterView.vue'),
+      meta: { public: true, title: '注册' },
     },
     {
       path: '/',
-      component: MainLayout,
+      component: () => import('../layouts/MainLayout.vue'),
       children: [
         {
           path: '',
           name: 'home',
-          component: HomeView
+          component: () => import('../views/HomeView.vue'),
+          meta: { title: '首页' },
         },
         {
           path: 'profile',
           name: 'profile',
-          component: ProfileView
+          component: () => import('../views/ProfileView.vue'),
+          meta: { title: '个人中心' },
         },
         {
           path: 'training',
           name: 'training',
-          component: TrainingView
+          component: () => import('../views/TrainingView.vue'),
+          meta: { title: '智能训练' },
         },
         {
           path: 'training/report',
           name: 'TrainingReport',
-          component: () => import('../views/TrainingReportView.vue')
+          component: () => import('../views/TrainingReportView.vue'),
+          meta: { title: '训练报告' },
         },
         {
-          path: 'ai-plan', 
+          path: 'ai-plan',
           name: 'ai-plan',
-          component: () => import('../views/AIPlanView.vue')
+          component: () => import('../views/AIPlanView.vue'),
+          meta: { title: 'AI 计划' },
         },
         {
           path: 'analytics',
           name: 'analytics',
-          component: AnalyticsView
+          component: () => import('../views/AnalyticsView.vue'),
+          meta: { title: '数据中心' },
         },
         {
           path: 'exercises',
           name: 'exercises',
-          component: ExercisesView
+          component: () => import('../views/ExercisesView.vue'),
+          meta: { title: '动作百科' },
         },
         {
           path: 'exercises/graph',
           name: 'exercise-graph',
-          component: () => import('../views/ExerciseGraphView.vue')
+          component: () => import('../views/ExerciseGraphView.vue'),
+          meta: { title: '动作知识图谱' },
         },
         {
           path: 'posture-diagnosis',
           name: 'posture-diagnosis',
-          component: () => import('../views/PostureDiagnosisView.vue')
-        }
-      ]
-    }
-  ]
+          component: () => import('../views/PostureDiagnosisView.vue'),
+          meta: { title: '姿态诊断' },
+        },
+      ],
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'not-found',
+      component: () => import('../views/NotFoundView.vue'),
+      meta: { public: true, title: '页面未找到' },
+    },
+  ],
 })
 
-router.beforeEach((to, from, next) => {
+const AUTH_PAGES = new Set(['login', 'register'])
+
+router.beforeEach((to) => {
   const token = localStorage.getItem('jwt_token')
-  if (!token && to.path !== '/login' && to.path !== '/register') {
-    next('/login')
-  } else {
-    next()
+  const isPublic = to.meta.public === true
+
+  if (!token && !isPublic) {
+    return { name: 'login', query: { redirect: to.fullPath } }
   }
+  if (token && AUTH_PAGES.has(String(to.name))) {
+    return { name: 'home' }
+  }
+  return true
+})
+
+router.afterEach((to) => {
+  const title = typeof to.meta.title === 'string' ? to.meta.title : ''
+  document.title = title ? `${title} · FitVision` : 'FitVision — AI 健身教练'
 })
 
 export default router

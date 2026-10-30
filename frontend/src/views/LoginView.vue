@@ -53,11 +53,13 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import apiClient from '../api'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { User, Lock } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 
 const router = useRouter()
+const route = useRoute()
+const redirectTarget = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
 const formRef = ref<FormInstance>()
 
 const form = reactive({
@@ -94,12 +96,13 @@ const handleLogin = async () => {
     const res = await apiClient.post('/auth/login/', form)
 
     localStorage.setItem('jwt_token', res.data.access)
+    localStorage.setItem('refresh_token', res.data.refresh)
     localStorage.setItem('username', res.data.username)
 
     message.value = `欢迎回来，${res.data.username}！正在跳转...`
     msgType.value = 'success'
 
-    setTimeout(() => { router.push('/') }, 1000)
+    setTimeout(() => { router.push(redirectTarget) }, 1000)
   } catch (err: any) {
     message.value = err.response?.data?.error || '登录失败，请检查账号密码'
     msgType.value = 'error'

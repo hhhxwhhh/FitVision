@@ -127,6 +127,7 @@ const handleRegister = async () => {
     })
 
     localStorage.setItem('jwt_token', loginRes.data.access)
+    localStorage.setItem('refresh_token', loginRes.data.refresh)
     localStorage.setItem('username', loginRes.data.username)
 
     router.push('/')
