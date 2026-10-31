@@ -70,7 +70,7 @@
                     <div class="card-header-styled">
                         <h3>今日课表</h3>
                     </div>
-                    <el-table :data="currentDayExercises" style="width: 100%"
+                    <el-table :data="currentDayExercises" :style="{ width: '100%' }"
                         :header-cell-style="{ background: MILAN_COLORS.pageBase, color: MILAN_COLORS.textSecondary }"
                         :row-class-name="tableRowClassName">
 

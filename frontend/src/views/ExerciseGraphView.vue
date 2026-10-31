@@ -97,8 +97,15 @@
 import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Cpu, ArrowLeft, Search, CircleCheck, Promotion, Lock, Link } from '@element-plus/icons-vue'
-import * as echarts from 'echarts'
+import { init as createChart, use as useChart } from 'echarts/core'
+import { GraphChart } from 'echarts/charts'
+import { LegendComponent, TooltipComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import apiClient from '../api'
+
+// Register only what the knowledge graph renders; keeps echarts out of the
+// full-bundle path.
+useChart([GraphChart, TooltipComponent, LegendComponent, CanvasRenderer])
 import { useTheme } from '../composables/useTheme'
 
 const router = useRouter()
@@ -251,7 +258,7 @@ const initChart = (data: any) => {
     }
   })
 
-  myChart = echarts.init(chartRef.value)
+  myChart = createChart(chartRef.value)
   const option = {
     backgroundColor: 'transparent',
     tooltip: {

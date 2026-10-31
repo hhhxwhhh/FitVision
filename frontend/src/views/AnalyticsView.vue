@@ -63,7 +63,7 @@
                         </div>
                     </template>
                     <el-empty v-if="!loading && !summary.daily_breakdown.length" description="还没有训练数据，完成一次训练后再来看看" />
-                    <el-table v-else :data="summary.daily_breakdown" stripe style="width: 100%">
+                    <el-table v-else :data="summary.daily_breakdown" stripe :style="{ width: '100%' }">
                         <el-table-column prop="date" label="日期" width="120" />
                         <el-table-column prop="completed_sessions" label="完成会话" />
                         <el-table-column prop="total_duration_minutes" label="课时(分)" />

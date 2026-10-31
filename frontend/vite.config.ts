@@ -1,6 +1,8 @@
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import Components from 'unplugin-vue-components/vite'
+import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -8,7 +10,16 @@ export default defineConfig(({ mode }) => {
   const proxyTarget = env.VITE_DEV_PROXY_TARGET || 'http://127.0.0.1:8000'
 
   return {
-    plugins: [vue()],
+    plugins: [
+      vue(),
+      // Pulls in only the Element Plus components actually used in templates
+      // instead of registering the whole library at runtime.
+      Components({
+        dts: 'src/components.d.ts',
+        directives: true,
+        resolvers: [ElementPlusResolver()],
+      }),
+    ],
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -29,8 +40,7 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks: {
             'vue-vendor': ['vue', 'vue-router', 'pinia'],
-            'element-plus': ['element-plus'],
-            charts: ['echarts', 'vue-echarts'],
+            charts: ['vue-echarts'],
             mediapipe: ['@mediapipe/pose', '@mediapipe/camera_utils', '@mediapipe/drawing_utils'],
           },
         },

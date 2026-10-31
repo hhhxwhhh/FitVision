@@ -122,7 +122,7 @@
     <!-- History list -->
     <el-card class="mt-4 diagnosis-history">
        <template #header>最近 5 次扫描历史</template>
-       <el-table :data="history" style="width: 100%" v-loading="loadingHistory">
+       <el-table :data="history" :style="{ width: '100%' }" v-loading="loadingHistory">
            <el-table-column prop="created_at" label="时间" align="center">
                <template #default="scope">
                    {{ new Date(scope.row.created_at).toLocaleString() }}
