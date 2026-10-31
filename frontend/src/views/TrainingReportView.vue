@@ -42,7 +42,7 @@
           </div>
           
           <div class="analysis-content">
-            <p class="ai-text" v-html="reportData.aiAnalysis"></p>
+            <div class="ai-text" v-html="safeAiAnalysis"></div>
           </div>
           
           <div class="tags-row">
@@ -96,10 +96,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { DataLine, Share, MagicStick, Timer, HotWater, Check, Odometer } from '@element-plus/icons-vue'
+import { formatRichText } from '../utils/sanitizeHtml'
 
 const router = useRouter()
 
@@ -112,6 +113,9 @@ const reportData = ref({
   aiAnalysis: '正在生成详细的训练分析报告...',
   tags: [] as string[]
 })
+
+// AI copy is untrusted input: sanitise it before binding with v-html.
+const safeAiAnalysis = computed(() => formatRichText(reportData.value.aiAnalysis))
 
 onMounted(() => {
   const storedData = localStorage.getItem('latestTrainingReport')

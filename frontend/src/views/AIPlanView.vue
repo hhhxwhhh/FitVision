@@ -12,7 +12,7 @@
           <h2 v-else>{{ planData.report_title }}</h2>
           
           <p v-if="!planData">告诉 AI 你的目标，为你定制专属 RAG 增强训练计划。</p>
-          <p v-else v-html="planData.report_summary"></p>
+          <p v-else v-html="safeReportSummary"></p>
         </div>
         
         <el-button 
@@ -209,6 +209,7 @@ import { ref, reactive } from 'vue'
 import { MagicStick, Edit, Delete, Plus, Picture } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import apiClient from '../api'
+import { sanitizeHtml } from '../utils/sanitizeHtml'
 
 // --- 类型定义 ---
 interface Exercise {
@@ -348,8 +349,12 @@ const addEmptyExercise = () => {
 // --- 辅助函数 ---
 const formatText = (text: string) => {
   if (!text) return ''
-  return text.replace(/\*\*(.*?)\*\*/g, '<span class="highlight-text">$1</span>')
+  // Sanitise first, then apply our own trusted highlight markup.
+  return sanitizeHtml(text).replace(/\*\*(.+?)\*\*/gs, '<span class="highlight-text">$1</span>')
 }
+
+// Model output is untrusted input, so every v-html binding goes through it.
+const safeReportSummary = () => sanitizeHtml(planData.value?.report_summary ?? '')
 
 const isToday = (dayStr: string) => {
   const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
