@@ -52,11 +52,26 @@
     *   训练结束，前端汇总：动作名称、总次数、总耗时。
     *   根据用户体重估算卡路里消耗。
 3.  **提交记录 (前端)**:
-    *   前端发送 POST 请求到 `/api/training/logs/`。
+    *   训练过程中，前端通过 `POST /api/training/exercise-records/` 逐条写入动作记录。
+    *   训练结束后，前端通过 `PUT /api/training/sessions/<id>/complete/` 提交自评与卡路里。
 4.  **保存与更新 (后端)**:
-    *   `TrainingLogView` 接收数据并保存到 `TrainingLog` 表。
-    *   后端触发信号 (Signal)，更新用户的 `UserStats` (总训练时长、总消耗)。
-    *   更新推荐系统的用户状态 (如：今日已练腿，明日推荐练胸)。
+    *   `complete_training_session` 调用 AI 教练生成综合评分与分析报告，并保存会话。
+    *   `UserTrainingSession` 的 `post_save` 信号触发成长体系结算。
+    *   `analytics` 信号重算当日 `UserDailyStats` 与动作 `ExerciseProgress`。
+    *   推荐系统根据最近训练更新疲劳度与部位训练容量。
+
+## 成长结算流程 (Growth Flow)
+
+1.  **触发结算**: 会话标记为已完成时，`growth.signals` 调用 `record_session_completed()`。
+2.  **进度重算**: 从全部已完成会话重新计算连续天数、最长连续、累计训练次数与最近训练日期。
+3.  **经验发放**: 按「基础分 + 时长 + 动作质量 + 连续奖励」计算 XP，并写入 `XPEvent`。
+    `(user, source, reference_id)` 唯一约束保证同一会话只结算一次。
+4.  **个人纪录**: 扫描本次会话的动作记录，刷新最大重量、最高次数、单次容量与最佳评分。
+5.  **统计修复**: `refresh_user_stats()` 从会话重新计算 `UserStats`，避免首页统计滞后。
+6.  **成就判定**: 汇总训练次数、连续天数、总容量、动作种类等指标，解锁新成就并发放 XP。
+7.  **任务与周目标**: 读取 `GET /api/growth/overview/` 时实时计算今日任务与本周目标进度；
+    用户在成长中心手动领取任务/周目标奖励。
+8.  **周榜**: `GET /api/growth/leaderboard/` 聚合本周 `XPEvent`，按经验排序并脱敏展示昵称。
 
 ## 个性化推荐流程 (Recommendation Flow)
 

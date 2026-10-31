@@ -1,0 +1,232 @@
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
+from .models import Achievement, PersonalRecord, UserAchievement, UserProgress
+from .serializers import (
+    AchievementSerializer,
+    DailyQuestSerializer,
+    PersonalRecordSerializer,
+    UserAchievementSerializer,
+    WeeklyGoalSerializer,
+)
+from .services import (
+    build_metrics,
+    claim_daily_quest,
+    claim_weekly_goal,
+    evaluate_achievements,
+    level_progress,
+    readiness_snapshot,
+    refresh_daily_quests,
+    weekly_goal_for,
+    weekly_goal_metrics,
+    weekly_leaderboard,
+)
+
+
+def _client_error(message: str) -> Response:
+    return Response({"detail": message}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def _progress_payload(progress: UserProgress) -> dict:
+    payload = level_progress(progress.xp)
+    payload.update(
+        {
+            "current_streak": progress.current_streak,
+            "longest_streak": progress.longest_streak,
+            "last_training_date": progress.last_training_date,
+            "total_sessions": progress.total_sessions,
+            "is_public": progress.is_public,
+        }
+    )
+    return payload
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def overview(request):
+    """成长体系总览：等级、连续天数、每日任务、周目标、成就与个人纪录。"""
+    user = request.user
+    evaluate_achievements(user)
+
+    progress, _ = UserProgress.objects.get_or_create(user=user)
+    quests = refresh_daily_quests(user)
+    goal = weekly_goal_for(user)
+    goal_metrics = weekly_goal_metrics(user, goal)
+
+    unlocked_map = {
+        item.achievement_id: item
+        for item in UserAchievement.objects.filter(user=user)
+    }
+    achievements = Achievement.objects.filter(is_active=True)
+    metrics = build_metrics(user)
+    achievement_context = {"unlocked": unlocked_map, "metrics": metrics}
+    preview = AchievementSerializer(
+        achievements.order_by("sort_order", "id")[:4],
+        many=True,
+        context=achievement_context,
+    ).data
+    records = (
+        PersonalRecord.objects.filter(user=user)
+        .select_related("exercise")
+        .order_by("-achieved_at")[:5]
+    )
+
+    return Response(
+        {
+            "progress": _progress_payload(progress),
+            "readiness": readiness_snapshot(user),
+            "weekly_goal": WeeklyGoalSerializer(
+                goal, context={"metrics": goal_metrics}
+            ).data,
+            "daily_quests": DailyQuestSerializer(quests, many=True).data,
+            "achievements": {
+                "unlocked": len(unlocked_map),
+                "total": achievements.count(),
+                "preview": preview,
+                "recent": UserAchievementSerializer(
+                    UserAchievement.objects.filter(user=user)
+                    .select_related("achievement")
+                    .order_by("-unlocked_at")[:3],
+                    many=True,
+                ).data,
+            },
+            "personal_records": PersonalRecordSerializer(records, many=True).data,
+            "metrics": {
+                key: round(float(value), 1) if isinstance(value, float) else value
+                for key, value in metrics.items()
+            },
+        }
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def achievements_list(request):
+    user = request.user
+    evaluate_achievements(user)
+    unlocked_map = {
+        item.achievement_id: item
+        for item in UserAchievement.objects.filter(user=user)
+    }
+    achievements = Achievement.objects.filter(is_active=True)
+    serializer = AchievementSerializer(
+        achievements,
+        many=True,
+        context={"unlocked": unlocked_map, "metrics": build_metrics(user)},
+    )
+    return Response(
+        {
+            "unlocked": len(unlocked_map),
+            "total": achievements.count(),
+            "results": serializer.data,
+        }
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def daily_quests(request):
+    quests = refresh_daily_quests(request.user)
+    return Response(DailyQuestSerializer(quests, many=True).data)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def claim_quest(request, quest_id):
+    try:
+        quest, awarded = claim_daily_quest(request.user, quest_id)
+    except ValueError as exc:
+        return _client_error(str(exc))
+    return Response(
+        {
+            "quest": DailyQuestSerializer(quest).data,
+            "awarded_xp": quest.xp_reward if awarded else 0,
+        }
+    )
+
+
+@api_view(["GET", "PUT"])
+@permission_classes([IsAuthenticated])
+def weekly_goal(request):
+    goal = weekly_goal_for(request.user)
+
+    if request.method == "PUT":
+        try:
+            target_sessions = int(request.data.get("target_sessions", goal.target_sessions))
+            target_minutes = int(request.data.get("target_minutes", goal.target_minutes))
+        except (TypeError, ValueError):
+            return _client_error("目标值必须是整数")
+        if not 1 <= target_sessions <= 7:
+            return _client_error("目标训练天数需要在 1 到 7 之间")
+        if not 0 <= target_minutes <= 3000:
+            return _client_error("目标训练分钟需要在 0 到 3000 之间")
+        goal.target_sessions = target_sessions
+        goal.target_minutes = target_minutes
+        goal.save(update_fields=["target_sessions", "target_minutes", "updated_at"])
+
+    metrics = weekly_goal_metrics(request.user, goal)
+    return Response(WeeklyGoalSerializer(goal, context={"metrics": metrics}).data)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def claim_weekly_goal_reward(request):
+    try:
+        goal, awarded = claim_weekly_goal(request.user)
+    except ValueError as exc:
+        return _client_error(str(exc))
+    metrics = weekly_goal_metrics(request.user, goal)
+    return Response(
+        {
+            "weekly_goal": WeeklyGoalSerializer(
+                goal, context={"metrics": metrics}
+            ).data,
+            "awarded_xp": awarded,
+        }
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def personal_records(request):
+    records = (
+        PersonalRecord.objects.filter(user=request.user)
+        .select_related("exercise")
+        .order_by("-achieved_at")
+    )
+    record_type = request.query_params.get("type")
+    if record_type:
+        records = records.filter(record_type=record_type)
+    return Response(PersonalRecordSerializer(records, many=True).data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def leaderboard(request):
+    try:
+        limit = int(request.query_params.get("limit", 20))
+    except (TypeError, ValueError):
+        limit = 20
+    limit = max(1, min(limit, 50))
+    return Response(weekly_leaderboard(request.user, limit=limit))
+
+
+@api_view(["GET", "PUT"])
+@permission_classes([IsAuthenticated])
+def growth_settings(request):
+    progress, _ = UserProgress.objects.get_or_create(user=request.user)
+
+    if request.method == "PUT":
+        raw = request.data.get("is_public")
+        if isinstance(raw, bool):
+            is_public = raw
+        elif isinstance(raw, str):
+            is_public = raw.strip().lower() in {"1", "true", "yes", "on"}
+        else:
+            return _client_error("is_public 必须是布尔值")
+        progress.is_public = is_public
+        progress.save(update_fields=["is_public", "updated_at"])
+
+    return Response({"is_public": progress.is_public})

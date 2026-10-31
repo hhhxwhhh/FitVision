@@ -21,6 +21,7 @@ known_first_party = [
   "exercises",
   "training",
   "recommendations",
+  "growth",
   "analytics",
   "ai_models",
   "utils",

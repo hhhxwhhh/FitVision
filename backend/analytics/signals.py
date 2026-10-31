@@ -1,9 +1,12 @@
+import logging
+
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.db import models
-from django.utils import timezone
 from training.models import UserTrainingSession, UserTrainingExerciseRecord
 from .models import UserDailyStats, ExerciseProgress
+
+logger = logging.getLogger(__name__)
 
 @receiver(post_save, sender=UserTrainingSession)
 def update_daily_stats(sender, instance, **kwargs):
@@ -103,4 +106,6 @@ def update_exercise_progress(sender, instance, **kwargs):
     progress.best_form_score = best_score
     
     progress.save()
-    print(f"动作 {exercise.name} 统计已更新，当前总容量: {total_vol}")
+    logger.debug(
+        "动作 %s 统计已更新，当前总容量: %s", exercise.name, total_vol
+    )

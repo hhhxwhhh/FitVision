@@ -1,6 +1,9 @@
+from datetime import datetime, time
+
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from training.models import UserTrainingSession  # 假设有这个或者 TrainingLog
+from django.utils import timezone
+
 from analytics.models import UserDailyStats
 from .models import UserState
 
@@ -15,5 +18,7 @@ def update_user_state(sender, instance, **kwargs):
     else:
         state.fatigue_level = max(0.0, state.fatigue_level - 0.1)
         
-    state.last_trained_at = instance.date
+    state.last_trained_at = timezone.make_aware(
+        datetime.combine(instance.date, time.min)
+    )
     state.save()

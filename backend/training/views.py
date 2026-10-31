@@ -8,6 +8,7 @@ from .services import SmartRecommendationService
 from django.shortcuts import get_object_or_404
 from django.db.models import Sum
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from datetime import timedelta
 import json 
 from openai import OpenAI  
@@ -24,7 +25,7 @@ from .serializers import (
     UserTrainingSessionDetailSerializer,
     UserTrainingExerciseRecordSerializer
 )
-from exercises.models import Exercise
+from exercises.models import Exercise, ExerciseGraph
 from users.models import UserProfile
 
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
@@ -131,7 +132,13 @@ def complete_training_session(request, session_id):
         return Response({'error': '训练会话已结束'}, status=status.HTTP_400_BAD_REQUEST)
 
     # 1. 获取基本数据
-    session.end_time = timezone.now() if not request.data.get('end_time') else request.data.get('end_time')
+    raw_end_time = request.data.get('end_time')
+    end_time = (
+        parse_datetime(raw_end_time) if isinstance(raw_end_time, str) else raw_end_time
+    ) or timezone.now()
+    if timezone.is_naive(end_time):
+        end_time = timezone.make_aware(end_time)
+    session.end_time = end_time
     session.is_completed = True
     session.completed_exercises = request.data.get('completed_exercises', session.total_exercises)
     session.calories_burned = request.data.get('calories_burned', 0)

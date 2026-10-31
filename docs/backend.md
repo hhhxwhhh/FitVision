@@ -94,6 +94,21 @@ backend/
 │       ├── 0002_alter_recommendedexercise_algorithm.py
 │       ├── 0003_userstate_target_intensity.py
 │       └── 0004_alter_recommendedexercise_algorithm.py
+├── growth/              # 成长体系：等级、任务、成就、个人纪录、周榜
+│   ├── __init__.py
+│   ├── admin.py
+│   ├── apps.py
+│   ├── models.py        # UserProgress / Achievement / UserDailyQuest / WeeklyGoal / PersonalRecord / XPEvent
+│   ├── serializers.py
+│   ├── services.py      # XP、等级、连续天数、任务进度与成就判定
+│   ├── signals.py       # 训练完成后统一结算
+│   ├── tests.py
+│   ├── urls.py
+│   ├── views.py
+│   └── migrations/
+│       ├── __init__.py
+│       ├── 0001_initial.py
+│       └── 0002_seed_achievements.py
 ├── training/            # 训练记录与计划
 │   ├── __init__.py
 │   ├── admin.py
@@ -173,7 +188,32 @@ backend/
 *   **[views.py](file:///d:/code/forvue/FitVision/backend/training/views.py)**
     *   `TrainingLogView`: 创建和查询训练日志。
 
-### 5. 全局配置 (`fitvision`)
+### 5. 成长体系 (`growth`)
+
+将训练数据转化为可持续的激励闭环。所有发奖使用 `XPEvent` 唯一约束保证幂等，
+重复保存训练会话不会重复加经验；任务与周目标进度在读取时实时计算，避免缓存漂移。
+
+*   **[models.py](file:///d:/code/forvue/FitVision/backend/growth/models.py)**
+    *   `UserProgress`: XP、等级、连续/最长训练天数、本周榜公开开关。
+    *   `Achievement` / `UserAchievement`: 成就定义与解锁记录，由数据迁移写入 16 项默认成就。
+    *   `UserDailyQuest`: 每个用户每天确定性生成 3 个任务。
+    *   `WeeklyGoal`: 每周训练天数与分钟目标。
+    *   `PersonalRecord`: 每个动作的最大重量、最高次数、单次容量与最佳评分。
+    *   `XPEvent`: 经验流水，作为幂等发奖凭据。
+*   **[services.py](file:///d:/code/forvue/FitVision/backend/growth/services.py)**
+    *   `record_session_completed()`: 训练完成后的统一结算入口。
+    *   `refresh_user_stats()`: 从训练会话重算 `UserStats`，修复统计滞后。
+    *   `evaluate_achievements()`: 根据实时指标批量解锁成就。
+    *   `weekly_leaderboard()`: 本周经验榜，支持昵称脱敏与隐身。
+*   **[views.py](file:///d:/code/forvue/FitVision/backend/growth/views.py)**
+    *   `GET /api/growth/overview/`: 成长总览（等级、就绪度、任务、周目标、成就与纪录）。
+    *   `GET /api/growth/achievements/`: 成就列表与进度。
+    *   `GET /api/growth/quests/`、`POST /api/growth/quests/<id>/claim/`: 每日任务与领奖。
+    *   `GET/PUT /api/growth/weekly-goal/`、`POST /api/growth/weekly-goal/claim/`: 周目标与领奖。
+    *   `GET /api/growth/records/`: 个人纪录。
+    *   `GET /api/growth/leaderboard/`、`GET/PUT /api/growth/settings/`: 周榜与公开设置。
+
+### 6. 全局配置 (`fitvision`)
 
 *   **[urls.py](file:///d:/code/forvue/FitVision/backend/fitvision/urls.py)**
     *   定义了 `/api/` 下的所有路由前缀：
@@ -181,10 +221,12 @@ backend/
         *   `/api/ai/` -> `ai_models`
         *   `/api/training/` -> `training`
         *   `/api/recommendations/` -> `recommendations`
+        *   `/api/analytics/` -> `analytics`
+        *   `/api/growth/` -> `growth`
 
 ## 技术栈
 
-*   **框架**: Django 4.x + Django Rest Framework
+*   **框架**: Django 5.2 + Django Rest Framework
 *   **数据库**: PostgreSQL (推荐) 或 SQLite (开发)
 *   **认证**: Simple JWT (JSON Web Token)
 *   **异步支持**: ADRF (Async Django Rest Framework) 用于 AI 接口
