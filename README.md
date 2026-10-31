@@ -233,7 +233,10 @@ python manage.py seed_demo --with-history
 
 - 演示账号：`demo` / `fitvision123`（仅用于本地演示，请勿用于生产）。
 - 生成内容：8 周训练历史（会话、动作记录、交互）与用户统计；固定 `--seed` 即可复现。
-- 参数可调：`python manage.py seed_demo_history --weeks 12 --days-per-week 5 --force`。
+- 参数可调：`python manage.py seed_demo_history --weeks 12 --days-per-week 5 --force`；
+  `--no-periodization` 可关掉周期化，退回"每周负荷都一样"的旧行为。
+- 生成的负荷是**周期化**的：4 周一循环，前 3 周渐进超负荷、第 4 周减量，
+  因此首页的负荷比 / TSB 与成长页的近 4 周负荷图在演示数据上就有真实起伏。
 
 > 历史数据由 `backend/utils/demo_data.py` 的确定性生成器产生，
 > 测试可用 `python -m unittest utils.test_demo_data`。

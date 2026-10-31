@@ -101,6 +101,9 @@ python manage.py seed_demo_history --user demo --weeks 12 --force
 - 历史数据由 `utils/demo_data.py` 的**确定性生成器**产生，固定 `--seed` 即可复现。
 - 生成内容：训练会话、每个动作的记录、交互日志以及 `UserStats` 汇总，用于首页/统计/成长展示。
 - `UserExerciseRecord.created_at` / `UserInteraction.timestamp` 是 `auto_now_add`，命令通过 `update()` 回填真实历史时间。
+- 负荷默认**周期化**（`week_load_factor`）：4 周一循环，前 3 周渐进超负荷、第 4 周减量；
+  `periodization=False` 或 `--no-periodization` 可关掉。
+- `performance_score` 按模型约定的 **0-5 分制**写入（成长 XP 里按 ×4 折算质量加成）。
 
 ### 多用户数据集（推荐算法用）
 

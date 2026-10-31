@@ -36,6 +36,11 @@ class Command(BaseCommand):
             action="store_true",
             help="用户不存在时自动创建（演示密码 fitvision123）",
         )
+        parser.add_argument(
+            "--no-periodization",
+            action="store_true",
+            help="关闭周期化（默认 4 周一循环：3 周渐进超负荷 + 1 周减量）",
+        )
 
     def handle(self, *args, **options):
         username = options["user"]
@@ -89,6 +94,7 @@ class Command(BaseCommand):
             weeks=options["weeks"],
             days_per_week=options["days_per_week"],
             end_date=timezone.localdate(),
+            periodization=not options["no_periodization"],
         )
         if not sessions:
             self.stderr.write("未生成任何会话，请检查动作库或参数。")

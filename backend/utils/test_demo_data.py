@@ -13,6 +13,7 @@ from .demo_data import (
     longest_streak,
     summarize_history,
     summarize_population,
+    week_load_factor,
 )
 
 
@@ -81,6 +82,55 @@ class GenerateTrainingHistoryTests(unittest.TestCase):
         sessions = generate_training_history(_catalog(), seed=5, weeks=5, end_date=END)
         starts = [item["start_time"] for item in sessions]
         self.assertEqual(starts, sorted(starts))
+
+    def test_performance_score_uses_the_zero_to_five_scale(self):
+        """成长 XP 里按 performance_score × 4 折算质量加成，所以必须是 0-5 分制。"""
+        sessions = generate_training_history(_catalog(), seed=13, weeks=4, end_date=END)
+        self.assertTrue(sessions)
+        for session in sessions:
+            self.assertGreaterEqual(session["performance_score"], 0.0)
+            self.assertLessEqual(session["performance_score"], 5.0)
+
+
+class PeriodizationTests(unittest.TestCase):
+    def test_four_week_cycle_rampa_up_then_deloads(self):
+        # week=weeks-1 是最旧的一周，week=0 是当前周
+        ramp = [week_load_factor(week=7 - k, weeks=8) for k in range(8)]
+        self.assertEqual(ramp[0], 0.92)
+        self.assertGreater(ramp[1], ramp[0])
+        self.assertGreater(ramp[2], ramp[1])
+        self.assertLess(ramp[3], ramp[2])  # 第 4 周减量
+
+    def test_later_blocks_carry_more_load(self):
+        self.assertGreater(week_load_factor(week=3, weeks=8), week_load_factor(week=7, weeks=8))
+
+    def test_the_factor_stays_in_a_sane_band(self):
+        for weeks in (1, 2, 4, 8, 16, 24):
+            for week in range(weeks):
+                factor = week_load_factor(week=week, weeks=weeks)
+                self.assertGreaterEqual(factor, 0.6)
+                self.assertLessEqual(factor, 1.3)
+
+    def test_deload_weeks_are_shorter_than_build_weeks(self):
+        sessions = generate_training_history(_catalog(), seed=21, weeks=8, end_date=END)
+        minutes_by_week = {}
+        for session in sessions:
+            key = session["date"].isocalendar()[1]
+            minutes_by_week.setdefault(key, []).append(session["duration_minutes"])
+
+        averages = {key: sum(v) / len(v) for key, v in minutes_by_week.items()}
+        self.assertGreater(len(averages), 1)
+        self.assertGreater(max(averages.values()), min(averages.values()))
+
+    def test_periodization_can_be_disabled(self):
+        flat = generate_training_history(
+            _catalog(), seed=31, weeks=8, end_date=END, periodization=False
+        )
+        waved = generate_training_history(_catalog(), seed=31, weeks=8, end_date=END)
+        self.assertNotEqual(
+            [item["duration_minutes"] for item in flat],
+            [item["duration_minutes"] for item in waved],
+        )
 
 
 class SummarizeHistoryTests(unittest.TestCase):

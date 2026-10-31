@@ -48,6 +48,27 @@ def _weekday_pattern(days_per_week: int, rng: random.Random) -> tuple[int, ...]:
     return tuple(sorted(rng.sample(range(7), count)))
 
 
+def week_load_factor(week: int, weeks: int, cycle: int = 4) -> float:
+    """周期化负荷系数：4 周一循环，前 3 周渐进超负荷，第 4 周减量（deload）。
+
+    这样生成的演示数据在负荷模型里才有意义 —— 急性/慢性负荷比会随周期起伏，
+    减量周的 TSB 会转正，而不是一条永远水平的直线。
+    """
+    if weeks <= 0:
+        return 1.0
+    index_from_start = weeks - 1 - week  # 0 = 最旧的一周
+    phase = index_from_start % cycle
+    block = index_from_start // cycle
+
+    if phase == cycle - 1:
+        factor = 0.68  # 减量周：容量明显下调
+    else:
+        factor = 0.92 + 0.08 * phase  # 0.92 / 1.00 / 1.08
+
+    # 每个周期整体再抬一点点，形成长期渐进超负荷
+    return round(min(1.3, factor + 0.02 * block), 3)
+
+
 def _build_session(
     rng: random.Random,
     catalog: list[dict],
@@ -59,6 +80,7 @@ def _build_session(
     max_exercises: int,
     base_form: float = 70.0,
     form_growth: float = 14.0,
+    load_factor: float = 1.0,
 ) -> dict | None:
     pool = [item for item in catalog if item.get("target_muscle") == focus]
     if len(pool) < min_exercises:
@@ -86,7 +108,8 @@ def _build_session(
     total_calories = 0.0
 
     for index, item in enumerate(chosen):
-        sets = rng.randint(3, 4)
+        # 组数随周期化系数伸缩：减量周 2 组，峰值周 4-5 组
+        sets = max(2, int(round(rng.randint(3, 4) * load_factor)))
         base_reps = int(item.get("default_reps") or 10)
         start_reps = max(4, base_reps + rng.randint(-2, 2))
         # Reps typically fade across sets as fatigue accumulates.
@@ -100,7 +123,7 @@ def _build_session(
         # otherwise produce implausibly long, high-calorie exercises).
         average_reps = sum(reps) / sets
         work_per_set = min(average_reps * 3.0, 75.0)
-        duration_seconds = min(int(sets * (work_per_set + 45.0)), 720)
+        duration_seconds = min(int(sets * (work_per_set + 45.0) * load_factor), 720)
 
         rate = float(item.get("calories_burned") or 5.0)
         calories = round(rate * (duration_seconds / 60.0), 1)
@@ -127,7 +150,9 @@ def _build_session(
     completed = rng.random() < 0.9
     form_scores = [entry["form_score"] for entry in exercises]
     average_form = sum(form_scores) / len(form_scores) if form_scores else 0.0
-    performance = round(average_form * (1.0 if completed else 0.6), 1)
+    # `UserTrainingSession.performance_score` 是 0-5 分制（成长 XP 里按 ×4 折算成
+    # 0-20 分的质量加成），所以这里要把 0-100 的动作平均评分换算过去。
+    performance = round(min(5.0, average_form / 20.0) * (1.0 if completed else 0.6), 2)
     end_time = cursor if completed else start + timedelta(minutes=12)
 
     return {
@@ -154,11 +179,15 @@ def generate_training_history(
     max_exercises: int = 6,
     base_form: float = 70.0,
     form_growth: float = 14.0,
+    periodization: bool = True,
 ) -> list[dict]:
     """Generate reproducible workout sessions ending at ``end_date``.
 
     ``catalog`` items must provide ``name``, ``target_muscle`` and optionally
     ``equipment``, ``calories_burned`` and ``default_reps``.
+
+    ``periodization=True``（默认）按 4 周一个小周期安排负荷：前 3 周渐进超负荷，
+    第 4 周减量。关掉它会退回"每周都一样"的旧行为。
     """
     if not catalog or weeks <= 0 or days_per_week <= 0:
         return []
@@ -191,6 +220,7 @@ def generate_training_history(
                 max_exercises,
                 base_form,
                 form_growth,
+                week_load_factor(week, weeks) if periodization else 1.0,
             )
             if session:
                 sessions.append(session)

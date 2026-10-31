@@ -29,12 +29,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Training readiness / load engine** (`backend/utils/readiness.py`): a pure-Python, Django-free model combining the Banister fitness–fatigue impulse response (TSB), an EWMA-based ACWR (acute:chronic workload ratio), Foster monotony/strain, a least-squares form-quality trend and the rest gap — returning a 0–100 readiness score, a suggested intensity, a volume multiplier and human-readable reasons. 38 unit tests run without Django.
 - Readiness is no longer a hand-waved `94 - fatigue * 55`: `growth.readiness_snapshot` now aggregates daily session loads (`daily_training_loads`) and delegates to the engine, and exposes `acwr / fitness / fatigue / tsb / monotony / strain / form_trend / rest_days / intensity / volume_multiplier / reasons`.
 - Load-management UI: the home readiness card shows the workload ratio, TSB, rest gap and suggested intensity with the engine's reasons; the growth page gained a 训练负荷 panel with acute/chronic load, fitness, fatigue, form trend, suggested volume, an ACWR position bar against the 0.8–1.3 sweet spot and a last-4-weeks load bar chart (`weekly_loads`).
+- Synthetic training history is now **periodized** (`utils.demo_data.week_load_factor`): a 4-week cycle with three progressive-overload weeks and a deload week, so the readiness / ACWR / weekly-load views show real variation on demo data. `periodization=False` / `--no-periodization` restores the flat behaviour.
 - Fatigue is now resolved through one entry point (`recommendations.services.resolve_fatigue_level`): the load model wins when it has seen training history, otherwise it falls back to the legacy `UserState` counter, and any failure degrades gracefully. The RL over-fatigue guard and the goal/fatigue re-rank both use it.
 - `src/utils/loadModel.ts`: shared, unit-tested presentation layer for the readiness payload (safe narrowing of the API shape, ACWR tone/position, TSB / rest / intensity / trend / volume copy, weekly bar normalisation) — HomeView and GrowthView no longer duplicate that logic.
 
 ### Fixed
 - Security: AI-generated rich text is now sanitised before every `v-html` binding, closing HTML-injection paths in the training report and AI plan views.
 - Vitest no longer writes a throwaway `components.d.ts` into the project root (`dts: false` in the test config).
+- The demo generator wrote `performance_score` on a 0–100 scale into a 0–5 field, which silently maxed out the growth XP quality bonus; it now emits the documented 0–5 scale.
+- An all-zero load series was misread as "extremely monotonous", penalising brand-new accounts; the readiness engine now short-circuits when there is no training history at all.
 
 ### Changed
 - Recommendation diversity re-ranking now uses **Maximal Marginal Relevance (MMR)** instead of a fixed per-muscle penalty, balancing relevance against redundancy with a tested pure-Python implementation.
