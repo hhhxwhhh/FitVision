@@ -56,6 +56,9 @@
                 <el-dropdown-item command="profile">
                   <el-icon><User /></el-icon>个人中心
                 </el-dropdown-item>
+                <el-dropdown-item command="history">
+                  <el-icon><Clock /></el-icon>训练历史
+                </el-dropdown-item>
                 <el-dropdown-item command="logout" divided>
                   <el-icon><SwitchButton /></el-icon>退出登录
                 </el-dropdown-item>
@@ -150,6 +153,7 @@ import {
   Aim,
   ArrowDown,
   ArrowRight,
+  Clock,
   DataAnalysis,
   Download,
   HomeFilled,
@@ -210,6 +214,7 @@ const mobileNav = [
       { path: '/exercises/graph', label: '知识图谱', icon: TrendCharts, matches: ['/exercises/graph'] },
       { path: '/analytics', label: '数据中心', icon: DataAnalysis, matches: ['/analytics'] },
       { path: '/growth', label: '成长中心', icon: Trophy, matches: ['/growth'] },
+      { path: '/history', label: '训练历史', icon: Clock, matches: ['/history'] },
     ],
   },
 ]
@@ -243,6 +248,11 @@ const handleInstall = async () => {
 const handleUserCommand = (command: string) => {
   if (command === 'profile') {
     router.push('/profile')
+    return
+  }
+
+  if (command === 'history') {
+    router.push('/history')
     return
   }
 

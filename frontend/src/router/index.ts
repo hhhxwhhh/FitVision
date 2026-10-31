@@ -63,6 +63,12 @@ const router = createRouter({
           meta: { title: '成长中心' },
         },
         {
+          path: 'history',
+          name: 'training-history',
+          component: () => import('../views/TrainingHistoryView.vue'),
+          meta: { title: '训练历史' },
+        },
+        {
           path: 'exercises',
           name: 'exercises',
           component: () => import('../views/ExercisesView.vue'),

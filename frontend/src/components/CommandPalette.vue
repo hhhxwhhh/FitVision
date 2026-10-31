@@ -66,6 +66,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch, type Component 
 import { useRouter } from 'vue-router'
 import {
   Aim,
+  Clock,
   DataAnalysis,
   HomeFilled,
   MagicStick,
@@ -178,6 +179,15 @@ const commands = computed<PaletteItem[]>(() => [
     icon: Trophy,
     keywords: 'growth level xp quest achievement leaderboard 成长 等级 任务 成就 排行',
     action: () => go('/growth'),
+  },
+  {
+    id: 'history',
+    label: '训练历史',
+    hint: '按时间回看每一次训练',
+    group: '页面与操作',
+    icon: Clock,
+    keywords: 'history sessions log 历史 记录 训练历史',
+    action: () => go('/history'),
   },
   {
     id: 'profile',
