@@ -86,10 +86,20 @@ def _build_session(
     for index, item in enumerate(chosen):
         sets = rng.randint(3, 4)
         base_reps = int(item.get("default_reps") or 10)
-        reps = [max(4, base_reps + rng.randint(-3, 3) - step) for step in range(sets)]
+        start_reps = max(4, base_reps + rng.randint(-2, 2))
+        # Reps typically fade across sets as fatigue accumulates.
+        reps = [
+            max(4, start_reps - step - (1 if rng.random() < 0.25 else 0))
+            for step in range(sets)
+        ]
         form = max(35.0, min(99.0, base_form + rng.uniform(-6, 6) - index * 0.8))
 
-        duration_seconds = sets * (sum(reps) * 3 + 40)
+        # Cap the work portion of a set (high-rep moves like high knees would
+        # otherwise produce implausibly long, high-calorie exercises).
+        average_reps = sum(reps) / sets
+        work_per_set = min(average_reps * 3.0, 75.0)
+        duration_seconds = min(int(sets * (work_per_set + 45.0)), 720)
+
         rate = float(item.get("calories_burned") or 5.0)
         calories = round(rate * (duration_seconds / 60.0), 1)
 
