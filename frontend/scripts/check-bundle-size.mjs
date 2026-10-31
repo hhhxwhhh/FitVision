@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Validates dist/ against gzip budgets to prevent bundle-size regressions. */
 import { gzipSync } from 'node:zlib'
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 const distDir = resolve(process.argv[2] || 'dist')
@@ -13,8 +13,6 @@ const budgets = [
   { name: 'critical-path CSS', match: (f) => /^assets\/index-[\w-]+\.css$/.test(f), maxKb: 80 },
   { name: 'any single JS chunk', match: (f) => f.endsWith('.js'), maxKb: 450 },
 ]
-
-const gzipKb = (file) => gzipSync(readFileSync(file)).length / 1024
 
 const collectAssets = (dir) => {
   const found = []

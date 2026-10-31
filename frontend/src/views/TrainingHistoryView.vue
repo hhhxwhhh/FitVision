@@ -14,13 +14,28 @@
       </el-button>
     </header>
 
+    <section v-if="!loading && sessions.length" class="stats-row">
+      <article v-for="stat in statsCards" :key="stat.label" class="stat-card">
+        <p class="stat-label">{{ stat.label }}</p>
+        <p class="stat-value">{{ stat.value }}<small v-if="stat.unit">{{ stat.unit }}</small></p>
+        <p class="stat-hint">{{ stat.hint }}</p>
+      </article>
+    </section>
+
     <div class="toolbar">
       <el-radio-group v-model="filter" size="default">
         <el-radio-button value="all">全部</el-radio-button>
         <el-radio-button value="completed">已完成</el-radio-button>
         <el-radio-button value="open">未完成</el-radio-button>
       </el-radio-group>
-      <span v-if="!loading" class="toolbar-tip">按开始时间倒序</span>
+
+      <div class="toolbar-right">
+        <el-button size="default" :disabled="!sessions.length" @click="exportCsv">
+          <el-icon><Download /></el-icon>
+          导出 CSV
+        </el-button>
+        <span v-if="!loading" class="toolbar-tip">按开始时间倒序</span>
+      </div>
     </div>
 
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
@@ -101,8 +116,18 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
-import { Odometer, Reading, Sunny, Timer, VideoCamera } from '@element-plus/icons-vue'
+import {
+  Download,
+  Odometer,
+  Reading,
+  Sunny,
+  Timer,
+  VideoCamera,
+} from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import apiClient from '../api'
+import { datedFilename, downloadTextFile, toCsv } from '../utils/csv'
+import { periodSummaries } from '../utils/trainingStats'
 
 interface TrainingSession {
   id: number
@@ -159,6 +184,59 @@ onMounted(() => fetchPage(1))
 
 const completedCount = computed(() => sessions.value.filter((item) => item.is_completed).length)
 
+const summaries = computed(() => periodSummaries(sessions.value))
+
+const statsCards = computed(() => [
+  {
+    label: '近 7 天',
+    value: summaries.value.week.count,
+    unit: '次',
+    hint: `已完成 ${summaries.value.week.completed} 次 · ${summaries.value.week.minutes} 分钟`,
+  },
+  {
+    label: '本月训练',
+    value: summaries.value.month.count,
+    unit: '次',
+    hint: `动作 ${summaries.value.month.completed} 次达标记录`,
+  },
+  {
+    label: '本月时长',
+    value: summaries.value.month.minutes,
+    unit: '分钟',
+    hint: `消耗 ${summaries.value.month.calories} kcal`,
+  },
+  {
+    label: '本月均分',
+    value: summaries.value.month.avgScore || '—',
+    unit: summaries.value.month.avgScore ? '分' : '',
+    hint: '按已完成评分场次平均',
+  },
+])
+
+const exportCsv = () => {
+  if (!sessions.value.length) return
+
+  const rows = [...sessions.value].sort((a, b) => a.start_time.localeCompare(b.start_time))
+  const csv = toCsv(rows, [
+    { key: 'date', label: '日期', value: (row) => dayjs(row.start_time).format('YYYY-MM-DD') },
+    { key: 'time', label: '开始时间', value: (row) => dayjs(row.start_time).format('HH:mm') },
+    { key: 'plan', label: '训练计划', value: (row) => row.plan_name || '自由训练' },
+    { key: 'duration', label: '时长(分钟)', value: (row) => durationMinutes(row) },
+    { key: 'score', label: '表现评分', value: (row) => row.performance_score || '' },
+    { key: 'exercises', label: '动作数', value: (row) => row.exercise_records_count },
+    { key: 'calories', label: '消耗(kcal)', value: (row) => Math.round(row.calories_burned) },
+    { key: 'status', label: '状态', value: (row) => (row.is_completed ? '已完成' : '未完成') },
+    { key: 'tags', label: 'AI 标签', value: (row) => (row.ai_tags ?? []).join(' / ') },
+  ])
+
+  const ok = downloadTextFile(datedFilename('fitvision-training-history'), csv)
+  if (ok) {
+    ElMessage.success(`已导出 ${rows.length} 条训练记录`)
+  } else {
+    ElMessage.warning('当前环境不支持直接下载，请重试。')
+  }
+}
+
 const filteredGroups = computed(() => {
   const list = sessions.value.filter((item) => {
     if (filter.value === 'all') return true
@@ -179,11 +257,13 @@ const filteredGroups = computed(() => {
   return [...groups.values()]
 })
 
-const durationLabel = (item: TrainingSession) => {
-  if (!item.end_time) return '进行中'
-  const minutes = Math.max(1, Math.round(dayjs(item.end_time).diff(dayjs(item.start_time), 'minute')))
-  return `${minutes} 分钟`
+const durationMinutes = (item: TrainingSession) => {
+  if (!item.end_time) return 0
+  return Math.max(1, Math.round(dayjs(item.end_time).diff(dayjs(item.start_time), 'minute')))
 }
+
+const durationLabel = (item: TrainingSession) =>
+  item.end_time ? `${durationMinutes(item)} 分钟` : '进行中'
 
 const scoreLabel = (item: TrainingSession) =>
   item.performance_score > 0 ? `${Math.round(item.performance_score)} 分` : '—'
@@ -214,11 +294,71 @@ const scoreLabel = (item: TrainingSession) =>
   color: var(--fv-text-2);
 }
 
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stat-card {
+  padding: 14px 16px;
+  border: 1px solid var(--fv-border);
+  border-radius: var(--fv-radius-md);
+  background: var(--fv-surface);
+}
+
+.stat-label {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fv-text-3);
+}
+
+.stat-value {
+  margin: 6px 0 4px;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--fv-text);
+}
+
+.stat-value small {
+  margin-left: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fv-text-2);
+}
+
+.stat-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fv-text-2);
+}
+
 .toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+@media (max-width: 860px) {
+  .stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .toolbar-right {
+    width: 100%;
+    justify-content: space-between;
+  }
 }
 
 .toolbar-tip {
