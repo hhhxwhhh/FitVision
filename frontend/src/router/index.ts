@@ -36,7 +36,7 @@ const router = createRouter({
           path: 'training',
           name: 'training',
           component: () => import('../views/TrainingView.vue'),
-          meta: { title: '智能训练' },
+          meta: { title: '开始训练' },
         },
         {
           path: 'training/report',
@@ -48,19 +48,19 @@ const router = createRouter({
           path: 'ai-plan',
           name: 'ai-plan',
           component: () => import('../views/AIPlanView.vue'),
-          meta: { title: 'AI 计划' },
+          meta: { title: '训练计划' },
         },
         {
           path: 'analytics',
           name: 'analytics',
           component: () => import('../views/AnalyticsView.vue'),
-          meta: { title: '数据中心' },
+          meta: { title: '训练数据' },
         },
         {
           path: 'growth',
           name: 'growth',
           component: () => import('../views/GrowthView.vue'),
-          meta: { title: '成长中心' },
+          meta: { title: '成长' },
         },
         {
           path: 'history',
@@ -90,7 +90,7 @@ const router = createRouter({
           path: 'posture-diagnosis',
           name: 'posture-diagnosis',
           component: () => import('../views/PostureDiagnosisView.vue'),
-          meta: { title: '姿态诊断' },
+          meta: { title: '动作纠错' },
         },
       ],
     },
@@ -120,7 +120,7 @@ router.beforeEach((to) => {
 
 router.afterEach((to) => {
   const title = typeof to.meta.title === 'string' ? to.meta.title : ''
-  document.title = title ? `${title} · FitVision` : 'FitVision — AI 健身教练'
+  document.title = title ? `${title} · FitVision` : 'FitVision — 训练助手'
 })
 
 export default router

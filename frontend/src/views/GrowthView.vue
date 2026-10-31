@@ -755,7 +755,7 @@ onMounted(loadAll)
   border-radius: var(--fv-radius-xl);
   border: 1px solid var(--fv-border);
   background:
-    radial-gradient(620px 240px at 8% 0%, rgba(109, 94, 252, 0.18), transparent 62%),
+    radial-gradient(620px 240px at 8% 0%, rgba(194, 65, 12, 0.12), transparent 62%),
     radial-gradient(520px 220px at 92% 100%, rgba(6, 182, 212, 0.12), transparent 60%),
     var(--fv-surface);
   box-shadow: var(--fv-shadow-md);
@@ -795,7 +795,7 @@ onMounted(loadAll)
 .ring-value {
   stroke: var(--fv-primary);
   stroke-linecap: round;
-  filter: drop-shadow(0 0 8px rgba(109, 94, 252, 0.45));
+  filter: none;
   transition: stroke-dasharray 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -1070,7 +1070,7 @@ onMounted(loadAll)
 }
 
 .quest.done {
-  border-color: rgba(109, 94, 252, 0.3);
+  border-color: rgba(194, 65, 12, 0.3);
   background: var(--fv-primary-soft);
 }
 
@@ -1186,7 +1186,7 @@ onMounted(loadAll)
 
 .achievement.unlocked {
   border-style: solid;
-  border-color: rgba(109, 94, 252, 0.3);
+  border-color: rgba(194, 65, 12, 0.3);
   background: var(--fv-primary-soft);
   opacity: 1;
 }
@@ -1238,7 +1238,7 @@ onMounted(loadAll)
 }
 
 .challenge-card.joined {
-  border-color: rgba(109, 94, 252, 0.28);
+  border-color: rgba(194, 65, 12, 0.28);
 }
 
 .challenge-card.done {

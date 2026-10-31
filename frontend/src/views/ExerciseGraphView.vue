@@ -126,8 +126,8 @@ const palette = () => ({
   border: cssVar('--fv-border', 'rgba(16,24,40,0.09)'),
   textPrimary: cssVar('--fv-text', '#0f172a'),
   textSecondary: cssVar('--fv-text-2', '#64748b'),
-  accent: cssVar('--fv-primary', '#6d5efc'),
-  accentSoft: cssVar('--fv-accent', '#06b6d4'),
+  accent: cssVar('--fv-primary', '#c2410c'),
+  accentSoft: cssVar('--fv-accent', '#65a30d'),
   accentDeep: cssVar('--fv-primary-strong', '#5546e8'),
 })
 
@@ -219,7 +219,7 @@ const initChart = (data: any) => {
 
   const categories = data.categories || []
   // 按用户要求：知识图谱中的部位标签色（如胸部/背部）保持原配色，不做米兰替换
-  const categoryPalette = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16', '#f97316']
+  const categoryPalette = ['#0f766e', '#16a34a', '#b45309', '#c2410c', '#0369a1', '#b91c1c', '#65a30d', '#ea580c']
   const categoryColorMap = new Map(
     categories.map((c: any, index: number) => [
       c.name,

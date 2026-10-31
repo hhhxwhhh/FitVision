@@ -132,7 +132,7 @@ const commands = computed<PaletteItem[]>(() => [
   },
   {
     id: 'ai-plan',
-    label: '生成 AI 训练计划',
+    label: '生成训练计划',
     group: '页面与操作',
     icon: MagicStick,
     keywords: 'plan ai 计划',
@@ -140,8 +140,8 @@ const commands = computed<PaletteItem[]>(() => [
   },
   {
     id: 'posture',
-    label: '姿态诊断',
-    hint: '视觉大模型动作纠错',
+    label: '动作纠错',
+    hint: '拍下动作，获得纠正建议',
     group: '页面与操作',
     icon: Aim,
     keywords: 'posture diagnosis 诊断',
@@ -165,7 +165,7 @@ const commands = computed<PaletteItem[]>(() => [
   },
   {
     id: 'analytics',
-    label: '训练数据中心',
+    label: '训练数据',
     group: '页面与操作',
     icon: DataAnalysis,
     keywords: 'analytics data 数据',
@@ -173,7 +173,7 @@ const commands = computed<PaletteItem[]>(() => [
   },
   {
     id: 'growth',
-    label: '成长中心',
+    label: '成长',
     hint: '等级、每日任务、成就与周榜',
     group: '页面与操作',
     icon: Trophy,

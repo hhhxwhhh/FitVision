@@ -280,7 +280,7 @@ onMounted(() => {
 }
 
 .algo-badge.cosine { background: #3b82f6; }
-.algo-badge.ml_regression { background: #8b5cf6; }
+.algo-badge.ml_regression { background: #c2410c; }
 .algo-badge.dl_sequence { background: #ec4899; }
 .algo-badge.rl_adaptive { background: #f59e0b; }
 .algo-badge.popularity { background: #10b981; }

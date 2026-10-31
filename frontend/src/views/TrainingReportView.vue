@@ -262,7 +262,7 @@ const shareReport = async () => {
   stroke-linecap: round;
   stroke-dasharray: 283;
   transition: stroke-dashoffset 1.2s cubic-bezier(0.22, 1, 0.36, 1);
-  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.45));
+  filter: none;
 }
 .score-s .progress-ring { stroke: #fff; }
 .score-a .progress-ring { stroke: #e9e5ff; }

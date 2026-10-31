@@ -128,8 +128,8 @@ const chartColors = () => ({
     border: cssVar('--fv-border', 'rgba(16,24,40,0.09)'),
     text: cssVar('--fv-text', '#0f172a'),
     textSecondary: cssVar('--fv-text-2', '#64748b'),
-    accent: cssVar('--fv-primary', '#6d5efc'),
-    accentSoft: cssVar('--fv-accent', '#06b6d4'),
+    accent: cssVar('--fv-primary', '#c2410c'),
+    accentSoft: cssVar('--fv-accent', '#65a30d'),
     accentDeep: cssVar('--fv-primary-strong', '#5546e8'),
 })
 

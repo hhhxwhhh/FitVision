@@ -81,7 +81,7 @@ const year = new Date().getFullYear()
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   overflow: hidden;
   background:
-    radial-gradient(1200px 600px at 12% -10%, rgba(109, 94, 252, 0.16), transparent 55%),
+    radial-gradient(1200px 600px at 12% -10%, rgba(194, 65, 12, 0.12), transparent 55%),
     radial-gradient(900px 520px at 100% 100%, rgba(34, 211, 238, 0.14), transparent 60%),
     var(--fv-bg);
 }
@@ -99,7 +99,7 @@ const year = new Date().getFullYear()
   height: 380px;
   top: -120px;
   left: 34%;
-  background: rgba(109, 94, 252, 0.35);
+  background: rgba(194, 65, 12, 0.28);
 }
 
 .auth-glow-b {
@@ -145,7 +145,7 @@ const year = new Date().getFullYear()
   color: #fff;
   font-weight: 900;
   letter-spacing: -0.5px;
-  box-shadow: 0 12px 30px rgba(109, 94, 252, 0.35);
+  box-shadow: 0 12px 30px rgba(194, 65, 12, 0.28);
 }
 
 .brand-name {

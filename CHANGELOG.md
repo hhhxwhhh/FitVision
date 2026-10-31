@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Recommendation diversity re-ranking now uses **Maximal Marginal Relevance (MMR)** instead of a fixed per-muscle penalty, balancing relevance against redundancy with a tested pure-Python implementation.
+- Visual language refreshed to a warm-neutral, sporty theme: burnt-orange accent, flat surfaces, crisp borders and tighter radii; removed aurora gradients, glass blur, coloured glows and gradient text.
+- Navigation copy now uses coach-style wording (训练计划 / 动作纠错 / 训练数据 / 成长) with a "训练助手" product title.
 
 ## [1.1.1] - 2026-04-19
 

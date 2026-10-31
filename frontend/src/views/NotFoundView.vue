@@ -58,7 +58,7 @@ const goBack = () => {
   height: 320px;
   top: -80px;
   left: -60px;
-  background: radial-gradient(circle, rgba(109, 94, 252, 0.5), transparent 70%);
+  background: radial-gradient(circle, rgba(194, 65, 12, 0.32), transparent 70%);
 }
 
 .orb-b {

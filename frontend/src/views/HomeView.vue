@@ -613,7 +613,7 @@ onMounted(fetchDashboard)
   border-radius: var(--fv-radius-xl);
   border: 1px solid var(--fv-border);
   background:
-    radial-gradient(700px 280px at 12% 0%, rgba(109, 94, 252, 0.16), transparent 62%),
+    radial-gradient(700px 280px at 12% 0%, rgba(194, 65, 12, 0.12), transparent 62%),
     radial-gradient(600px 260px at 92% 100%, rgba(6, 182, 212, 0.13), transparent 60%),
     var(--fv-surface);
   box-shadow: var(--fv-shadow-md);
@@ -628,10 +628,10 @@ onMounted(fetchDashboard)
   right: -80px;
   top: -120px;
   border-radius: 50%;
-  border: 1px solid rgba(109, 94, 252, 0.18);
+  border: 1px solid rgba(194, 65, 12, 0.2);
   box-shadow:
-    0 0 0 40px rgba(109, 94, 252, 0.04),
-    0 0 0 90px rgba(109, 94, 252, 0.03);
+    0 0 0 40px rgba(194, 65, 12, 0.05),
+    0 0 0 90px rgba(194, 65, 12, 0.04);
   pointer-events: none;
 }
 
@@ -738,22 +738,22 @@ onMounted(fetchDashboard)
   stroke: var(--fv-primary);
   stroke-linecap: round;
   transition: stroke-dasharray 0.8s cubic-bezier(0.22, 1, 0.36, 1);
-  filter: drop-shadow(0 0 8px rgba(109, 94, 252, 0.4));
+  filter: none;
 }
 
 .tone-excellent .ring-value {
   stroke: var(--fv-success);
-  filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.4));
+  filter: none;
 }
 
 .tone-moderate .ring-value {
   stroke: var(--fv-warning);
-  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.35));
+  filter: none;
 }
 
 .tone-recover .ring-value {
   stroke: var(--fv-danger);
-  filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.35));
+  filter: none;
 }
 
 .ring-center {
@@ -979,7 +979,7 @@ onMounted(fetchDashboard)
   width: 100%;
   min-height: 5px;
   border-radius: 10px;
-  background: linear-gradient(180deg, #8b5cf6, var(--fv-primary));
+  background: linear-gradient(180deg, #ea580c, var(--fv-primary));
   transition: height 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -1110,7 +1110,7 @@ onMounted(fetchDashboard)
 
 .achievement.unlocked {
   border-style: solid;
-  border-color: rgba(109, 94, 252, 0.28);
+  border-color: rgba(194, 65, 12, 0.28);
   background: var(--fv-primary-soft);
   opacity: 1;
 }
@@ -1154,7 +1154,7 @@ onMounted(fetchDashboard)
   color: #fff;
   background:
     radial-gradient(420px 180px at 88% 0%, rgba(34, 211, 238, 0.4), transparent 60%),
-    linear-gradient(150deg, #5546e8 0%, #6d5efc 46%, #4338ca 100%);
+    linear-gradient(150deg, #9a3412 0%, #c2410c 46%, #7c2d12 100%);
   box-shadow: var(--fv-shadow-glow);
 }
 

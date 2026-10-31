@@ -109,7 +109,7 @@
           <span class="brand-mark">FV</span>
           <div>
             <strong>FitVision</strong>
-            <small>AI 健身教练</small>
+            <small>训练助手</small>
           </div>
         </div>
 
@@ -202,18 +202,18 @@ const mobileNav = [
     label: '开始',
     items: [
       { path: '/', label: '首页', icon: HomeFilled, exact: true },
-      { path: '/training', label: '智能训练', icon: VideoCamera, matches: ['/training'] },
-      { path: '/ai-plan', label: 'AI 训练计划', icon: MagicStick, matches: ['/ai-plan'] },
-      { path: '/posture-diagnosis', label: '姿态诊断', icon: Aim, matches: ['/posture-diagnosis'] },
+      { path: '/training', label: '开始训练', icon: VideoCamera, matches: ['/training'] },
+      { path: '/ai-plan', label: '训练计划', icon: MagicStick, matches: ['/ai-plan'] },
+      { path: '/posture-diagnosis', label: '动作纠错', icon: Aim, matches: ['/posture-diagnosis'] },
     ],
   },
   {
     label: '探索',
     items: [
-      { path: '/exercises', label: '动作百科', icon: Reading, matches: ['/exercises'] },
+      { path: '/exercises', label: '动作库', icon: Reading, matches: ['/exercises'] },
       { path: '/exercises/graph', label: '知识图谱', icon: TrendCharts, matches: ['/exercises/graph'] },
-      { path: '/analytics', label: '数据中心', icon: DataAnalysis, matches: ['/analytics'] },
-      { path: '/growth', label: '成长中心', icon: Trophy, matches: ['/growth'] },
+      { path: '/analytics', label: '训练数据', icon: DataAnalysis, matches: ['/analytics'] },
+      { path: '/growth', label: '成长', icon: Trophy, matches: ['/growth'] },
       { path: '/history', label: '训练历史', icon: Clock, matches: ['/history'] },
     ],
   },
@@ -295,9 +295,7 @@ onMounted(async () => {
   z-index: 90;
   height: var(--header-height);
   border-bottom: 1px solid var(--fv-border);
-  background: color-mix(in srgb, var(--fv-bg) 78%, transparent);
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  background: var(--fv-surface);
 }
 
 .header-inner {
@@ -327,7 +325,7 @@ onMounted(async () => {
   font-size: 13px;
   font-weight: 900;
   letter-spacing: -0.04em;
-  box-shadow: var(--fv-shadow-glow);
+  box-shadow: none;
 }
 
 .brand-mark.small {
@@ -510,8 +508,7 @@ onMounted(async () => {
 
 .app-footer {
   border-top: 1px solid var(--fv-border);
-  background: var(--fv-surface-translucent);
-  backdrop-filter: blur(10px);
+  background: var(--fv-surface);
 }
 
 .footer-inner {
