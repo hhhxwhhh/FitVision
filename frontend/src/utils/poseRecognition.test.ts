@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  classifyRepTempo,
+  computeRepVelocity,
   createExerciseAnalyzer,
   type ExerciseMode,
   type Landmark,
@@ -351,5 +353,39 @@ describe('plank analysis', () => {
     expect(last.isHolding).toBe(true);
     expect(last.holdSeconds).toBeGreaterThan(0.5);
     expect(last.formScore).toBeGreaterThan(70);
+  });
+});
+
+describe('rep tempo and velocity (VBT)', () => {
+  it('reports duration, velocity and a tempo bucket on rep completion', () => {
+    const closed = frontStanding();
+    const open = frontSquat(0.3);
+    const frames = analyze('squat', [
+      [closed, 0],
+      [open, 400],
+      [open, 800],
+      [closed, 1200],
+      [closed, 1600],
+      [closed, 2000],
+    ]);
+    const done = frames.find((frame) => frame.repCompleted);
+    expect(done).toBeDefined();
+    expect(done!.repDurationMs).toBeGreaterThan(0);
+    expect(done!.repVelocity).toBeGreaterThan(0);
+    expect(['explosive', 'controlled', 'slow']).toContain(done!.repTempo);
+  });
+
+  it('classifies rep durations into tempo buckets', () => {
+    expect(classifyRepTempo(600)).toBe('explosive');
+    expect(classifyRepTempo(2000)).toBe('controlled');
+    expect(classifyRepTempo(5000)).toBe('slow');
+    expect(classifyRepTempo(0)).toBe('static');
+    expect(classifyRepTempo(-10)).toBe('static');
+  });
+
+  it('computes rep velocity and guards against zero/negative duration', () => {
+    expect(computeRepVelocity(60, 2000)).toBeCloseTo(30, 5);
+    expect(computeRepVelocity(60, 0)).toBe(0);
+    expect(computeRepVelocity(60, -5)).toBe(0);
   });
 });

@@ -21,6 +21,8 @@ export interface Landmark {
 export type ExerciseMode = 'squat' | 'pushup' | 'jumping_jack' | 'plank';
 export type PosePhase = 'up' | 'down' | 'holding';
 export type ViewOrientation = 'front' | 'side' | 'unknown';
+/** Coaching tempo bucket for a completed repetition (velocity-based training). */
+export type RepTempo = 'explosive' | 'controlled' | 'slow' | 'static';
 
 export interface FormFault {
   key: string;
@@ -35,6 +37,12 @@ export interface AnalysisFrame {
   formScore: number;
   repCompleted: boolean;
   repScore: number;
+  /** Duration of the completed repetition in ms (0 when no rep just completed). */
+  repDurationMs: number;
+  /** Mean speed proxy in load units / second for the completed repetition. */
+  repVelocity: number;
+  /** Coaching tempo bucket for the completed repetition. */
+  repTempo: RepTempo;
   enteredDown: boolean;
   enteredUp: boolean;
   faults: FormFault[];
@@ -76,6 +84,23 @@ export const mapRange = (value: number, inMin: number, inMax: number) => {
 };
 
 export const distance = (a: Landmark, b: Landmark) => Math.hypot(a.x - b.x, a.y - b.y);
+
+/**
+ * Mean rep speed proxy: total load range traversed per second. A simple,
+ * explainable velocity-based-training (VBT) signal derived from the rep counter.
+ */
+export function computeRepVelocity(loadRange: number, durationMs: number): number {
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return 0;
+  return Math.round((loadRange / (durationMs / 1000)) * 10) / 10;
+}
+
+/** Classify a repetition's total duration into a coaching tempo bucket. */
+export function classifyRepTempo(durationMs: number): RepTempo {
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return 'static';
+  if (durationMs < 1200) return 'explosive';
+  if (durationMs <= 3500) return 'controlled';
+  return 'slow';
+}
 
 const midpoint = (a: Landmark, b: Landmark): Landmark => ({
   x: (a.x + b.x) / 2,
@@ -629,6 +654,9 @@ const emptyFrame = (): AnalysisFrame => ({
   formScore: 0,
   repCompleted: false,
   repScore: 0,
+  repDurationMs: 0,
+  repVelocity: 0,
+  repTempo: 'static',
   enteredDown: false,
   enteredUp: false,
   faults: [],
@@ -754,6 +782,9 @@ class RepAnalyzer implements ExerciseAnalyzer {
           ) {
             frame.repCompleted = true;
             frame.repScore = Math.round(this.bottomScore);
+            frame.repDurationMs = duration;
+            frame.repVelocity = computeRepVelocity(range, duration);
+            frame.repTempo = classifyRepTempo(duration);
           }
           this.repStartedAt = timestamp;
           this.repMinLoad = result.load;
