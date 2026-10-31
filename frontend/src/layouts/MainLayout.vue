@@ -1,5 +1,7 @@
 <template>
   <div class="main-layout">
+    <a href="#main-content" class="skip-link">跳到主要内容</a>
+
     <header class="app-header">
       <div class="header-inner container">
         <router-link to="/" class="brand">
@@ -14,6 +16,7 @@
             type="button"
             class="nav-link"
             :class="{ active: isActive(item) }"
+            :aria-current="isActive(item) ? 'page' : undefined"
             @click="router.push(item.path)"
           >
             <el-icon><component :is="item.icon" /></el-icon>
@@ -66,7 +69,7 @@
       当前处于离线状态，部分功能暂不可用
     </div>
 
-    <main class="app-main">
+    <main id="main-content" class="app-main" tabindex="-1">
       <div class="container app-content">
         <router-view v-slot="{ Component, route: currentRoute }">
           <Transition name="fade-slide" mode="out-in">
@@ -110,6 +113,7 @@
               type="button"
               class="drawer-link"
               :class="{ active: isActive(item) }"
+              :aria-current="isActive(item) ? 'page' : undefined"
               @click="navigate(item.path)"
             >
               <el-icon><component :is="item.icon" /></el-icon>

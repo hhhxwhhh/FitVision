@@ -289,6 +289,28 @@ a {
   border: 0;
 }
 
+/* Keyboard-only "skip to content" link — visible on focus. */
+.skip-link {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  z-index: 200;
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: var(--fv-primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: var(--fv-shadow-md);
+  transform: translate(-50%, -160%);
+  transition: transform 0.18s ease;
+}
+
+.skip-link:focus {
+  transform: translate(-50%, 0);
+}
+
 /* --------------------------------------------------------------------------
    Element Plus polish
    -------------------------------------------------------------------------- */
