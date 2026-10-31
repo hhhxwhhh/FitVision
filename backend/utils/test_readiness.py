@@ -14,6 +14,7 @@ from .readiness import (
     MONOTONY_ALERT,
     DailyLoad,
     acute_chronic_ratio,
+    plan_volume,
     banister_impulse,
     build_daily_series,
     ewma,
@@ -167,6 +168,42 @@ class SessionLoadTests(unittest.TestCase):
 
     def test_negative_minutes_are_ignored(self):
         self.assertEqual(session_load(-10, 4), 0.0)
+
+
+class PlanVolumeTests(unittest.TestCase):
+    def test_missing_readiness_keeps_the_default_volume(self):
+        self.assertEqual(plan_volume(None), (3, 1.0, "按计划"))
+        self.assertEqual(plan_volume({}), (3, 1.0, "按计划"))
+
+    def test_the_multiplier_scales_the_set_count(self):
+        sets, multiplier, label = plan_volume({"volume_multiplier": 1.1, "intensity": "hard"})
+        self.assertEqual(sets, 3)
+        self.assertAlmostEqual(multiplier, 1.1, places=6)
+        self.assertEqual(label, "高强度")
+
+    def test_low_readiness_trims_the_volume(self):
+        sets, _, label = plan_volume({"volume_multiplier": 0.4, "intensity": "rest"})
+        self.assertEqual(sets, 2)  # 下限保护：再累也不能只安排 1 组
+        self.assertEqual(label, "主动恢复")
+
+    def test_the_set_count_stays_between_two_and_five(self):
+        for multiplier in (0.1, 0.5, 1.0, 1.5, 5.0):
+            sets, _, _ = plan_volume({"volume_multiplier": multiplier}, base_sets=3)
+            self.assertTrue(2 <= sets <= 5)
+
+    def test_the_multiplier_is_clamped(self):
+        _, multiplier, _ = plan_volume({"volume_multiplier": 9.0})
+        self.assertEqual(multiplier, 1.15)
+        _, multiplier, _ = plan_volume({"volume_multiplier": -3.0})
+        self.assertEqual(multiplier, 0.4)
+
+    def test_unknown_intensity_falls_back(self):
+        _, _, label = plan_volume({"volume_multiplier": 1.0, "intensity": "whatever"})
+        self.assertEqual(label, "按计划")
+
+    def test_a_custom_base_is_honoured(self):
+        sets, _, _ = plan_volume({"volume_multiplier": 1.15}, base_sets=4)
+        self.assertEqual(sets, 5)
 
 
 class LoadCurveTests(unittest.TestCase):

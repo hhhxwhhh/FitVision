@@ -12,6 +12,7 @@ from django.utils.dateparse import parse_datetime
 from datetime import timedelta
 import json 
 from openai import OpenAI  
+from utils.readiness import plan_volume
 from utils.vector_db import VectorDB
 import os
 from .services import UserSimilarityService, SmartRecommendationService
@@ -483,7 +484,20 @@ def generate_smart_plan(request):
     # 策略 B: 智能生成 (M3E + Graph + SkillTree)
     # ==========================================
     print(f"智能生成启动: {config['focus']} (Lv.{user_level}) - {config['days']}天")
-    
+
+    # 今天的负荷状态决定计划容量：疲劳偏高就减量，状态好就按计划甚至加码。
+    # 取不到（无历史 / 依赖缺失）时按 1.0 走，保证计划始终能生成。
+    readiness = {}
+    try:
+        from growth.services import readiness_snapshot
+
+        readiness = readiness_snapshot(user) or {}
+    except Exception as exc:  # pragma: no cover - 计划不应该因为评分失败而生成不了
+        print(f"就绪度获取失败，按默认容量生成: {exc}")
+
+    base_sets, volume_multiplier, intensity_label = plan_volume(readiness)
+    intensity = str(readiness.get("intensity") or "")
+
     weekly_schedule = []
 
     # 定义分化训练逻辑 (如果选全身，自动每天换部位)
@@ -528,7 +542,7 @@ def generate_smart_plan(request):
                 "name": ex.name,
                 "search_query": ex.name,
                 "target_muscle": ex.target_muscle,
-                "sets": 3,
+                "sets": base_sets,
                 "reps": "8-12次",
                 "gif": ex.demo_gif.url if ex.demo_gif else "",
                 "img": ex.image_url if hasattr(ex, 'image_url') else "",
@@ -544,13 +558,45 @@ def generate_smart_plan(request):
             "exercises": exercises_data
         })
 
+    # 高度疲劳时插一天主动恢复，避免计划本身继续堆疲劳
+    if intensity == "rest" and weekly_schedule:
+        weekly_schedule.insert(
+            1,
+            {
+                "day": "恢复日",
+                "title": "主动恢复 · 拉伸与低强度有氧",
+                "type": "rest",
+                "status": "20 分钟",
+                "exercises": [],
+            },
+        )
+
+    suggestions = ["注意顶峰收缩", "离心过程控制在2秒", "组间休息60-90秒"]
+    if readiness:
+        score = readiness.get("score")
+        if isinstance(score, (int, float)):
+            suggestions.insert(
+                0,
+                f"今日状态 {int(score)} 分（{intensity_label}），容量按 {int(round(volume_multiplier * 100))}% 安排",
+            )
+        for reason in list(readiness.get("reasons") or [])[:2]:
+            suggestions.append(str(reason))
+
     # 5. 返回结果
     final_response = {
         "report_title": "FitVision 智能进化计划",
         "report_summary": f"已为您生成 {config['days']} 天的{config['focus']}进阶方案。动作编排符合运动生物力学，兼顾了安全与效率。",
         "weekly_schedule": weekly_schedule,
-        "suggestions": ["注意顶峰收缩", "离心过程控制在2秒", "组间休息60-90秒"],
-        "goal_progress": 0
+        "suggestions": suggestions,
+        "goal_progress": 0,
+        "readiness": {
+            "score": readiness.get("score"),
+            "intensity": intensity or None,
+            "intensity_label": intensity_label,
+            "volume_multiplier": round(volume_multiplier, 2),
+            "acwr": readiness.get("acwr"),
+            "tsb": readiness.get("tsb"),
+        },
     }
 
     return Response(final_response)

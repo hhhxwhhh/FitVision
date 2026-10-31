@@ -437,6 +437,36 @@ def readiness_report(
 PERFORMANCE_SCALE = 5.0
 
 
+#: 建议强度的中文标签，前端与训练计划共用同一份口径。
+INTENSITY_LABELS = {
+    "rest": "主动恢复",
+    "light": "低强度",
+    "moderate": "中等强度",
+    "hard": "高强度",
+}
+
+
+def plan_volume(
+    readiness: dict | None,
+    base_sets: int = 3,
+) -> tuple[int, float, str]:
+    """把准备度报告折算成训练计划的容量。
+
+    返回 `(每组组数, 容量系数, 强度中文标签)`。没有准备度（老接口 / 离线 / 取数失败）
+    时原样返回 `base_sets` 与 1.0，保证计划一定能生成。
+    """
+    if not readiness:
+        return base_sets, 1.0, "按计划"
+
+    multiplier = _clamp(float(readiness.get("volume_multiplier") or 1.0), 0.4, 1.15)
+    intensity = str(readiness.get("intensity") or "")
+    return (
+        max(2, min(5, int(round(base_sets * multiplier)))),
+        multiplier,
+        INTENSITY_LABELS.get(intensity, "按计划"),
+    )
+
+
 def load_curve(
     loads: Iterable[DailyLoad],
     today: date,
