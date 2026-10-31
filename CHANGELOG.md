@@ -25,13 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and a drill-down detail view (`/history/:id`) with a per-exercise breakdown.
 - Training insights: CSV export, last-7-day and current-month stat cards, and current / longest consecutive-day streaks on the history page. of the loaded sessions (RFC 4180 escaping, UTF-8 BOM) plus period stat cards for the last 7 days and the current month.
 - Bundle budget guard: `npm run size` fails the build when gzip budgets for the entry chunk, critical CSS or any single JS chunk are exceeded.
+- Component tests (happy-dom + `@vue/test-utils`) for `TrainingCalendar`, `BackToTop`, `ThemeToggle` and `NextExerciseRecommendation`, plus a `useTheme` composable test covering persistence, root-class mirroring and `meta[theme-color]` sync.
 
 ### Fixed
 - Security: AI-generated rich text is now sanitised before every `v-html` binding, closing HTML-injection paths in the training report and AI plan views.
+- Vitest no longer writes a throwaway `components.d.ts` into the project root (`dts: false` in the test config).
 
 ### Changed
 - Recommendation diversity re-ranking now uses **Maximal Marginal Relevance (MMR)** instead of a fixed per-muscle penalty, balancing relevance against redundancy with a tested pure-Python implementation.
 - Visual language refreshed to a warm-neutral, sporty theme: burnt-orange accent, flat surfaces, crisp borders and tighter radii; removed aurora gradients, glass blur, coloured glows and gradient text.
+- De-AI-ification pass 2: the last hardcoded blue/slate tones (AI 智能接力 card, algorithm badges, pose stats panel, timer ring, rest overlay, graph palette) now use the warm design tokens, and status halos follow `--fv-success` / `--fv-warning`.
 - Navigation copy now uses coach-style wording (训练计划 / 动作纠错 / 训练数据 / 成长) with a "训练助手" product title.
 - Performance: Element Plus and echarts are imported on demand, removing the 898KB `element-plus` chunk and shrinking the charts chunk from 1134KB to 399KB (dist 3.0M → 2.2M).
 

@@ -226,7 +226,7 @@ const initChart = (data: any) => {
 
   const categories = data.categories || []
   // 按用户要求：知识图谱中的部位标签色（如胸部/背部）保持原配色，不做米兰替换
-  const categoryPalette = ['#0f766e', '#16a34a', '#b45309', '#c2410c', '#0369a1', '#b91c1c', '#65a30d', '#ea580c']
+  const categoryPalette = ['#0f766e', '#16a34a', '#b45309', '#c2410c', '#a16207', '#b91c1c', '#65a30d', '#ea580c']
   const categoryColorMap = new Map(
     categories.map((c: any, index: number) => [
       c.name,

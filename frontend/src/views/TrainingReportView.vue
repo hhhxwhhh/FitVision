@@ -373,9 +373,9 @@ const shareReport = async () => {
   flex: none;
 }
 .time-icon { background: var(--fv-primary-soft); }
-.cal-icon { background: rgba(245, 158, 11, 0.16); }
+.cal-icon { background: rgba(180, 83, 9, 0.16); }
 .count-icon { background: var(--fv-accent-soft); }
-.volume-icon { background: rgba(16, 185, 129, 0.16); }
+.volume-icon { background: rgba(21, 128, 61, 0.16); }
 
 .stat-info { display: flex; flex-direction: column; min-width: 0; }
 .stat-info .label { font-size: 12.5px; color: var(--fv-text-2); margin-bottom: 6px; }

@@ -645,17 +645,17 @@ onMounted(fetchDashboard)
   height: 7px;
   border-radius: 50%;
   background: var(--fv-success);
-  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+  box-shadow: 0 0 0 4px rgba(21, 128, 61, 0.15);
   animation: pulse 2.4s ease-in-out infinite;
 }
 
 @keyframes pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+    box-shadow: 0 0 0 4px rgba(21, 128, 61, 0.15);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0.02);
+    box-shadow: 0 0 0 8px rgba(21, 128, 61, 0.02);
   }
 }
 
@@ -707,8 +707,7 @@ onMounted(fetchDashboard)
   padding: 24px;
   border-radius: var(--fv-radius-lg);
   border: 1px solid var(--fv-border);
-  background: var(--fv-surface-translucent);
-  backdrop-filter: blur(12px);
+  background: var(--fv-surface);
   text-align: center;
 }
 
@@ -792,12 +791,12 @@ onMounted(fetchDashboard)
 }
 
 .tone-excellent .readiness-label {
-  background: rgba(16, 185, 129, 0.12);
+  background: rgba(21, 128, 61, 0.12);
   color: var(--fv-success);
 }
 
 .tone-moderate .readiness-label {
-  background: rgba(245, 158, 11, 0.14);
+  background: rgba(180, 83, 9, 0.14);
   color: #b45309;
 }
 
@@ -877,12 +876,12 @@ onMounted(fetchDashboard)
 }
 
 .insight-card.warning .insight-icon {
-  background: rgba(245, 158, 11, 0.14);
+  background: rgba(180, 83, 9, 0.14);
   color: #d97706;
 }
 
 .insight-card.positive .insight-icon {
-  background: rgba(16, 185, 129, 0.12);
+  background: rgba(21, 128, 61, 0.12);
   color: var(--fv-success);
 }
 
@@ -1041,7 +1040,7 @@ onMounted(fetchDashboard)
 }
 
 .stat-icon.tone-score {
-  background: rgba(16, 185, 129, 0.12);
+  background: rgba(21, 128, 61, 0.12);
   color: var(--fv-success);
 }
 

@@ -235,7 +235,7 @@ onMounted(() => {
 .library-btn {
   border-color: var(--fv-warning);
   color: var(--fv-warning);
-  background: rgba(245, 158, 11, 0.12);
+  background: rgba(180, 83, 9, 0.12);
   font-weight: 600;
 }
 
@@ -243,7 +243,7 @@ onMounted(() => {
 .library-btn:focus {
   border-color: var(--fv-warning);
   color: #92400e;
-  background: rgba(245, 158, 11, 0.22);
+  background: rgba(180, 83, 9, 0.22);
 }
 
 /* 推荐卡片网格：桌面端两列 */
@@ -279,11 +279,12 @@ onMounted(() => {
   backdrop-filter: blur(4px);
 }
 
-.algo-badge.cosine { background: #3b82f6; }
+/* Warm, earthy algorithm badges — one hue per strategy, no neon blues/pinks. */
+.algo-badge.cosine { background: #0f766e; }
 .algo-badge.ml_regression { background: #c2410c; }
-.algo-badge.dl_sequence { background: #ec4899; }
-.algo-badge.rl_adaptive { background: #f59e0b; }
-.algo-badge.popularity { background: #10b981; }
+.algo-badge.dl_sequence { background: #a16207; }
+.algo-badge.rl_adaptive { background: #65a30d; }
+.algo-badge.popularity { background: #15803d; }
 
 /* 卡片主图尺寸压缩以容纳两列三行 */
 .rec-image {

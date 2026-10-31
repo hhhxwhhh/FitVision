@@ -67,10 +67,10 @@ onMounted(() => {
 <style scoped>
 .next-up-card {
   margin-top: 20px;
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-  border-radius: 12px;
+  background: var(--fv-surface-2);
+  border-radius: var(--fv-radius-md);
   padding: 16px;
-  border: 1px solid #bae6fd;
+  border: 1px solid var(--fv-border);
 }
 
 .header {
@@ -84,7 +84,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   font-weight: 600;
-  color: #0369a1;
+  color: var(--fv-text);
 }
 
 .icon {
@@ -94,7 +94,7 @@ onMounted(() => {
 
 .subtitle {
   font-size: 13px;
-  color: #0c4a6e;
+  color: var(--fv-text-2);
   margin-bottom: 15px;
 }
 
@@ -109,13 +109,17 @@ onMounted(() => {
   align-items: center;
   background: var(--fv-surface);
   padding: 8px;
-  border-radius: 8px;
+  border-radius: var(--fv-radius-sm);
+  border: 1px solid var(--fv-border);
   cursor: pointer;
-  transition: transform 0.2s;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .mini-rec-item:hover {
   transform: translateX(5px);
+  border-color: var(--fv-primary);
 }
 
 .thumb {
@@ -132,12 +136,12 @@ onMounted(() => {
 .name {
   font-size: 14px;
   font-weight: 500;
-  color: #1e293b;
+  color: var(--fv-text);
 }
 
 .reason {
   font-size: 11px;
-  color: #64748b;
+  color: var(--fv-text-2);
   margin-top: 2px;
 }
 </style>

@@ -908,7 +908,7 @@ onMounted(loadAll)
 }
 
 .stat-icon.best {
-  background: rgba(245, 158, 11, 0.14);
+  background: rgba(180, 83, 9, 0.14);
   color: #d97706;
 }
 
@@ -918,7 +918,7 @@ onMounted(loadAll)
 }
 
 .stat-icon.records {
-  background: rgba(16, 185, 129, 0.12);
+  background: rgba(21, 128, 61, 0.12);
   color: var(--fv-success);
 }
 
@@ -981,12 +981,12 @@ onMounted(loadAll)
 
 .readiness-chip.tone-excellent .readiness-score {
   color: var(--fv-success);
-  background: rgba(16, 185, 129, 0.12);
+  background: rgba(21, 128, 61, 0.12);
 }
 
 .readiness-chip.tone-moderate .readiness-score {
   color: #d97706;
-  background: rgba(245, 158, 11, 0.14);
+  background: rgba(180, 83, 9, 0.14);
 }
 
 .readiness-chip.tone-recover .readiness-score {
@@ -1400,7 +1400,7 @@ onMounted(loadAll)
 }
 
 .rank-1 {
-  background: rgba(245, 158, 11, 0.16);
+  background: rgba(180, 83, 9, 0.16);
   color: #b45309;
 }
 

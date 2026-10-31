@@ -461,9 +461,9 @@ defineExpose({
   width: 80px; height: 80px;
   font-size: 36px;
   border: 4px solid rgba(255, 255, 255, 0.2);
-  background: rgba(16, 185, 129, 0.9);
+  background: rgba(21, 128, 61, 0.9);
   color: white;
-  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.7);
   animation: pulse-green 2s infinite;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -492,26 +492,26 @@ defineExpose({
   position: absolute;
   top: 20px;
   left: 20px;
-  background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(8px);
+  background: rgba(28, 25, 23, 0.82);
+  backdrop-filter: blur(6px);
   padding: 12px 20px;
-  border-radius: 12px;
-  border-left: 4px solid #3b82f6;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border-radius: var(--fv-radius-md);
+  border-left: 4px solid var(--fv-primary);
+  box-shadow: var(--fv-shadow-md);
 }
 
 .progress-ring-box {
   position: absolute;
   top: 20px;
   right: 20px;
-  background: rgba(15, 23, 42, 0.8);
-  backdrop-filter: blur(8px);
+  background: rgba(28, 25, 23, 0.78);
+  backdrop-filter: blur(6px);
   padding: 12px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .stat-item {
@@ -773,7 +773,7 @@ defineExpose({
 /* 分析中的警示动画样式 */
 .vlm-advice-box.is-analyzing {
   border-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(180, 83, 9, 0.1);
   animation: pulse-border 2s infinite;
 }
 
@@ -805,14 +805,14 @@ defineExpose({
 }
 
 @keyframes pulse-green {
-  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-  70% { box-shadow: 0 0 0 15px rgba(16, 185, 129, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.7); }
+  70% { box-shadow: 0 0 0 15px rgba(21, 128, 61, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(21, 128, 61, 0); }
 }
 
 @keyframes pulse-border {
-  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
-  70% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(180, 83, 9, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(180, 83, 9, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(180, 83, 9, 0); }
 }
 </style>

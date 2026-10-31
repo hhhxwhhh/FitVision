@@ -123,7 +123,7 @@ const year = new Date().getFullYear()
 }
 
 :global(html.dark) .auth-story {
-  background: linear-gradient(160deg, rgba(17, 26, 46, 0.7), rgba(7, 11, 22, 0.2));
+  background: linear-gradient(160deg, rgba(26, 24, 21, 0.7), rgba(15, 14, 12, 0.2));
 }
 
 .auth-brand {

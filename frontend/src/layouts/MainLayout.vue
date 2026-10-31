@@ -493,7 +493,7 @@ onMounted(async () => {
 :global(html.dark) .offline-bar {
   color: #fcd34d;
   background: rgba(120, 53, 15, 0.35);
-  border-color: rgba(245, 158, 11, 0.3);
+  border-color: rgba(180, 83, 9, 0.3);
 }
 
 .app-main {
@@ -537,12 +537,12 @@ onMounted(async () => {
   height: 7px;
   border-radius: 50%;
   background: var(--fv-success);
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+  box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.15);
 }
 
 .status-dot.offline {
   background: var(--fv-warning);
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+  box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.15);
 }
 
 .divider {

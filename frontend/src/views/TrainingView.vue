@@ -955,7 +955,7 @@ export default {
     height: 10px;
     background: #10b981;
     border-radius: 50%;
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.7);
     animation: pulse 2s infinite;
 }
 
@@ -974,7 +974,7 @@ export default {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(15, 23, 42, 0.85);
+    background: rgba(28, 25, 23, 0.86);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -984,7 +984,7 @@ export default {
 
 .overlay-content {
     text-align: center;
-    color: #cbd5e1;
+    color: #e7e5e4;
 }
 
 .camera-icon {
@@ -1173,8 +1173,8 @@ export default {
 }
 
 .active-state {
-    background: rgba(16, 185, 129, 0.1);
-    border: 1px solid rgba(16, 185, 129, 0.28);
+    background: rgba(21, 128, 61, 0.1);
+    border: 1px solid rgba(21, 128, 61, 0.28);
     border-radius: 12px;
     padding: 16px;
     text-align: center;
@@ -1210,8 +1210,8 @@ export default {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(15, 23, 42, 0.95);
-    backdrop-filter: blur(10px);
+    background: rgba(28, 25, 23, 0.92);
+    backdrop-filter: blur(8px);
     z-index: 9999;
     display: flex;
     justify-content: center;
@@ -1255,7 +1255,7 @@ export default {
 
 .progress-ring {
     fill: none;
-    stroke: #3b82f6;
+    stroke: var(--fv-primary);
     stroke-width: 6;
     stroke-linecap: round;
     stroke-dasharray: 283;
@@ -1403,7 +1403,7 @@ export default {
 }
 
 .feedback-tag:hover {
-    border-color: #3b82f6;
+    border-color: var(--fv-primary);
     color: var(--fv-primary);
 }
 
@@ -1441,7 +1441,7 @@ export default {
 .generate-btn:hover {
     opacity: 0.9;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    box-shadow: 0 4px 12px rgba(21, 128, 61, 0.4);
 }
 
 .success-glow {
@@ -1453,15 +1453,15 @@ export default {
    ========================================= */
 @keyframes pulse {
     0% {
-        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.7);
     }
 
     70% {
-        box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+        box-shadow: 0 0 0 8px rgba(21, 128, 61, 0);
     }
 
     100% {
-        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+        box-shadow: 0 0 0 0 rgba(21, 128, 61, 0);
     }
 }
 
