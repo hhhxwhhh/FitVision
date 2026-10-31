@@ -75,6 +75,57 @@
 
     <div class="growth-grid">
       <div class="growth-main">
+        <section class="panel load-panel">
+          <div class="panel-head">
+            <div>
+              <h2>训练负荷</h2>
+              <p>Banister 体能-疲劳模型 + ACWR 负荷比</p>
+            </div>
+            <span class="panel-badge" :class="`acwr-${acwrTone}`">负荷比 {{ acwrText }}</span>
+          </div>
+
+          <div class="load-grid">
+            <div class="load-tile">
+              <small>急性负荷 · 7 天</small>
+              <strong>{{ numText(loadModel?.acute_load) }}</strong>
+            </div>
+            <div class="load-tile">
+              <small>慢性负荷 · 28 天</small>
+              <strong>{{ numText(loadModel?.chronic_load) }}</strong>
+            </div>
+            <div class="load-tile">
+              <small>体能储备</small>
+              <strong>{{ numText(loadModel?.fitness) }}</strong>
+            </div>
+            <div class="load-tile">
+              <small>疲劳积累</small>
+              <strong>{{ numText(loadModel?.fatigue) }}</strong>
+            </div>
+            <div class="load-tile">
+              <small>动作质量趋势</small>
+              <strong>{{ trendText }}</strong>
+            </div>
+            <div class="load-tile">
+              <small>建议训练量</small>
+              <strong>{{ volumeText }}</strong>
+            </div>
+          </div>
+
+          <div class="acwr-track" role="img" :aria-label="`急性慢性负荷比 ${acwrText}`">
+            <span class="acwr-sweet" />
+            <span class="acwr-marker" :class="`acwr-${acwrTone}`" :style="{ left: acwrPercent + '%' }" />
+          </div>
+          <div class="acwr-legend">
+            <span>0.5</span>
+            <span>甜蜜区 0.8 – 1.3</span>
+            <span>2.0</span>
+          </div>
+
+          <ul v-if="loadReasons.length > 0" class="load-reasons">
+            <li v-for="reason in loadReasons" :key="reason">{{ reason }}</li>
+          </ul>
+        </section>
+
         <section class="panel">
           <div class="panel-head">
             <div>
@@ -508,6 +559,65 @@ const readiness = ref({
   tone: 'good',
   label: '适合训练',
   advice: '完成一次训练后，这里会给出更准确的建议。',
+})
+
+/**
+ * 服务端负荷模型（Banister 体能-疲劳冲激响应 + EWMA 版 ACWR + Foster 单调性）。
+ * 老接口没有 `acwr` 字段时返回 null，UI 自动隐藏这一块。
+ */
+const loadModel = computed(() => {
+  const raw = readiness.value as unknown as Record<string, unknown> | undefined
+  if (!raw || typeof raw !== 'object') return null
+  return Number.isFinite(Number(raw.acwr)) ? (raw as Record<string, unknown>) : null
+})
+
+const numText = (value: unknown, digits = 1) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed.toFixed(digits) : '—'
+}
+
+const acwrValue = computed(() => {
+  const parsed = Number(loadModel.value?.acwr)
+  return Number.isFinite(parsed) ? parsed : null
+})
+
+const acwrText = computed(() => {
+  const value = acwrValue.value
+  return value === null ? '—' : value.toFixed(2)
+})
+
+const acwrTone = computed(() => {
+  const value = acwrValue.value
+  if (value === null) return 'ok'
+  if (value >= 1.5) return 'risk'
+  if (value > 1.3 || value < 0.8) return 'watch'
+  return 'ok'
+})
+
+/** 把 0.5–2.0 的负荷比映射到进度条上的百分比位置。 */
+const acwrPercent = computed(() => {
+  const value = acwrValue.value
+  if (value === null) return 0
+  return Math.max(0, Math.min(100, ((value - 0.5) / 1.5) * 100))
+})
+
+const trendText = computed(() => {
+  const parsed = Number(loadModel.value?.form_trend)
+  if (!Number.isFinite(parsed)) return '—'
+  if (parsed > 0.3) return `+${parsed.toFixed(1)} / 次`
+  if (parsed < -0.3) return `${parsed.toFixed(1)} / 次`
+  return '持平'
+})
+
+const volumeText = computed(() => {
+  const parsed = Number(loadModel.value?.volume_multiplier)
+  return Number.isFinite(parsed) ? `${Math.round(parsed * 100)}%` : '—'
+})
+
+const loadReasons = computed(() => {
+  const reasons = loadModel.value?.reasons
+  if (!Array.isArray(reasons)) return [] as string[]
+  return reasons.filter((item): item is string => typeof item === 'string')
 })
 
 const quests = ref<Quest[]>([])
@@ -994,6 +1104,119 @@ onMounted(loadAll)
   background: rgba(239, 68, 68, 0.12);
 }
 
+/* Training load --------------------------------------------------------- */
+.load-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1px;
+  margin-top: 16px;
+  border: 1px solid var(--fv-border);
+  border-radius: var(--fv-radius-md);
+  background: var(--fv-border);
+  overflow: hidden;
+}
+
+.load-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  background: var(--fv-surface);
+}
+
+.load-tile small {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--fv-text-3);
+}
+
+.load-tile strong {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--fv-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ACWR 位置条：甜蜜区用底色标出，当前值用一个小游标表示 */
+.acwr-track {
+  position: relative;
+  height: 8px;
+  margin: 18px 0 6px;
+  border-radius: 999px;
+  background: var(--fv-surface-3);
+}
+
+.acwr-sweet {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 20%;
+  width: 33.3%;
+  border-radius: 999px;
+  background: rgba(21, 128, 61, 0.28);
+}
+
+.acwr-marker {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  width: 4px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--fv-text);
+  transform: translateX(-2px);
+  transition: left 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.acwr-marker.acwr-ok {
+  background: var(--fv-success);
+}
+
+.acwr-marker.acwr-watch {
+  background: var(--fv-warning);
+}
+
+.acwr-marker.acwr-risk {
+  background: var(--fv-danger);
+}
+
+.acwr-legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fv-text-3);
+}
+
+.load-reasons {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.load-reasons li {
+  position: relative;
+  padding-left: 14px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--fv-text-2);
+}
+
+.load-reasons li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--fv-primary);
+}
+
 .growth-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.8fr);
@@ -1046,6 +1269,21 @@ onMounted(loadAll)
   color: var(--fv-primary);
   font-size: 11px;
   font-weight: 800;
+}
+
+.panel-badge.acwr-ok {
+  background: rgba(21, 128, 61, 0.12);
+  color: var(--fv-success);
+}
+
+.panel-badge.acwr-watch {
+  background: rgba(180, 83, 9, 0.14);
+  color: var(--fv-warning);
+}
+
+.panel-badge.acwr-risk {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--fv-danger);
 }
 
 .head-icon {

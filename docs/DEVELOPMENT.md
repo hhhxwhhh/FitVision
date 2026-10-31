@@ -68,9 +68,11 @@ npm run test:coverage   # 覆盖率报告
   cd backend
   python -m unittest recommendations.test_rerank   # MMR 重排
   python -m unittest utils.test_demo_data         # 演示数据生成器
+  python -m unittest utils.test_readiness         # 训练准备度 / 负荷模型
   ```
 
-- 前端：与被测代码同目录的 `*.test.ts`（如 `src/utils/poseRecognition.test.ts`）。
+- 前端：与被测代码同目录的 `*.test.ts`（工具与 composable）或 `*.spec.ts`
+  （组件，使用 `@vitest-environment happy-dom` + `@vue/test-utils`）。
 
 ## 构建与体积预算
 
@@ -111,6 +113,26 @@ python manage.py seed_population --users 12 --weeks 6 --seed 7   # 或 make seed
 - 每个 persona 有自己的训练频次、坚持度、起始动作评分与每周进步幅度，因此数据集中各水平的评分确实不同（实测约 64 / 74 / 82）。
 - 每位用户还会写入档案、激活目标、`UserStats` 汇总与交互日志；`--force` 会先清空这些用户的历史。
 - 统一密码 `fitvision123`，仅用于本地演示数据。
+
+## 训练准备度模型
+
+`backend/utils/readiness.py` 是纯函数、无 Django 依赖的负荷模型，可单独跑单测：
+
+```bash
+cd backend && python -m unittest utils.test_readiness
+```
+
+| 组成 | 做法 | 作用 |
+| --- | --- | --- |
+| Banister 冲激响应 | `Σ L·e^(-Δt/42)` 与 `Σ L·e^(-Δt/7)` | 体能 / 疲劳 / TSB（竞技状态） |
+| ACWR（EWMA） | 7 天与 28 天指数移动平均之比 | 伤病风险，甜蜜区 0.8–1.3 |
+| Foster 单调性 / 紧张度 | 周负荷均值 ÷ 周负荷标准差 | 训练过于单一时给出提醒 |
+| 动作质量趋势 | 最近 8 次评分的最小二乘斜率 | 技术进步 / 退步 |
+| 恢复间隔 | 距上次训练天数 | 0 天扣分，2 天是超量恢复窗口 |
+
+服务端 `growth.services.readiness_snapshot` 只负责取数（`daily_training_loads` 按本地日期聚合
+会话时长与表现分）并把报告拼进 `/api/growth/overview/` 的 `readiness` 字段；前端首页与成长页
+消费这些指标。**修改评分规则请改引擎并补单测，不要在视图里写魔数。**
 
 ## 代码质量
 

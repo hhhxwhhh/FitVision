@@ -21,6 +21,7 @@ from .services import (
     challenge_window,
     claim_challenge,
     claim_daily_quest,
+    daily_training_loads,
     ensure_daily_quests,
     join_challenge,
     level_from_xp,
@@ -269,8 +270,37 @@ class GrowthServiceTests(TestCase):
     def test_readiness_snapshot_shape(self):
         snapshot = readiness_snapshot(self.user)
         self.assertIn("score", snapshot)
-        self.assertGreaterEqual(snapshot["score"], 25)
+        self.assertGreaterEqual(snapshot["score"], 20)
         self.assertLessEqual(snapshot["score"], 99)
+        for key in ("acwr", "fitness", "fatigue", "tsb", "intensity", "volume_multiplier", "reasons"):
+            self.assertIn(key, snapshot)
+
+    def test_daily_training_loads_aggregates_by_local_day(self):
+        today = timezone.localdate()
+        self._session(minutes=30, score=4.0, day=timezone.now())
+        self._session(minutes=20, score=3.0, day=timezone.now())
+        yesterday = timezone.now() - timedelta(days=1)
+        self._session(minutes=45, score=5.0, day=yesterday)
+
+        loads = daily_training_loads(self.user)
+        self.assertEqual(len(loads), 2)
+        by_day = {item.day: item for item in loads}
+        self.assertEqual(by_day[today].minutes, 50.0)
+        self.assertGreater(by_day[today].load, 0.0)
+        self.assertAlmostEqual(by_day[yesterday.date()].minutes, 45.0, places=3)
+
+    def test_readiness_reacts_to_a_training_spike(self):
+        """连续大负荷后，模型应该自动下调建议强度。"""
+        now = timezone.now()
+        for offset in range(8):
+            self._session(
+                minutes=90,
+                score=5.0,
+                day=now - timedelta(days=offset),
+            )
+        spiked = readiness_snapshot(self.user)
+        self.assertGreater(spiked["acwr"], 1.0)
+        self.assertIn(spiked["intensity"], {"light", "rest", "moderate"})
 
 
 class GrowthApiTests(TestCase):

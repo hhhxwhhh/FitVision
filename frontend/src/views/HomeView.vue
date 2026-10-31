@@ -66,6 +66,29 @@
         <div class="readiness-copy">
           <span class="readiness-label">{{ readinessLabel }}</span>
           <p>{{ readinessAdvice }}</p>
+
+          <dl v-if="loadModel" class="load-model">
+            <div class="load-model-item">
+              <dt>负荷比</dt>
+              <dd :class="`acwr-${acwrTone}`">{{ acwrText }}</dd>
+            </div>
+            <div class="load-model-item">
+              <dt>体能-疲劳</dt>
+              <dd>{{ tsbText }}</dd>
+            </div>
+            <div class="load-model-item">
+              <dt>距上次</dt>
+              <dd>{{ restText }}</dd>
+            </div>
+            <div class="load-model-item">
+              <dt>建议强度</dt>
+              <dd>{{ intensityText }}</dd>
+            </div>
+          </dl>
+
+          <ul v-if="readinessReasons.length > 0" class="readiness-reasons">
+            <li v-for="reason in readinessReasons" :key="reason">{{ reason }}</li>
+          </ul>
         </div>
       </div>
     </section>
@@ -310,6 +333,66 @@ const readinessLabel = computed(() => {
     recover: '恢复优先',
   }
   return labels[readinessTone.value]
+})
+
+/**
+ * 服务端返回的负荷模型（Banister 体能-疲劳 + ACWR + Foster 单调性）。
+ * 只有带 `acwr` 字段时才说明是新版本接口，老接口/离线状态直接降级为 null。
+ */
+const loadModel = computed(() => {
+  const raw = growthOverview.value?.readiness
+  if (!raw || typeof raw !== 'object') return null
+  const acwr = Number((raw as Record<string, unknown>).acwr)
+  if (!Number.isFinite(acwr)) return null
+  return raw as Record<string, number | string | string[]>
+})
+
+const readinessReasons = computed(() => {
+  const reasons = loadModel.value?.reasons
+  if (!Array.isArray(reasons)) return [] as string[]
+  return reasons.filter((item): item is string => typeof item === 'string').slice(0, 3)
+})
+
+const acwrTone = computed(() => {
+  const ratio = Number(loadModel.value?.acwr)
+  if (!Number.isFinite(ratio)) return 'ok'
+  if (ratio >= 1.5) return 'risk'
+  if (ratio > 1.3 || ratio < 0.8) return 'watch'
+  return 'ok'
+})
+
+const acwrText = computed(() => {
+  const ratio = Number(loadModel.value?.acwr)
+  return Number.isFinite(ratio) ? ratio.toFixed(2) : '—'
+})
+
+const tsbText = computed(() => {
+  const tsb = Number(loadModel.value?.tsb)
+  if (!Number.isFinite(tsb)) return '—'
+  const rounded = Math.round(tsb)
+  if (rounded > 0) return `体能 +${rounded}`
+  if (rounded < 0) return `疲劳 ${rounded}`
+  return '平衡'
+})
+
+const restText = computed(() => {
+  const days = Number(loadModel.value?.rest_days)
+  if (!Number.isFinite(days)) return '—'
+  if (days < 0) return '暂无记录'
+  if (days === 0) return '今天已练'
+  return `${days} 天前`
+})
+
+const INTENSITY_LABELS: Record<string, string> = {
+  rest: '主动恢复',
+  light: '低强度',
+  moderate: '中等强度',
+  hard: '高强度',
+}
+
+const intensityText = computed(() => {
+  const key = String(loadModel.value?.intensity ?? '')
+  return INTENSITY_LABELS[key] ?? '按计划'
 })
 
 const topVolume = computed(() => {
@@ -810,6 +893,83 @@ onMounted(fetchDashboard)
   font-size: 12.5px;
   line-height: 1.6;
   color: var(--fv-text-2);
+}
+
+/* 负荷模型指标：4 个小格，纯边框分隔，不用卡片阴影 */
+.load-model {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 14px 0 0;
+  padding: 0;
+  border: 1px solid var(--fv-border);
+  border-radius: var(--fv-radius-sm);
+  background: var(--fv-border);
+  overflow: hidden;
+}
+
+.load-model-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--fv-surface);
+}
+
+.load-model dt {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--fv-text-3);
+}
+
+.load-model dd {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--fv-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.acwr-ok {
+  color: var(--fv-success);
+}
+
+.acwr-watch {
+  color: var(--fv-warning);
+}
+
+.acwr-risk {
+  color: var(--fv-danger);
+}
+
+.readiness-reasons {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+  display: grid;
+  gap: 4px;
+}
+
+.readiness-reasons li {
+  position: relative;
+  padding-left: 12px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--fv-text-2);
+}
+
+.readiness-reasons li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--fv-primary);
 }
 
 /* Insights -------------------------------------------------------------- */

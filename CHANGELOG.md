@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Training insights: CSV export, last-7-day and current-month stat cards, and current / longest consecutive-day streaks on the history page. of the loaded sessions (RFC 4180 escaping, UTF-8 BOM) plus period stat cards for the last 7 days and the current month.
 - Bundle budget guard: `npm run size` fails the build when gzip budgets for the entry chunk, critical CSS or any single JS chunk are exceeded.
 - Component tests (happy-dom + `@vue/test-utils`) for `TrainingCalendar`, `BackToTop`, `ThemeToggle` and `NextExerciseRecommendation`, plus a `useTheme` composable test covering persistence, root-class mirroring and `meta[theme-color]` sync.
+- **Training readiness / load engine** (`backend/utils/readiness.py`): a pure-Python, Django-free model combining the Banister fitness–fatigue impulse response (TSB), an EWMA-based ACWR (acute:chronic workload ratio), Foster monotony/strain, a least-squares form-quality trend and the rest gap — returning a 0–100 readiness score, a suggested intensity, a volume multiplier and human-readable reasons. 38 unit tests run without Django.
+- Readiness is no longer a hand-waved `94 - fatigue * 55`: `growth.readiness_snapshot` now aggregates daily session loads (`daily_training_loads`) and delegates to the engine, and exposes `acwr / fitness / fatigue / tsb / monotony / strain / form_trend / rest_days / intensity / volume_multiplier / reasons`.
+- Load-management UI: the home readiness card shows the workload ratio, TSB, rest gap and suggested intensity with the engine's reasons; the growth page gained a 训练负荷 panel with acute/chronic load, fitness, fatigue, form trend, suggested volume and an ACWR position bar against the 0.8–1.3 sweet spot.
 
 ### Fixed
 - Security: AI-generated rich text is now sanitised before every `v-html` binding, closing HTML-injection paths in the training report and AI plan views.

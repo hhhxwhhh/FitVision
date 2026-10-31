@@ -12,11 +12,12 @@ from datetime import date, datetime, time, timedelta
 from typing import Iterable
 
 from django.db import transaction
-from django.db.models import Max, Sum
+from django.db.models import Avg, Max, Sum
 from django.utils import timezone
 
 from training.models import UserTrainingExerciseRecord, UserTrainingSession
 from users.models import UserStats
+from utils.readiness import HISTORY_DAYS, DailyLoad, readiness_report, session_load
 
 from .models import (
     Achievement,
@@ -878,54 +879,74 @@ def weekly_leaderboard(user, limit: int = 20) -> dict:
     }
 
 
-def readiness_snapshot(user) -> dict:
-    """服务端就绪度评分，与首页展示保持同一套规则。"""
-    from recommendations.models import UserState
+def daily_training_loads(user, days: int = HISTORY_DAYS) -> list[DailyLoad]:
+    """把最近 `days` 天完成的会话聚合为引擎需要的每日负荷。
 
-    state, _ = UserState.objects.get_or_create(user=user)
-    fatigue = max(0.0, min(1.0, float(state.fatigue_level or 0)))
-    progress, _ = UserProgress.objects.get_or_create(user=user)
-    trained_today = _completed_sessions(user).filter(
-        start_time__date=timezone.localdate()
-    ).exists()
+    只做取数与聚合，评分规则全部放在 `utils.readiness` 里，便于脱离 Django 单测。
+    """
+    today = timezone.localdate()
+    since = today - timedelta(days=days - 1)
 
-    monday = week_start_for()
-    weekly_days = (
+    minutes_by_day: dict[date, float] = {}
+    intensity_by_day: dict[date, list[float]] = {}
+    for session_day, start, end, performance in (
         _completed_sessions(user)
-        .filter(start_time__date__gte=monday)
+        .filter(start_time__date__gte=since)
+        .values_list("start_time__date", "start_time", "end_time", "performance_score")
+    ):
+        if start and end:
+            minutes = max(0.0, (end - start).total_seconds() / 60)
+        else:
+            minutes = 0.0
+        minutes_by_day[session_day] = minutes_by_day.get(session_day, 0.0) + minutes
+        intensity_by_day.setdefault(session_day, []).append(float(performance or 0.0))
+
+    form_by_day = {
+        row["session__start_time__date"]: float(row["value"] or 0.0)
+        for row in (
+            UserTrainingExerciseRecord.objects.filter(
+                session__user=user,
+                session__is_completed=True,
+                session__start_time__date__gte=since,
+            )
+            .values("session__start_time__date")
+            .annotate(value=Avg("form_score"))
+        )
+    }
+
+    loads: list[DailyLoad] = []
+    for session_day, minutes in minutes_by_day.items():
+        scores = intensity_by_day.get(session_day) or [0.0]
+        mean_performance = sum(scores) / len(scores)
+        loads.append(
+            DailyLoad(
+                day=session_day,
+                load=session_load(minutes, mean_performance),
+                minutes=minutes,
+                form_score=form_by_day.get(session_day),
+            )
+        )
+    return sorted(loads, key=lambda item: item.day)
+
+
+def readiness_snapshot(user) -> dict:
+    """服务端就绪度评分。
+
+    使用 `utils.readiness` 中的组合模型：Banister 体能-疲劳冲激响应（TSB）、
+    EWMA 版 ACWR、Foster 单调性/紧张度，再叠加动作质量趋势与恢复间隔。
+    """
+    today = timezone.localdate()
+    report = readiness_report(daily_training_loads(user), today)
+    payload = report.as_dict()
+
+    # 与旧接口保持兼容的几个字段
+    payload["fatigue_level"] = round(min(1.0, max(0.0, report.components.acwr / 3.0)), 3)
+    payload["trained_today"] = _completed_sessions(user).filter(start_time__date=today).exists()
+    payload["weekly_days"] = (
+        _completed_sessions(user)
+        .filter(start_time__date__gte=week_start_for())
         .values("start_time__date")
         .distinct()
         .count()
     )
-
-    score = 94 - fatigue * 55
-    if trained_today:
-        score -= 4
-    if progress.current_streak >= 3:
-        score += 3
-    if weekly_days >= 3:
-        score += 2
-    score = int(round(max(25.0, min(99.0, score))))
-
-    if score >= 80:
-        tone, label = "excellent", "状态极佳"
-        advice = "身体信号良好，可以安排一次高质量力量或技术训练。"
-    elif score >= 62:
-        tone, label = "good", "适合训练"
-        advice = "状态稳定，按计划完成中等强度训练即可。"
-    elif score >= 45:
-        tone, label = "moderate", "中等强度"
-        advice = "今天适合控制强度，把注意力放在动作质量上。"
-    else:
-        tone, label = "recover", "恢复优先"
-        advice = "疲劳度偏高，建议安排低强度恢复训练并优先保证睡眠。"
-
-    return {
-        "score": score,
-        "tone": tone,
-        "label": label,
-        "advice": advice,
-        "fatigue_level": round(fatigue, 3),
-        "trained_today": trained_today,
-        "weekly_days": weekly_days,
-    }
+    return payload
