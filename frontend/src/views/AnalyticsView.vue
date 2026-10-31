@@ -1,29 +1,34 @@
 <template>
-    <div class="analytics-container">
+    <div class="analytics-container" v-loading="loading">
         <el-row :gutter="20">
             <el-col :span="24">
                 <el-card class="summary-card">
                     <template #header>
                         <div class="card-header">
                             <span>📊 训练统计概览</span>
-                            <el-radio-group v-model="timerange" size="small" @change="fetchData">
-                                <el-radio-button :label="7">最近一周</el-radio-button>
-                                <el-radio-button :label="30">最近一月</el-radio-button>
-                            </el-radio-group>
+                            <div class="header-actions">
+                                <el-radio-group v-model="timerange" size="small" @change="fetchData">
+                                    <el-radio-button :label="7">最近一周</el-radio-button>
+                                    <el-radio-button :label="30">最近一月</el-radio-button>
+                                </el-radio-group>
+                                <el-button size="small" :icon="Download" :disabled="!summary.daily_breakdown.length" @click="exportCsv">
+                                    导出 CSV
+                                </el-button>
+                            </div>
                         </div>
                     </template>
                     <el-row :gutter="20">
-                        <el-col :span="8">
+                        <el-col :xs="24" :md="8">
                             <el-statistic title="总活跃时长" :value="summary.total_duration">
                                 <template #suffix> 分钟</template>
                             </el-statistic>
                         </el-col>
-                        <el-col :span="8">
+                        <el-col :xs="24" :md="8">
                             <el-statistic title="累计消耗" :value="summary.total_calories" :precision="0">
                                 <template #suffix> kcal</template>
                             </el-statistic>
                         </el-col>
-                        <el-col :span="8">
+                        <el-col :xs="24" :md="8">
                             <el-statistic title="平均动作评分" :value="summary.avg_form_score" :precision="1">
                                 <template #suffix> / 100</template>
                             </el-statistic>
@@ -34,13 +39,13 @@
         </el-row>
 
         <el-row :gutter="20" style="margin-top: 20px;">
-            <el-col :span="16">
+            <el-col :xs="24" :md="16">
                 <el-card class="chart-card">
                     <template #header>每日能量消耗 (kcal)</template>
                     <v-chart class="chart" :option="calorieOption" autoresize />
                 </el-card>
             </el-col>
-            <el-col :span="8">
+            <el-col :xs="24" :md="8">
                 <el-card class="chart-card">
                     <template #header>动作质量分布</template>
                     <v-chart class="chart" :option="scoreOption" autoresize />
@@ -51,8 +56,14 @@
         <el-row :gutter="20" style="margin-top: 20px;">
             <el-col :span="24">
                 <el-card>
-                    <template #header>进步追踪 (动作详情)</template>
-                    <el-table :data="summary.daily_breakdown" stripe style="width: 100%">
+                    <template #header>
+                        <div class="card-header">
+                            <span>进步追踪 (动作详情)</span>
+                            <span class="card-hint">共 {{ summary.daily_breakdown.length }} 天记录</span>
+                        </div>
+                    </template>
+                    <el-empty v-if="!loading && !summary.daily_breakdown.length" description="还没有训练数据，完成一次训练后再来看看" />
+                    <el-table v-else :data="summary.daily_breakdown" stripe style="width: 100%">
                         <el-table-column prop="date" label="日期" width="120" />
                         <el-table-column prop="completed_sessions" label="完成会话" />
                         <el-table-column prop="total_duration_minutes" label="课时(分)" />
@@ -76,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted, reactive, watch } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { BarChart, PieChart, LineChart } from 'echarts/charts'
@@ -87,7 +98,10 @@ import {
     TitleComponent
 } from 'echarts/components'
 import VChart from 'vue-echarts'
+import { Download } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import apiClient from '../api'
+import { useTheme } from '../composables/useTheme'
 
 use([
     CanvasRenderer,
@@ -100,18 +114,24 @@ use([
     TitleComponent
 ])
 
+const { resolved } = useTheme()
 const timerange = ref(7)
+const loading = ref(false)
 
-// 米兰色系（当前页面专用）
-const MILAN_COLORS = {
-    pageBase: '#F5F2ED', // 页面背景 / 卡片底色
-    surface: '#E5E0D8', // 卡片边框 / 分隔线
-    textPrimary: '#3C2F2F', // 主标题 / 正文
-    textSecondary: '#7D756D', // 次级文字 / 注释
-    accent: '#BEA47E', // 主图表色 / 选中态
-    accentSoft: '#D5C6B0', // 次级图表色
-    accentDeep: '#9F8462', // 深强调图表色
+const cssVar = (name: string, fallback: string) => {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+    return value || fallback
 }
+
+const chartColors = () => ({
+    surface: cssVar('--fv-surface', '#ffffff'),
+    border: cssVar('--fv-border', 'rgba(16,24,40,0.09)'),
+    text: cssVar('--fv-text', '#0f172a'),
+    textSecondary: cssVar('--fv-text-2', '#64748b'),
+    accent: cssVar('--fv-primary', '#6d5efc'),
+    accentSoft: cssVar('--fv-accent', '#06b6d4'),
+    accentDeep: cssVar('--fv-primary-strong', '#5546e8'),
+})
 
 const summary = reactive({
     total_calories: 0,
@@ -122,28 +142,57 @@ const summary = reactive({
 
 const calorieOption = ref<any>({
     tooltip: { trigger: 'axis' },
-    xAxis: { type: 'category', data: [] },
-    yAxis: { type: 'value' },
+    grid: { left: 12, right: 18, top: 24, bottom: 8, containLabel: true },
+    xAxis: { type: 'category', data: [], axisLine: { show: false }, axisTick: { show: false } },
+    yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed' } } },
     series: [{
         data: [],
         type: 'bar',
-        itemStyle: { color: MILAN_COLORS.accent }
+        barMaxWidth: 26,
+        itemStyle: { borderRadius: [6, 6, 0, 0] }
     }]
 })
 
 const scoreOption = ref<any>({
     tooltip: { trigger: 'item' },
+    legend: { bottom: 0, icon: 'circle', itemWidth: 9, itemHeight: 9 },
     series: [
         {
             type: 'pie',
-            radius: ['40%', '70%'],
-            color: [MILAN_COLORS.accentDeep, MILAN_COLORS.accent, MILAN_COLORS.accentSoft],
+            radius: ['46%', '72%'],
+            center: ['50%', '44%'],
+            avoidLabelOverlap: true,
+            label: { show: false },
             data: []
         }
     ]
 })
 
+const applyChartTheme = () => {
+    const colors = chartColors()
+    const tooltip = {
+        backgroundColor: colors.surface,
+        borderColor: colors.border,
+        borderWidth: 1,
+        textStyle: { color: colors.text },
+    }
+
+    calorieOption.value.tooltip = { trigger: 'axis', ...tooltip }
+    calorieOption.value.xAxis.axisLabel = { color: colors.textSecondary }
+    calorieOption.value.yAxis.axisLabel = { color: colors.textSecondary }
+    calorieOption.value.yAxis.splitLine.lineStyle.color = colors.border
+    calorieOption.value.series[0].itemStyle = {
+        color: colors.accent,
+        borderRadius: [6, 6, 0, 0],
+    }
+
+    scoreOption.value.tooltip = { trigger: 'item', ...tooltip }
+    scoreOption.value.legend.textStyle = { color: colors.textSecondary }
+    scoreOption.value.series[0].color = [colors.accentDeep, colors.accent, colors.accentSoft]
+}
+
 const fetchData = async () => {
+    loading.value = true
     try {
         const res = await apiClient.get(`analytics/daily-stats/summary/?days=${timerange.value}`)
         const data = res.data
@@ -152,47 +201,84 @@ const fetchData = async () => {
         summary.avg_form_score = data.avg_form_score
         summary.daily_breakdown = data.daily_breakdown
 
-        // 更新图表
         calorieOption.value.xAxis.data = data.daily_breakdown.map((i: any) => i.date).reverse()
         calorieOption.value.series[0].data = data.daily_breakdown.map((i: any) => i.total_calories_burned).reverse()
 
-        // 评分简单分类
         const scores = data.daily_breakdown.map((i: any) => i.average_form_score)
         scoreOption.value.series[0].data = [
             { value: scores.filter((s: number) => s >= 85).length, name: '优秀' },
             { value: scores.filter((s: number) => s >= 60 && s < 85).length, name: '合格' },
             { value: scores.filter((s: number) => s < 60).length, name: '待改进' }
         ]
+        applyChartTheme()
     } catch (err) {
         console.error('Fetch analytics fail', err)
+        ElMessage.error('统计数据加载失败，请稍后重试')
+    } finally {
+        loading.value = false
     }
 }
 
+const csvCell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`
+
+const exportCsv = () => {
+    if (!summary.daily_breakdown.length) return
+    const header = ['日期', '完成会话', '训练时长(分钟)', '消耗(kcal)', 'AI 评分']
+    const rows = summary.daily_breakdown.map((item: any) => [
+        item.date,
+        item.completed_sessions,
+        item.total_duration_minutes,
+        Number(item.total_calories_burned || 0).toFixed(0),
+        Number(item.average_form_score || 0).toFixed(1),
+    ])
+    const csv = '\uFEFF' + [header, ...rows]
+        .map((row) => row.map(csvCell).join(','))
+        .join('\r\n')
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `fitvision-analytics-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success(`已导出 ${rows.length} 天训练数据`)
+}
+
+watch(resolved, applyChartTheme)
+
 onMounted(() => {
+    applyChartTheme()
     fetchData()
 })
 </script>
 
 <style scoped>
 .analytics-container {
-    --milan-bg-main: #F5F2ED; /* 页面大背景 / 内容背景 */
-    --milan-bg-surface: #E5E0D8; /* 卡片边框 / 表格分隔 */
-    --milan-bg-hover: #EFE8DD; /* 表格悬浮态背景 */
-    --milan-text-primary: #3C2F2F; /* 主标题 / 主文本 */
-    --milan-text-secondary: #7D756D; /* 辅助说明文字 */
-    --milan-accent: #BEA47E; /* 交互强调 / 图表主色 */
-    --milan-shadow-soft: rgba(60, 47, 47, 0.08); /* 浮层阴影 */
-
-    background: var(--milan-bg-main);
+    background: transparent;
     color: var(--milan-text-primary);
-    padding: 20px;
+    padding: 4px 0 24px;
 }
 
 .card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 16px;
     color: var(--milan-text-primary);
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.card-hint {
+    font-size: 12.5px;
+    font-weight: 400;
+    color: var(--milan-text-secondary);
 }
 
 .chart {
@@ -204,9 +290,9 @@ onMounted(() => {
 }
 
 .analytics-container :deep(.el-card) {
-    background: var(--milan-bg-main);
+    border-radius: var(--fv-radius-md);
     border: 1px solid var(--milan-bg-surface);
-    box-shadow: 0 4px 10px var(--milan-shadow-soft);
+    box-shadow: var(--fv-shadow-sm);
 }
 
 .analytics-container :deep(.el-card__header) {
@@ -222,24 +308,31 @@ onMounted(() => {
     color: var(--milan-text-primary);
 }
 
-.analytics-container :deep(.el-radio-button__inner) {
-    color: var(--milan-text-secondary);
-    border-color: var(--milan-bg-surface);
-    background: var(--milan-bg-main);
-}
-
-.analytics-container :deep(.el-radio-button__orig-radio:checked + .el-radio-button__inner) {
-    background: var(--milan-accent);
-    border-color: var(--milan-accent);
-    box-shadow: -1px 0 0 0 var(--milan-accent);
-    color: var(--milan-bg-main);
-}
-
 .analytics-container :deep(.el-table) {
     --el-table-border-color: var(--milan-bg-surface);
-    --el-table-header-bg-color: var(--milan-bg-main);
+    --el-table-header-bg-color: var(--milan-on-accent);
     --el-table-row-hover-bg-color: var(--milan-bg-hover);
     --el-table-text-color: var(--milan-text-primary);
     --el-table-header-text-color: var(--milan-text-secondary);
+}
+
+@media (max-width: 768px) {
+    .analytics-container {
+        padding: 0 0 16px;
+    }
+    .card-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .header-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+    .chart-card {
+        height: 340px;
+    }
+    .chart {
+        height: 240px;
+    }
 }
 </style>
