@@ -233,17 +233,17 @@ onMounted(() => {
 
 /* 动态库按钮强调色：与普通场景按钮形成视觉区分 */
 .library-btn {
-  border-color: #f59e0b;
-  color: #b45309;
-  background: #fff7ed;
+  border-color: var(--fv-warning);
+  color: var(--fv-warning);
+  background: rgba(245, 158, 11, 0.12);
   font-weight: 600;
 }
 
 .library-btn:hover,
 .library-btn:focus {
-  border-color: #d97706;
+  border-color: var(--fv-warning);
   color: #92400e;
-  background: #ffedd5;
+  background: rgba(245, 158, 11, 0.22);
 }
 
 /* 推荐卡片网格：桌面端两列 */
@@ -289,7 +289,7 @@ onMounted(() => {
 .rec-image {
   width: 100%;
   height: 88px;
-  background-color: #f1f5f9;
+  background-color: var(--fv-surface-2);
 }
 
 .rec-content {

@@ -107,7 +107,7 @@ onMounted(() => {
 .mini-rec-item {
   display: flex;
   align-items: center;
-  background: white;
+  background: var(--fv-surface);
   padding: 8px;
   border-radius: 8px;
   cursor: pointer;
