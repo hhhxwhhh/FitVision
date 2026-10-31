@@ -7,6 +7,7 @@ import {
   createExerciseAnalyzer,
   type AnalysisFrame,
   type ExerciseMode,
+  type RepTempo,
   type ViewOrientation,
 } from '../utils/poseRecognition';
 import apiClient from '../api';
@@ -110,6 +111,9 @@ export function usePoseDetection() {
   const repProgress = ref(0);
   const exerciseMode = ref<ExerciseMode>('squat');
   const lastScore = ref(0);
+  const repTempo = ref<RepTempo>('static');
+  const repVelocity = ref(0);
+  const repDuration = ref(0);
   const poseConfidence = ref(0);
   const viewOrientation = ref<ViewOrientation>('unknown');
   const activeFaults = ref<string[]>([]);
@@ -535,6 +539,9 @@ export function usePoseDetection() {
 
     if (analysis.repCompleted) {
       repCount.value += 1;
+      repTempo.value = analysis.repTempo;
+      repVelocity.value = analysis.repVelocity;
+      repDuration.value = analysis.repDurationMs;
       markStandardOrBreakStreak(analysis.repScore);
       speakCountdown(repCount.value);
       if (repCount.value % 2 === 1) {
@@ -693,6 +700,9 @@ export function usePoseDetection() {
     repProgress,
     exerciseMode,
     lastScore,
+    repTempo,
+    repVelocity,
+    repDuration,
     poseConfidence,
     viewOrientation,
     activeFaults,

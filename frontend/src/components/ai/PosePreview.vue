@@ -33,6 +33,16 @@
             <span class="value">{{ repCount }}</span>
           </div>
 
+          <div v-if="exerciseMode !== 'plank'" class="stat-item" style="margin-top: 10px;">
+            <span class="label">动作节奏</span>
+            <div class="signal-row">
+              <el-tag :type="tempoType" size="small" effect="plain">{{ tempoLabel }}</el-tag>
+              <span v-if="repVelocity > 0" class="value-sm" :title="tempoTitle">
+                {{ repVelocity.toFixed(1) }}/s
+              </span>
+            </div>
+          </div>
+
           <div class="stat-item" style="margin-top: 10px;">
             <span class="label">标准连击</span>
             <span class="value-sm">{{ standardStreak }}（最高 {{ bestStreak }}）</span>
@@ -232,6 +242,9 @@ const {
   feedback,
   exerciseMode,
   lastScore,
+  repTempo,
+  repVelocity,
+  repDuration,
   poseConfidence,
   viewOrientation,
   activeFaults,
@@ -286,6 +299,25 @@ const confidenceType = computed<'success' | 'warning' | 'danger'>(() => {
   if (poseConfidence.value >= 0.55) return 'warning';
   return 'danger';
 });
+
+const TEMPO_LABELS: Record<string, string> = {
+  explosive: '爆发',
+  controlled: '控制',
+  slow: '偏慢',
+  static: '—',
+};
+
+const tempoLabel = computed(() => TEMPO_LABELS[repTempo.value] ?? '—');
+
+const tempoType = computed<'success' | 'warning' | 'info'>(() => {
+  if (repTempo.value === 'explosive') return 'warning';
+  if (repTempo.value === 'controlled') return 'success';
+  return 'info';
+});
+
+const tempoTitle = computed(() =>
+  repDuration.value > 0 ? `上次动作用时 ${(repDuration.value / 1000).toFixed(1)} 秒` : '暂无节奏数据',
+);
 
 const mapExerciseToMode = (name: string): any => {
   if (!name) return 'squat'
