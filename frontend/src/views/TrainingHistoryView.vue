@@ -44,7 +44,14 @@
               <span>{{ weekday(item.start_time) }}</span>
             </div>
 
-            <article class="session-card">
+            <article
+              class="session-card"
+              role="button"
+              tabindex="0"
+              @click="openDetail(item)"
+              @keydown.enter="openDetail(item)"
+              @keydown.space.prevent="openDetail(item)"
+            >
               <div class="session-top">
                 <div class="session-title">
                   <h3>{{ item.plan_name || '自由训练' }}</h3>
@@ -145,6 +152,8 @@ const fetchPage = async (target: number) => {
 }
 
 const loadMore = () => fetchPage(page.value + 1)
+
+const openDetail = (item: TrainingSession) => router.push(`/history/${item.id}`)
 
 onMounted(() => fetchPage(1))
 
@@ -304,6 +313,7 @@ const scoreLabel = (item: TrainingSession) =>
   border-radius: var(--fv-radius-md);
   background: var(--fv-surface);
   box-shadow: var(--fv-shadow-sm);
+  cursor: pointer;
   transition:
     transform 0.18s ease,
     border-color 0.18s ease,
