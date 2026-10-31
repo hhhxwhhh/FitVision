@@ -132,6 +132,7 @@
 
     <CommandPalette ref="paletteRef" />
     <ShortcutsDialog />
+    <BackToTop />
   </div>
 </template>
 
@@ -164,6 +165,7 @@ import { usePwaInstall } from '../composables/usePwaInstall'
 import ThemeToggle from '../components/ThemeToggle.vue'
 import CommandPalette from '../components/CommandPalette.vue'
 import ShortcutsDialog from '../components/ShortcutsDialog.vue'
+import BackToTop from '../components/BackToTop.vue'
 
 const router = useRouter()
 const route = useRoute()
