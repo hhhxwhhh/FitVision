@@ -22,6 +22,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "size": "node scripts/check-bundle-size.mjs dist",
     "format": "prettier --write \"src/**/*.{ts,vue,css}\"",
     "format:check": "prettier --check \"src/**/*.{ts,vue,css}\""
   },
