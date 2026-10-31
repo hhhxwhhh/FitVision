@@ -10,7 +10,7 @@ from recommendations.serializers import (
     RecommendedExerciseSerializer,
     FeedbackActionSerializer,
 )
-from recommendations.services import HybridRecommender
+from recommendations.services import HybridRecommender, resolve_fatigue_level
 
 
 class _DummyExercise:
@@ -190,6 +190,37 @@ class RecommendationViewSetActionTests(TestCase):
         self.assertFalse(self.rec.is_seen)
         self.assertEqual(UserInteraction.objects.filter(user=self.user).count(), 0)
         mocked_cache.delete.assert_not_called()
+
+
+class FatigueResolutionTests(TestCase):
+    """疲劳度统一入口：优先负荷模型，失败时回退到 UserState 累加器。"""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="fatigue", password="StrongPass123")
+
+    def test_falls_back_to_the_state_counter_without_history(self):
+        UserState.objects.create(user=self.user, fatigue_level=0.42)
+        self.assertAlmostEqual(resolve_fatigue_level(self.user), 0.42, places=3)
+
+    def test_returns_zero_when_there_is_nothing_to_read(self):
+        self.assertEqual(resolve_fatigue_level(self.user), 0.0)
+
+    def test_stays_clamped_when_the_counter_is_out_of_range(self):
+        UserState.objects.create(user=self.user, fatigue_level=1.8)
+        self.assertEqual(resolve_fatigue_level(self.user), 1.0)
+
+    def test_prefers_the_load_model_when_it_is_available(self):
+        UserState.objects.create(user=self.user, fatigue_level=0.9)
+        with patch(
+            "growth.services.readiness_snapshot",
+            return_value={"fatigue_level": 0.25, "session_count": 6},
+        ):
+            self.assertAlmostEqual(resolve_fatigue_level(self.user), 0.25, places=3)
+
+    def test_survives_a_broken_load_model(self):
+        UserState.objects.create(user=self.user, fatigue_level=0.33)
+        with patch("growth.services.readiness_snapshot", side_effect=RuntimeError("boom")):
+            self.assertAlmostEqual(resolve_fatigue_level(self.user), 0.33, places=3)
 
 
 class HybridRecommenderStrategyTests(TestCase):

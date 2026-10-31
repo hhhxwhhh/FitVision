@@ -20,6 +20,31 @@ class RecommendationEngine:
     def recommend(self, user, limit=5):
         raise NotImplementedError
 
+
+def resolve_fatigue_level(user, fallback: float = 0.0) -> float:
+    """统一取"疲劳度"的入口。
+
+    优先使用 `utils.readiness` 的负荷模型（ACWR / 3，与首页展示的口径一致）；
+    只有在模型确实见过训练历史（`session_count > 0`）时才采用它，否则回退到
+    `UserState.fatigue_level` 这个简单的累加器 —— 没有历史时冷启动的负荷比恒为 1.0，
+    本身没有解释力。取数异常同样回退，保证推荐链路不会因为评分失败而中断。
+    """
+    try:
+        from growth.services import readiness_snapshot
+
+        snapshot = readiness_snapshot(user)
+        if int(snapshot.get("session_count") or 0) > 0:
+            value = snapshot.get("fatigue_level")
+            if isinstance(value, (int, float)):
+                return max(0.0, min(1.0, float(value)))
+    except Exception:  # pragma: no cover - 只作为兜底，模型失败不应该影响推荐
+        pass
+
+    state = UserState.objects.filter(user=user).only("fatigue_level").first()
+    if state is None:
+        return max(0.0, min(1.0, fallback))
+    return max(0.0, min(1.0, float(state.fatigue_level or 0.0)))
+
 class KnowledgeGraphEngine(RecommendationEngine):
     """基于图神经网络 (GNN) 的知识图谱路径推荐"""
     def recommend(self, user, limit=5):
@@ -285,9 +310,9 @@ class RLAdaptiveEngine(RecommendationEngine):
     """自适应强化学习推荐引擎 (基于 Thompson Sampling 的多臂老虎机)"""
     def recommend(self, user, limit=5):
         state, _ = UserState.objects.get_or_create(user=user)
-        
-        # 1. 疲劳度过度保护逻辑
-        if state.fatigue_level > 0.85:
+
+        # 1. 疲劳度过度保护逻辑（优先用负荷模型，取不到再用累加器）
+        if resolve_fatigue_level(user, fallback=float(state.fatigue_level or 0)) > 0.85:
             # 极高疲劳：只推荐拉伸/放松
             stretches = Exercise.objects.filter(tags__contains='stretching')[:limit]
             if not stretches:
@@ -769,10 +794,8 @@ class HybridRecommender:
         ranked = HybridRecommender._rerank_with_diversity(final_recs, limit=max(limit * 3, limit))
         ranked = HybridRecommender._rerank_by_user_goal(ranked, goal_type=user_goal)
 
-        rec_state = UserState.objects.filter(user=user).only('fatigue_level').first()
-        fatigue_level = rec_state.fatigue_level if rec_state else 0.0
         ranked = HybridRecommender._rerank_by_goal_and_fatigue(
-            ranked, goal_type=user_goal, fatigue_level=fatigue_level
+            ranked, goal_type=user_goal, fatigue_level=resolve_fatigue_level(user)
         )
 
         recent_feedback = UserInteraction.objects.filter(
