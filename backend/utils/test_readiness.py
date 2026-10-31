@@ -19,6 +19,7 @@ from .readiness import (
     ewma,
     form_trend,
     linear_trend,
+    load_curve,
     monotony_strain,
     readiness_report,
     session_load,
@@ -166,6 +167,41 @@ class SessionLoadTests(unittest.TestCase):
 
     def test_negative_minutes_are_ignored(self):
         self.assertEqual(session_load(-10, 4), 0.0)
+
+
+class LoadCurveTests(unittest.TestCase):
+    def test_emits_one_point_per_day_by_default(self):
+        points = load_curve(steady(30), TODAY, days=30)
+        self.assertEqual(len(points), 30)
+        self.assertEqual(points[-1]["date"], TODAY.isoformat())
+
+    def test_sampling_honours_the_step(self):
+        self.assertEqual(len(load_curve(steady(30), TODAY, days=28, step=7)), 4)
+
+    def test_every_point_carries_the_full_metric_set(self):
+        for point in load_curve(steady(30), TODAY, days=10):
+            for key in ("date", "fitness", "fatigue", "tsb", "acute_load", "chronic_load", "acwr"):
+                self.assertIn(key, point)
+
+    def test_the_last_point_matches_the_snapshot(self):
+        loads = steady(60)
+        curve = load_curve(loads, TODAY, days=60)
+        report = readiness_report(loads, TODAY)
+        self.assertAlmostEqual(curve[-1]["fitness"], round(report.components.fitness, 2), places=2)
+        self.assertAlmostEqual(curve[-1]["fatigue"], round(report.components.fatigue, 2), places=2)
+        self.assertAlmostEqual(curve[-1]["tsb"], round(report.components.tsb, 2), places=2)
+
+    def test_fatigue_dips_during_a_deload_week(self):
+        """减量周之后疲劳应该明显回落，TSB 抬升 —— 曲线要能看出这个形状。"""
+        loads = [DailyLoad(day=TODAY - timedelta(days=offset), load=60) for offset in range(30, 10, -1)]
+        curve = load_curve(loads, TODAY, days=30)
+        self.assertGreater(curve[10]["fatigue"], curve[-1]["fatigue"])
+        self.assertGreater(curve[-1]["tsb"], curve[10]["tsb"])
+
+    def test_empty_history_still_returns_a_flat_curve(self):
+        curve = load_curve([], TODAY, days=5)
+        self.assertEqual(len(curve), 5)
+        self.assertTrue(all(point["fitness"] == 0.0 for point in curve))
 
 
 class ReadinessReportTests(unittest.TestCase):

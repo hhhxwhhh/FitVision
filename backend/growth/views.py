@@ -21,6 +21,7 @@ from .services import (
     evaluate_achievements,
     join_challenge,
     level_progress,
+    load_curve_for,
     readiness_snapshot,
     refresh_daily_quests,
     weekly_goal_for,
@@ -303,6 +304,31 @@ def leaderboard(request):
         limit = 20
     limit = max(1, min(limit, 50))
     return Response(weekly_leaderboard(request.user, limit=limit))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def load_curve_view(request):
+    """最近 N 天的训练负荷曲线（体能 / 疲劳 / TSB / ACWR）。
+
+    查询参数：`days`（默认 90，上限 180）、`step`（默认 1，抽样步长）。
+    """
+    def positive_int(raw, default, low, high):
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return default
+        return max(low, min(high, value))
+
+    days = positive_int(request.query_params.get("days"), 90, 7, 180)
+    step = positive_int(request.query_params.get("step"), 1, 1, 7)
+    return Response(
+        {
+            "days": days,
+            "step": step,
+            "points": load_curve_for(request.user, days=days, step=step),
+        }
+    )
 
 
 @api_view(["GET", "PUT"])

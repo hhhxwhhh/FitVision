@@ -55,6 +55,27 @@
 
         <el-row :gutter="20" style="margin-top: 20px;">
             <el-col :span="24">
+                <el-card class="chart-card">
+                    <template #header>
+                        <div class="card-header">
+                            <span>训练负荷曲线</span>
+                            <span class="card-hint">
+                                体能 / 疲劳 / 状态(TSB) · 最近 {{ loadCurve.points.length }} 天
+                            </span>
+                        </div>
+                    </template>
+                    <el-empty
+                        v-if="!loadCurve.points.length"
+                        description="还没有足够的训练数据来估算负荷曲线"
+                        :image-size="72"
+                    />
+                    <v-chart v-else class="chart chart-tall" :option="loadOption" autoresize />
+                </el-card>
+            </el-col>
+        </el-row>
+
+        <el-row :gutter="20" style="margin-top: 20px;">
+            <el-col :span="24">
                 <el-card>
                     <template #header>
                         <div class="card-header">
@@ -102,6 +123,7 @@ import { Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import apiClient from '../api'
 import { useTheme } from '../composables/useTheme'
+import { datedFilename, downloadTextFile, toCsv } from '../utils/csv'
 
 use([
     CanvasRenderer,
@@ -138,6 +160,37 @@ const summary = reactive({
     total_duration: 0,
     avg_form_score: 0,
     daily_breakdown: [] as any[]
+})
+
+interface LoadPoint {
+    date: string
+    fitness: number
+    fatigue: number
+    tsb: number
+    acute_load: number
+    chronic_load: number
+    acwr: number
+}
+
+const loadCurve = reactive<{ points: LoadPoint[] }>({ points: [] })
+
+const loadOption = ref<any>({
+    tooltip: { trigger: 'axis' },
+    legend: { bottom: 0, icon: 'circle', itemWidth: 9, itemHeight: 9 },
+    grid: { left: 12, right: 18, top: 24, bottom: 32, containLabel: true },
+    xAxis: {
+        type: 'category',
+        data: [],
+        boundaryGap: false,
+        axisLine: { show: false },
+        axisTick: { show: false },
+    },
+    yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed' } } },
+    series: [
+        { name: '体能', type: 'line', smooth: true, showSymbol: false, data: [] },
+        { name: '疲劳', type: 'line', smooth: true, showSymbol: false, data: [] },
+        { name: '状态 TSB', type: 'line', smooth: true, showSymbol: false, data: [] },
+    ],
 })
 
 const calorieOption = ref<any>({
@@ -189,6 +242,35 @@ const applyChartTheme = () => {
     scoreOption.value.tooltip = { trigger: 'item', ...tooltip }
     scoreOption.value.legend.textStyle = { color: colors.textSecondary }
     scoreOption.value.series[0].color = [colors.accentDeep, colors.accent, colors.accentSoft]
+
+    loadOption.value.tooltip = { trigger: 'axis', ...tooltip }
+    loadOption.value.legend.textStyle = { color: colors.textSecondary }
+    loadOption.value.xAxis.axisLabel = { color: colors.textSecondary }
+    loadOption.value.yAxis.axisLabel = { color: colors.textSecondary }
+    loadOption.value.yAxis.splitLine.lineStyle.color = colors.border
+    loadOption.value.series[0].itemStyle = { color: colors.accent }
+    loadOption.value.series[1].itemStyle = { color: '#b91c1c' }
+    loadOption.value.series[2].itemStyle = { color: colors.accentSoft }
+    loadOption.value.series[0].lineStyle = { color: colors.accent, width: 2 }
+    loadOption.value.series[1].lineStyle = { color: '#b91c1c', width: 2 }
+    loadOption.value.series[2].lineStyle = { color: colors.accentSoft, width: 2, type: 'dashed' }
+}
+
+const fetchLoadCurve = async () => {
+    try {
+        const res = await apiClient.get('growth/load-curve/?days=90&step=1')
+        const points: LoadPoint[] = Array.isArray(res.data?.points) ? res.data.points : []
+        loadCurve.points = points
+        loadOption.value.xAxis.data = points.map((point) => point.date.slice(5))
+        loadOption.value.series[0].data = points.map((point) => point.fitness)
+        loadOption.value.series[1].data = points.map((point) => point.fatigue)
+        loadOption.value.series[2].data = points.map((point) => point.tsb)
+        applyChartTheme()
+    } catch (err) {
+        // 负荷曲线是增强信息，失败时静默降级，不影响统计主流程
+        console.warn('Load curve unavailable', err)
+        loadCurve.points = []
+    }
 }
 
 const fetchData = async () => {
@@ -219,30 +301,33 @@ const fetchData = async () => {
     }
 }
 
-const csvCell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`
+const csvColumns = [
+    { key: 'date', label: '日期', value: (row: any) => row.date },
+    { key: 'sessions', label: '完成会话', value: (row: any) => row.completed_sessions },
+    { key: 'minutes', label: '训练时长(分钟)', value: (row: any) => row.total_duration_minutes },
+    {
+        key: 'calories',
+        label: '消耗(kcal)',
+        value: (row: any) => Number(row.total_calories_burned || 0).toFixed(0),
+    },
+    {
+        key: 'score',
+        label: 'AI 评分',
+        value: (row: any) => Number(row.average_form_score || 0).toFixed(1),
+    },
+]
 
 const exportCsv = () => {
     if (!summary.daily_breakdown.length) return
-    const header = ['日期', '完成会话', '训练时长(分钟)', '消耗(kcal)', 'AI 评分']
-    const rows = summary.daily_breakdown.map((item: any) => [
-        item.date,
-        item.completed_sessions,
-        item.total_duration_minutes,
-        Number(item.total_calories_burned || 0).toFixed(0),
-        Number(item.average_form_score || 0).toFixed(1),
-    ])
-    const csv = '\uFEFF' + [header, ...rows]
-        .map((row) => row.map(csvCell).join(','))
-        .join('\r\n')
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `fitvision-analytics-${new Date().toISOString().slice(0, 10)}.csv`
-    link.click()
-    URL.revokeObjectURL(url)
-    ElMessage.success(`已导出 ${rows.length} 天训练数据`)
+    const saved = downloadTextFile(
+        datedFilename('fitvision-analytics'),
+        toCsv(summary.daily_breakdown, csvColumns),
+    )
+    if (saved) {
+        ElMessage.success(`已导出 ${summary.daily_breakdown.length} 天训练数据`)
+    } else {
+        ElMessage.warning('当前环境不支持文件下载')
+    }
 }
 
 watch(resolved, applyChartTheme)
@@ -250,6 +335,7 @@ watch(resolved, applyChartTheme)
 onMounted(() => {
     applyChartTheme()
     fetchData()
+    fetchLoadCurve()
 })
 </script>
 
@@ -283,6 +369,16 @@ onMounted(() => {
 
 .chart {
     height: 300px;
+}
+
+.chart-tall {
+    height: 260px;
+}
+
+.card-hint {
+    font-size: 12px;
+    color: var(--fv-text-3);
+    font-weight: 600;
 }
 
 .chart-card {

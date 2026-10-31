@@ -437,6 +437,43 @@ def readiness_report(
 PERFORMANCE_SCALE = 5.0
 
 
+def load_curve(
+    loads: Iterable[DailyLoad],
+    today: date,
+    days: int = 90,
+    step: int = 1,
+) -> list[dict]:
+    """逐日（或按 `step` 抽样）回放体能 / 疲劳 / TSB 与 ACWR，供前端画曲线。
+
+    每个采样点都用"截至当天"的负荷重新算一遍冲激响应，所以曲线反映的是
+    当时真实的状态，而不是把最终结果摊平到每一天。
+    """
+    items = sorted((item for item in loads if item.load > 0), key=lambda x: x.day)
+    buckets = {item.day: float(item.load) for item in items}
+
+    window = max(HISTORY_DAYS, days + 1)
+    points: list[dict] = []
+    for offset in range(days - 1, -1, -step):
+        day = today - timedelta(days=offset)
+        start = day - timedelta(days=window - 1)
+        series = [buckets.get(start + timedelta(days=i), 0.0) for i in range(window)]
+
+        fitness, fatigue, tsb = banister_impulse(series)
+        acute, chronic, acwr = acute_chronic_ratio(series)
+        points.append(
+            {
+                "date": day.isoformat(),
+                "fitness": round(fitness, 2),
+                "fatigue": round(fatigue, 2),
+                "tsb": round(tsb, 2),
+                "acute_load": round(acute, 2),
+                "chronic_load": round(chronic, 2),
+                "acwr": round(acwr, 3),
+            }
+        )
+    return points
+
+
 def session_load(minutes: float, performance_score: float, scale: float = PERFORMANCE_SCALE) -> float:
     """把一次会话折算成训练负荷：`时长 × 强度系数`。
 

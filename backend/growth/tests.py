@@ -309,6 +309,36 @@ class GrowthApiTests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(self.user)
 
+    def _api_session(self, minutes=40, score=4.0, offset=0):
+        end = timezone.now() - timedelta(days=offset)
+        return UserTrainingSession.objects.create(
+            user=self.user,
+            start_time=end - timedelta(minutes=minutes),
+            end_time=end,
+            is_completed=True,
+            total_exercises=1,
+            completed_exercises=1,
+            calories_burned=220,
+            performance_score=score,
+        )
+
+    def test_load_curve_endpoint(self):
+        for offset in range(0, 12, 2):
+            self._api_session(offset=offset)
+
+        response = self.client.get('/api/growth/load-curve/?days=30&step=2')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['days'], 30)
+        self.assertEqual(response.data['step'], 2)
+        self.assertEqual(len(response.data['points']), 15)
+        self.assertIn('tsb', response.data['points'][-1])
+
+    def test_load_curve_clamps_its_query_params(self):
+        response = self.client.get('/api/growth/load-curve/?days=9999&step=abc')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['days'], 180)
+        self.assertEqual(response.data['step'], 1)
+
     def test_overview_endpoint(self):
         response = self.client.get("/api/growth/overview/")
         self.assertEqual(response.status_code, 200)

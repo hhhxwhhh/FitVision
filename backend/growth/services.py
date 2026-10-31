@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from training.models import UserTrainingExerciseRecord, UserTrainingSession
 from users.models import UserStats
-from utils.readiness import HISTORY_DAYS, DailyLoad, readiness_report, session_load
+from utils.readiness import HISTORY_DAYS, DailyLoad, load_curve, readiness_report, session_load
 
 from .models import (
     Achievement,
@@ -927,6 +927,15 @@ def daily_training_loads(user, days: int = HISTORY_DAYS) -> list[DailyLoad]:
             )
         )
     return sorted(loads, key=lambda item: item.day)
+
+
+def load_curve_for(user, days: int = 90, step: int = 1) -> list[dict]:
+    """最近 `days` 天的体能 / 疲劳 / TSB 曲线，供前端画负荷走势图。
+
+    冲激响应需要回看更长的历史，所以取数窗口比展示窗口多一个 `HISTORY_DAYS`。
+    """
+    loads = daily_training_loads(user, days=HISTORY_DAYS + days)
+    return load_curve(loads, timezone.localdate(), days=days, step=step)
 
 
 def readiness_snapshot(user) -> dict:
