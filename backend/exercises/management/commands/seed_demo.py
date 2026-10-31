@@ -22,6 +22,11 @@ class Command(BaseCommand):
             action="store_true",
             help="即使数据库中已有数据也重新导入 fixtures",
         )
+        parser.add_argument(
+            "--with-history",
+            action="store_true",
+            help="同时为演示用户生成可复现的训练历史数据",
+        )
 
     def handle(self, *args, **options):
         force = options["force"]
@@ -43,6 +48,9 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS("演示数据已导入完成。"))
         else:
             self.stdout.write(self.style.SUCCESS("演示数据已就绪，无需导入。"))
+
+        if options["with_history"]:
+            call_command("seed_demo_history", create_user=True, force=force)
 
     def _fixture_path(self, relative: str) -> Path:
         return Path(settings.BASE_DIR) / relative

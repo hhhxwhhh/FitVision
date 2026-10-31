@@ -21,6 +21,7 @@ pip install -r requirements-dev.txt
 cp .env.example .env
 python manage.py migrate
 python manage.py seed_demo
+python manage.py seed_demo --with-history   # 生成演示用户的训练历史（可复现）
 python manage.py runserver
 
 # 前端（另开终端）
@@ -63,6 +64,19 @@ npm run test:coverage   # 覆盖率报告
 
 - 后端：各 app 下的 `tests.py`。
 - 前端：与被测代码同目录的 `*.test.ts`（如 `src/utils/poseRecognition.test.ts`）。
+
+## 演示数据
+
+```bash
+cd backend
+python manage.py seed_demo                 # 动作库 + 示例训练计划
+python manage.py seed_demo --with-history  # 再生成演示用户的训练历史
+python manage.py seed_demo_history --user demo --weeks 12 --force
+```
+
+- 历史数据由 `utils/demo_data.py` 的**确定性生成器**产生，固定 `--seed` 即可复现。
+- 生成内容：训练会话、每个动作的记录、交互日志以及 `UserStats` 汇总，用于首页/统计/成长展示。
+- `UserExerciseRecord.created_at` / `UserInteraction.timestamp` 是 `auto_now_add`，命令通过 `update()` 回填真实历史时间。
 
 ## 代码质量
 

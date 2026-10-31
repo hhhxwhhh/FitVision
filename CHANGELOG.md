@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Community health files: `CODEOWNERS`, `FUNDING.yml`, issue/PR labeler, stale-issue cleanup, `SUPPORT.md`, and `GOVERNANCE.md`.
 - Documentation system: `docs/ARCHITECTURE.md`, `docs/DEVELOPMENT.md`, `docs/DEPLOYMENT.md`, and an archived folder for historical dev notes.
 - Core algorithm: velocity-based-training (VBT) metrics — per-rep duration, mean velocity and a tempo bucket — exposed from the pose engine and shown in the training preview.
+- Synthetic demo data: a pure, deterministic generator (`utils/demo_data.py`) and the `seed_demo_history` command create reproducible training sessions, per-exercise records, interactions and aggregate stats; `seed_demo --with-history` wires it into setup.
 - Accessibility & UX: skip-to-content link, `aria-current` navigation, global keyboard shortcuts (`?` and `g` leader keys), a redesigned 404 page, and a scroll-progress back-to-top control.
 
 ### Changed
