@@ -21,6 +21,10 @@ class RecommendationEngine:
         raise NotImplementedError
 
 
+#: 局部恢复度对推荐排序的影响权重（0 = 不生效，1 = 完全按恢复度排序）。
+RECOVERY_INFLUENCE = 0.6
+
+
 def resolve_fatigue_level(user, fallback: float = 0.0) -> float:
     """统一取"疲劳度"的入口。
 
@@ -44,6 +48,18 @@ def resolve_fatigue_level(user, fallback: float = 0.0) -> float:
     if state is None:
         return max(0.0, min(1.0, fallback))
     return max(0.0, min(1.0, float(state.fatigue_level or 0.0)))
+
+
+def resolve_muscle_recovery(user):
+    """统一取"分肌群恢复快照"的入口，取数异常时返回 None 让重排直接跳过。"""
+    try:
+        from growth.services import muscle_recovery_snapshot
+
+        snapshot = muscle_recovery_snapshot(user)
+    except Exception:  # pragma: no cover - 只作为兜底，模型失败不应该影响推荐
+        return None
+    return snapshot if getattr(snapshot, "muscles", None) else None
+
 
 class KnowledgeGraphEngine(RecommendationEngine):
     """基于图神经网络 (GNN) 的知识图谱路径推荐"""
@@ -668,6 +684,29 @@ class HybridRecommender:
         adjusted.sort(key=lambda x: x["score"], reverse=True)
         return adjusted
 
+    @classmethod
+    def _rerank_by_muscle_recovery(cls, candidates, snapshot=None):
+        """Local muscle recovery weighting.
+
+        Exercises targeting a muscle group that is still inside its soreness
+        window get down-weighted; fully recovered groups get a small bonus.
+        Only ``RECOVERY_INFLUENCE`` of the multiplier is applied so that local
+        recovery nudges the ranking without overriding relevance itself.
+        """
+        if not candidates or snapshot is None:
+            return list(candidates)
+
+        adjusted = []
+        for item in candidates:
+            multiplier = snapshot.multiplier_for(getattr(item["ex"], "target_muscle", None))
+            factor = 1.0 + (multiplier - 1.0) * RECOVERY_INFLUENCE
+            updated = dict(item)
+            updated["score"] = item["score"] * factor
+            adjusted.append(updated)
+
+        adjusted.sort(key=lambda x: x["score"], reverse=True)
+        return adjusted
+
     @staticmethod
     def get_recommendations(user, scenario='default', limit=6):
         # 1. 缓存/持久化检查：如果过去 6 小时内已经为该场景生成过充分的推荐，则直接返回
@@ -796,6 +835,9 @@ class HybridRecommender:
 
         ranked = HybridRecommender._rerank_by_goal_and_fatigue(
             ranked, goal_type=user_goal, fatigue_level=resolve_fatigue_level(user)
+        )
+        ranked = HybridRecommender._rerank_by_muscle_recovery(
+            ranked, snapshot=resolve_muscle_recovery(user)
         )
 
         recent_feedback = UserInteraction.objects.filter(

@@ -7,12 +7,17 @@ from rest_framework.test import APIClient
 from unittest.mock import patch
 
 from exercises.models import Exercise, ExerciseCategory
+from utils.recovery import MuscleWork, muscle_recovery
 from recommendations.models import RecommendedExercise, UserInteraction, UserState
 from recommendations.serializers import (
     RecommendedExerciseSerializer,
     FeedbackActionSerializer,
 )
-from recommendations.services import HybridRecommender, resolve_fatigue_level
+from recommendations.services import (
+    HybridRecommender,
+    resolve_fatigue_level,
+    resolve_muscle_recovery,
+)
 
 
 class _DummyExercise:
@@ -251,6 +256,56 @@ class FatigueResolutionTests(TestCase):
         UserState.objects.create(user=self.user, fatigue_level=0.33)
         with patch("growth.services.readiness_snapshot", side_effect=RuntimeError("boom")):
             self.assertAlmostEqual(resolve_fatigue_level(self.user), 0.33, places=3)
+
+
+class MuscleRecoveryRerankTests(TestCase):
+    """局部恢复度加权：酸痛中的肌群降权，恢复完全的肌群小幅加成。"""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="recovery", password="StrongPass123")
+
+    @staticmethod
+    def _candidates():
+        return [
+            {
+                "ex": _DummyExercise(ex_id=1, target_muscle="legs"),
+                "score": 1.0,
+                "algorithm": "cosine",
+            },
+            {
+                "ex": _DummyExercise(ex_id=2, target_muscle="chest"),
+                "score": 0.98,
+                "algorithm": "cosine",
+            },
+        ]
+
+    def test_no_snapshot_leaves_the_ranking_untouched(self):
+        ranked = HybridRecommender._rerank_by_muscle_recovery(self._candidates(), snapshot=None)
+        self.assertEqual([item["ex"].id for item in ranked], [1, 2])
+
+    def test_a_fatigued_muscle_group_is_pushed_down(self):
+        snapshot = muscle_recovery(
+            [MuscleWork(muscle="legs", at=timezone.now(), sets=5, reps=12)],
+            timezone.now(),
+            muscles=["legs", "chest"],
+        )
+        ranked = HybridRecommender._rerank_by_muscle_recovery(self._candidates(), snapshot=snapshot)
+        self.assertEqual(ranked[0]["ex"].target_muscle, "chest")
+
+    def test_a_fully_recovered_muscle_group_keeps_its_lead(self):
+        snapshot = muscle_recovery([], timezone.now(), muscles=["legs", "chest"])
+        ranked = HybridRecommender._rerank_by_muscle_recovery(self._candidates(), snapshot=snapshot)
+        self.assertEqual(ranked[0]["ex"].target_muscle, "legs")
+
+    def test_resolve_muscle_recovery_degrades_to_none(self):
+        with patch("growth.services.muscle_recovery_snapshot", side_effect=RuntimeError("boom")):
+            self.assertIsNone(resolve_muscle_recovery(self.user))
+
+    def test_resolve_muscle_recovery_reads_the_service(self):
+        fake = muscle_recovery([], timezone.now(), muscles=["legs"])
+        with patch("growth.services.muscle_recovery_snapshot", return_value=fake) as mocked:
+            self.assertIs(resolve_muscle_recovery(self.user), fake)
+        mocked.assert_called_once_with(self.user)
 
 
 class HybridRecommenderStrategyTests(TestCase):

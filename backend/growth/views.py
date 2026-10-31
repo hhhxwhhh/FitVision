@@ -22,6 +22,7 @@ from .services import (
     join_challenge,
     level_progress,
     load_curve_for,
+    muscle_recovery_snapshot,
     readiness_snapshot,
     refresh_daily_quests,
     weekly_goal_for,
@@ -329,6 +330,17 @@ def load_curve_view(request):
             "points": load_curve_for(request.user, days=days, step=step),
         }
     )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def muscle_recovery_view(request):
+    """今日分肌群恢复状态。
+
+    返回每个肌群的恢复度、残余疲劳、距完全恢复的小时数、本周有效组数与
+    容量状态，外加今日建议优先练的肌群（`focus`）与应当避开的肌群（`avoid`）。
+    """
+    return Response(muscle_recovery_snapshot(request.user).as_dict())
 
 
 @api_view(["GET", "PUT"])

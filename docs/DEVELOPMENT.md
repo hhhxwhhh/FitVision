@@ -69,6 +69,7 @@ npm run test:coverage   # 覆盖率报告
   python -m unittest recommendations.test_rerank   # MMR 重排
   python -m unittest utils.test_demo_data         # 演示数据生成器
   python -m unittest utils.test_readiness         # 训练准备度 / 负荷模型
+  python -m unittest utils.test_recovery          # 分肌群恢复模型
   ```
 
 - 前端：与被测代码同目录的 `*.test.ts`（工具与 composable）或 `*.spec.ts`
@@ -136,6 +137,27 @@ cd backend && python -m unittest utils.test_readiness
 服务端 `growth.services.readiness_snapshot` 只负责取数（`daily_training_loads` 按本地日期聚合
 会话时长与表现分）并把报告拼进 `/api/growth/overview/` 的 `readiness` 字段；前端首页与成长页
 消费这些指标。**修改评分规则请改引擎并补单测，不要在视图里写魔数。**
+
+## 分肌群恢复模型
+
+`backend/utils/recovery.py` 是同一风格的纯 Python 引擎，回答的是"今天该练哪个部位"：
+
+```bash
+cd backend && python -m unittest utils.test_recovery
+```
+
+| 组成 | 做法 | 作用 |
+| --- | --- | --- |
+| 刺激量 | 抗阻 `组数 × 次数 / 10`，计时 `秒 / 60` | 统一不同动作类型的容量口径 |
+| 协同肌矩阵 | 主目标肌群按固定权重摊到协同肌 | 练胸会顺带疲劳肩和三头 |
+| 指数半衰期 | `R = Σ s·0.5^(Δt/H)`，腿 72h / 背 60h / 胸 48h / 腹 24h | 残余疲劳随时间的消退 |
+| 容量区间 | 每周每肌群 10–20 组 | 给出"容量偏低 / 合适 / 偏多"建议 |
+| 推荐加权 | 恢复度 → 0.55–1.15 | 酸痛肌群降权，恢复完全的肌群小幅加成 |
+
+取数与序列化：`growth.services.muscle_works`（读动作记录，时间统一取会话开始时间）
+→ `muscle_recovery_snapshot`（返回引擎对象）→ `/api/growth/muscle-recovery/`。
+推荐链路通过 `recommendations.services.resolve_muscle_recovery` 拿快照，取数失败时返回
+`None`，重排直接跳过。前端展示层在 `src/utils/muscleRecovery.ts`。
 
 ## 代码质量
 

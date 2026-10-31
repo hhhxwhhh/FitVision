@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local developer experience: `.pre-commit-config.yaml` (Black/isort/flake8 + ESLint/Prettier) and `commitlint` for Conventional Commits.
 - Community health files: `CODEOWNERS`, `FUNDING.yml`, issue/PR labeler, stale-issue cleanup, `SUPPORT.md`, and `GOVERNANCE.md`.
 - Documentation system: `docs/ARCHITECTURE.md`, `docs/DEVELOPMENT.md`, `docs/DEPLOYMENT.md`, and an archived folder for historical dev notes.
+- Core algorithm: **per-muscle-group recovery model** (`backend/utils/recovery.py`) — set/rep volume spreads across a synergist matrix and decays with per-muscle exponential half-lives, producing recovery %, hours-to-ready, weekly set volume and a recommendation multiplier; 51 Django-free tests.
+- `GET /api/growth/muscle-recovery/`: today's recovery state for every muscle group plus the suggested `focus` / `avoid` lists.
+- `MuscleRecoveryPanel` on the training page and a shared `src/utils/muscleRecovery.ts` presentation layer (25 tests).
 - Core algorithm: velocity-based-training (VBT) metrics — per-rep duration, mean velocity and a tempo bucket — exposed from the pose engine and shown in the training preview.
 - Synthetic demo data: a pure, deterministic generator (`utils/demo_data.py`) and the `seed_demo_history` command create reproducible training sessions, per-exercise records, interactions and aggregate stats; `seed_demo --with-history` wires it into setup.
 - Form-metric composable: quality badge, standard-rep streak and fault tally moved out of `usePoseDetection` into a unit-tested `useFormMetrics` (with coach tips for every engine fault, including the new lunge and crunch ones).
@@ -46,6 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Recommendation diversity re-ranking now uses **Maximal Marginal Relevance (MMR)** instead of a fixed per-muscle penalty, balancing relevance against redundancy with a tested pure-Python implementation.
 - The recommendation engines no longer read the crude `UserState.fatigue_level` accumulator directly; fatigue now comes from the load model via a single resolver with graceful fallback.
+- Recommendation ranking is additionally weighted by **local muscle recovery** (`_rerank_by_muscle_recovery`, 60% influence): exercises targeting a muscle group still inside its soreness window are pushed down, fully recovered groups get a small bonus.
+- Growth test helpers now keep a synthetic session inside one local day, so the suite no longer trips over the midnight boundary.
 - The `UserDailyStats` post-save signal no longer nudges fatigue by ±0.2/0.1 based on form score; it re-syncs `UserState.fatigue_level` from the load model (idempotent, keeps the old value when the model has no history).
 - Visual language refreshed to a warm-neutral, sporty theme: burnt-orange accent, flat surfaces, crisp borders and tighter radii; removed aurora gradients, glass blur, coloured glows and gradient text.
 - De-AI-ification pass 2: the last hardcoded blue/slate tones (AI 智能接力 card, algorithm badges, pose stats panel, timer ring, rest overlay, graph palette) now use the warm design tokens, and status halos follow `--fv-success` / `--fv-warning`.

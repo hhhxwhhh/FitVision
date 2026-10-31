@@ -57,6 +57,7 @@ declare module 'vue' {
     ElTableColumn: typeof import('element-plus/es')['ElTableColumn']
     ElTag: typeof import('element-plus/es')['ElTag']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
+    MuscleRecoveryPanel: typeof import('./components/MuscleRecoveryPanel.vue')['default']
     NextExerciseRecommendation: typeof import('./components/NextExerciseRecommendation.vue')['default']
     PosePreview: typeof import('./components/ai/PosePreview.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

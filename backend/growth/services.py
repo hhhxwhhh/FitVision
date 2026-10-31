@@ -18,6 +18,7 @@ from django.utils import timezone
 from training.models import UserTrainingExerciseRecord, UserTrainingSession
 from users.models import UserStats
 from utils.readiness import HISTORY_DAYS, DailyLoad, load_curve, readiness_report, session_load
+from utils.recovery import MUSCLE_ORDER, MuscleWork, RecoverySnapshot, muscle_recovery
 
 from .models import (
     Achievement,
@@ -927,6 +928,63 @@ def daily_training_loads(user, days: int = HISTORY_DAYS) -> list[DailyLoad]:
             )
         )
     return sorted(loads, key=lambda item: item.day)
+
+
+def muscle_works(user, days: int = 30) -> list[MuscleWork]:
+    """把最近 `days` 天的动作记录翻译成分肌群刺激量。
+
+    时间统一取会话开始时间（而不是 `created_at`），否则回填的历史数据会把
+    恢复曲线压到最近几天。次数取 `reps_completed` 之和，计时动作用实际秒数。
+    """
+    since = timezone.now() - timedelta(days=days)
+    rows = (
+        UserTrainingExerciseRecord.objects.filter(
+            session__user=user,
+            session__is_completed=True,
+            session__start_time__gte=since,
+        )
+        .select_related("exercise")
+        .values_list(
+            "exercise__target_muscle",
+            "session__start_time",
+            "sets_completed",
+            "reps_completed",
+            "duration_seconds_actual",
+            "form_score",
+        )
+    )
+
+    works: list[MuscleWork] = []
+    for muscle, start, sets, reps, seconds, form_score in rows:
+        if not start:
+            continue
+        total_reps = 0
+        if isinstance(reps, (list, tuple)):
+            for value in reps:
+                try:
+                    total_reps += max(0, int(value))
+                except (TypeError, ValueError):
+                    continue
+        works.append(
+            MuscleWork(
+                muscle=muscle or "full_body",
+                at=start,
+                sets=int(sets or 0),
+                reps=total_reps,
+                seconds=float(seconds or 0.0),
+                form_score=float(form_score) if form_score else None,
+            )
+        )
+    return works
+
+
+def muscle_recovery_snapshot(user, days: int = 30) -> RecoverySnapshot:
+    """今日分肌群恢复快照：每个肌群的恢复度、残余疲劳、本周容量与建议。
+
+    返回引擎对象（而不是字典），推荐链路可以直接用 `multiplier_for` 加权，
+    API 层再调 `as_dict()` 序列化。
+    """
+    return muscle_recovery(muscle_works(user, days=days), timezone.now(), muscles=MUSCLE_ORDER)
 
 
 def load_curve_for(user, days: int = 90, step: int = 1) -> list[dict]:

@@ -116,6 +116,21 @@
                         </el-table-column>
                     </el-table>
                 </el-card>
+
+                <el-card v-if="recovery" class="plan-card recovery-card">
+                    <template #header>
+                        <div class="card-header">
+                            <span>今日肌群状态</span>
+                            <span class="card-sub">按局部恢复度排序</span>
+                        </div>
+                    </template>
+
+                    <MuscleRecoveryPanel
+                        :states="recovery.muscles"
+                        :focus="recovery.focus"
+                        :avoid="recovery.avoid"
+                    />
+                </el-card>
             </el-col>
 
             <el-col :xs="24" :lg="9">
@@ -384,6 +399,7 @@ import { VideoCamera, InfoFilled, Trophy, MagicStick, Compass } from '@element-p
 import apiClient, { resolveMediaUrl } from '../api'
 import PosePreview from '../components/ai/PosePreview.vue'
 import NextExerciseRecommendation from '../components/NextExerciseRecommendation.vue'
+import MuscleRecoveryPanel from '../components/MuscleRecoveryPanel.vue'
 import { ArrowRight, View, Sort } from '@element-plus/icons-vue'
 
 import { useRouter } from 'vue-router'
@@ -392,6 +408,7 @@ import {
     parseLoadModel,
     volumeText as loadVolumeTextOf,
 } from '../utils/loadModel'
+import { parseMuscleRecovery } from '../utils/muscleRecovery'
 const router = useRouter()
 
 /**
@@ -415,6 +432,21 @@ const fetchLoadModel = async () => {
         loadModel.value = parseLoadModel(res.data?.readiness)
     } catch {
         loadModel.value = null
+    }
+}
+
+/**
+ * 今日分肌群恢复状态（局部疲劳的指数衰减模型）。
+ * 与整体负荷模型互补：整体回答"能不能练"，这里回答"练哪里"。
+ */
+const recovery = ref<ReturnType<typeof parseMuscleRecovery>>(null)
+
+const fetchMuscleRecovery = async () => {
+    try {
+        const res = await apiClient.get('/growth/muscle-recovery/')
+        recovery.value = parseMuscleRecovery(res.data)
+    } catch {
+        recovery.value = null
     }
 }
 
@@ -878,6 +910,7 @@ const handleSelectRecommended = (ex: any) => {
 onMounted(async () => {
     await fetchPlans()
     fetchLoadModel()
+    fetchMuscleRecovery()
     const exerciseId = route.query.exercise_id
     const exerciseName = route.query.exercise_name
 
@@ -1062,6 +1095,26 @@ export default {
     margin: 0;
     font-size: 18px;
     color: var(--text-main);
+}
+
+.recovery-card {
+    margin-top: 16px;
+}
+
+.recovery-card .card-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.recovery-card .card-sub {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-secondary);
 }
 
 .exercise-name-cell {

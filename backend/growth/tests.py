@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 
 from django.contrib.auth.models import User
 from django.test import TestCase
@@ -25,6 +25,8 @@ from .services import (
     ensure_daily_quests,
     join_challenge,
     level_from_xp,
+    muscle_recovery_snapshot,
+    muscle_works,
     readiness_snapshot,
     refresh_daily_quests,
     weekly_goal_for,
@@ -32,6 +34,25 @@ from .services import (
     weekly_leaderboard,
     xp_for_level,
 )
+
+
+def _local_noon(day):
+    """把本地日期变成当天中午的 aware datetime，避免时区/午夜造成的漂移。"""
+    return timezone.make_aware(datetime.combine(day, time(12, 0)))
+
+
+def _keep_within_one_local_day(start, end, minutes):
+    """让一次会话落在同一个本地日内。
+
+    会话按 `start_time__date` 聚合，如果测试恰好在午夜后运行，`now - 30min`
+    会落在前一天，"今天练了多久"这类断言就会翻车。把窗口整体挪到当天开始之后，
+    时长保持不变。
+    """
+    day_start = timezone.make_aware(datetime.combine(timezone.localdate(end), time.min))
+    if start < day_start:
+        start = day_start
+        end = start + timedelta(minutes=minutes)
+    return start, end
 
 
 class GrowthServiceTests(TestCase):
@@ -47,6 +68,7 @@ class GrowthServiceTests(TestCase):
     def _session(self, *, completed=True, minutes=30, score=4.0, day=None):
         end = day or timezone.now()
         start = end - timedelta(minutes=minutes)
+        start, end = _keep_within_one_local_day(start, end, minutes)
         return UserTrainingSession.objects.create(
             user=self.user,
             start_time=start,
@@ -279,15 +301,15 @@ class GrowthServiceTests(TestCase):
         today = timezone.localdate()
         self._session(minutes=30, score=4.0, day=timezone.now())
         self._session(minutes=20, score=3.0, day=timezone.now())
-        yesterday = timezone.now() - timedelta(days=1)
-        self._session(minutes=45, score=5.0, day=yesterday)
+        yesterday = timezone.localdate() - timedelta(days=1)
+        self._session(minutes=45, score=5.0, day=_local_noon(yesterday))
 
         loads = daily_training_loads(self.user)
         self.assertEqual(len(loads), 2)
         by_day = {item.day: item for item in loads}
         self.assertEqual(by_day[today].minutes, 50.0)
         self.assertGreater(by_day[today].load, 0.0)
-        self.assertAlmostEqual(by_day[yesterday.date()].minutes, 45.0, places=3)
+        self.assertAlmostEqual(by_day[yesterday].minutes, 45.0, places=3)
 
     def test_readiness_reacts_to_a_training_spike(self):
         """连续大负荷后，模型应该自动下调建议强度。"""
@@ -311,9 +333,10 @@ class GrowthApiTests(TestCase):
 
     def _api_session(self, minutes=40, score=4.0, offset=0):
         end = timezone.now() - timedelta(days=offset)
+        start, end = _keep_within_one_local_day(end - timedelta(minutes=minutes), end, minutes)
         return UserTrainingSession.objects.create(
             user=self.user,
-            start_time=end - timedelta(minutes=minutes),
+            start_time=start,
             end_time=end,
             is_completed=True,
             total_exercises=1,
@@ -321,6 +344,63 @@ class GrowthApiTests(TestCase):
             calories_burned=220,
             performance_score=score,
         )
+
+    def _api_record(self, muscle, *, hours_ago=0, sets=4, reps=12, seconds=0, form_score=80.0):
+        exercise, _ = Exercise.objects.get_or_create(
+            name=f"动作-{muscle}",
+            defaults={"description": "测试", "target_muscle": muscle, "difficulty": "beginner"},
+        )
+        session = UserTrainingSession.objects.create(
+            user=self.user,
+            start_time=timezone.now() - timedelta(hours=hours_ago),
+            end_time=timezone.now() - timedelta(hours=hours_ago) + timedelta(minutes=30),
+            is_completed=True,
+            total_exercises=1,
+            completed_exercises=1,
+            performance_score=4.0,
+        )
+        return UserTrainingExerciseRecord.objects.create(
+            session=session,
+            exercise=exercise,
+            sets_completed=sets,
+            reps_completed=[reps] * sets,
+            duration_seconds_actual=seconds,
+            form_score=form_score,
+        )
+
+    def test_muscle_recovery_endpoint(self):
+        self._api_record("legs", hours_ago=3, sets=5, reps=12)
+
+        response = self.client.get('/api/growth/muscle-recovery/')
+        self.assertEqual(response.status_code, 200)
+        muscles = {item['muscle']: item for item in response.data['muscles']}
+        self.assertIn('legs', muscles)
+        self.assertIn('recovery', muscles['legs'])
+        self.assertIn('focus', response.data)
+        self.assertIn('avoid', response.data)
+
+    def test_muscle_recovery_marks_a_fresh_leg_day_as_fatigued(self):
+        for _ in range(3):
+            self._api_record("legs", hours_ago=1, sets=5, reps=12)
+
+        muscles = {
+            item['muscle']: item for item in self.client.get('/api/growth/muscle-recovery/').data['muscles']
+        }
+        self.assertIn('legs', self.client.get('/api/growth/muscle-recovery/').data['avoid'])
+        self.assertLess(muscles['legs']['recovery'], 100.0)
+
+    def test_muscle_works_reads_reps_and_seconds(self):
+        self._api_record("abs", hours_ago=2, sets=3, reps=15, seconds=60)
+        works = muscle_works(self.user)
+        self.assertEqual(len(works), 1)
+        self.assertEqual(works[0].reps, 45)
+        self.assertEqual(works[0].seconds, 60.0)
+
+    def test_muscle_recovery_snapshot_returns_the_engine_object(self):
+        self._api_record("chest", hours_ago=5)
+        snapshot = muscle_recovery_snapshot(self.user)
+        self.assertTrue(hasattr(snapshot, 'multiplier_for'))
+        self.assertLessEqual(snapshot.multiplier_for('chest'), 1.2)
 
     def test_load_curve_endpoint(self):
         for offset in range(0, 12, 2):
