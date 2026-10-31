@@ -3,6 +3,7 @@ import { Pose, type Results, POSE_CONNECTIONS } from '@mediapipe/pose';
 import { Camera } from '@mediapipe/camera_utils';
 import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
 import { OneEuroFilter } from '../utils/poseMatching';
+import { useFormMetrics } from './useFormMetrics';
 import {
   createExerciseAnalyzer,
   type AnalysisFrame,
@@ -66,24 +67,6 @@ const VOICE_STYLES: Record<
   },
 };
 
-const ERROR_TIP_MAP: Record<string, string> = {
-  '膝盖内扣': '让膝盖方向与脚尖一致，起身时主动向外稳定膝盖。',
-  '下蹲深度不足': '继续下沉到大腿接近平行地面，再发力起身。',
-  '核心下塌': '收紧腹部和臀部，让肩-髋-踝尽量保持一条线。',
-  '下放不充分': '离心阶段再慢一点，降低到目标深度再推起。',
-  '骨盆下沉': '骨盆微后倾并收紧核心，避免腰部塌陷。',
-  '手臂抬起不足': '向上阶段把手臂抬过头顶，动作幅度做完整。',
-  '躯干过度前倾': '挺胸并收紧核心，让躯干在可控范围内保持直立。',
-  '左右不对称': '让身体两侧同步发力，必要时降低重量或放慢节奏。',
-  '臀部过高': '降低髋部，让肩、髋、踝重新回到一条直线上。',
-  '身体未成直线': '收紧腹部和臀部，避免塌腰或撅臀。',
-  '肘部未对齐': '让肘部位于肩部正下方，前臂保持稳定支撑。',
-  '身体晃动': '放慢呼吸、收紧核心，减少身体前后左右晃动。',
-  '双腿张开不足': '落地时双脚再打开一些，保持与肩同宽以上。',
-  '关键点不可见': '请让全身进入画面，保持光线充足并避免遮挡。',
-  '暂无明显错误': '当前动作整体稳定，继续保持节奏和呼吸。',
-};
-
 export function usePoseDetection() {
   const MEDIAPIPE_POSE_VERSION = '0.5.1675469404';
   const MEDIAPIPE_BASE_URL =
@@ -117,14 +100,22 @@ export function usePoseDetection() {
   const poseConfidence = ref(0);
   const viewOrientation = ref<ViewOrientation>('unknown');
   const activeFaults = ref<string[]>([]);
-  const qualityLabel = ref('待评估');
-  const qualityPercent = ref(0);
-  const qualityColor = ref('#64748b');
-  const standardStreak = ref(0);
-  const bestStreak = ref(0);
-  const commonErrorLabel = ref('暂无明显错误');
-  const commonErrorTip = ref(ERROR_TIP_MAP['暂无明显错误']);
-  const errorCounters = ref<Record<string, number>>({});
+  // Form scoring lives in its own composable so it stays unit-testable.
+  const {
+    qualityLabel,
+    qualityPercent,
+    qualityColor,
+    standardStreak,
+    bestStreak,
+    commonErrorLabel,
+    commonErrorTip,
+    updateQualityBadge,
+    growStreak,
+    breakStreak,
+    registerRep,
+    recordFaults: recordFormFaults,
+    reset: resetFormMetrics,
+  } = useFormMetrics();
   const duration = ref(0);
   const isAnalyzingVlm = ref(false);
   const vlmAdvice = ref('');
@@ -190,55 +181,6 @@ export function usePoseDetection() {
     return false;
   };
 
-  const updateQualityBadge = (score: number) => {
-    qualityPercent.value = Math.max(0, Math.min(100, score));
-    if (score >= 90) {
-      qualityLabel.value = '优秀';
-      qualityColor.value = '#10b981';
-      return;
-    }
-    if (score >= 80) {
-      qualityLabel.value = '良好';
-      qualityColor.value = '#22c55e';
-      return;
-    }
-    if (score >= 70) {
-      qualityLabel.value = '一般';
-      qualityColor.value = '#f59e0b';
-      return;
-    }
-    qualityLabel.value = '待改进';
-    qualityColor.value = '#ef4444';
-  };
-
-  const markStandardOrBreakStreak = (score: number) => {
-    if (score >= 85) {
-      standardStreak.value += 1;
-      if (standardStreak.value > bestStreak.value) {
-        bestStreak.value = standardStreak.value;
-      }
-    } else {
-      standardStreak.value = 0;
-    }
-  };
-
-  const updateCommonErrorLabel = () => {
-    let maxKey = '';
-    let maxCount = 0;
-    for (const [key, count] of Object.entries(errorCounters.value)) {
-      if (count > maxCount) {
-        maxCount = count;
-        maxKey = key;
-      }
-    }
-    commonErrorLabel.value = maxKey || '暂无明显错误';
-    commonErrorTip.value = ERROR_TIP_MAP[commonErrorLabel.value] || '保持核心稳定，注意动作节奏。';
-  };
-
-  const markError = (label: string) => {
-    errorCounters.value[label] = (errorCounters.value[label] || 0) + 1;
-    updateCommonErrorLabel();
-  };
 
   const refreshVoiceStressStats = () => {
     const now = Date.now();
@@ -476,7 +418,7 @@ export function usePoseDetection() {
   const recordFaults = (analysis: AnalysisFrame) => {
     const keys = new Set(analysis.faults.map((fault) => fault.key));
     for (const key of keys) {
-      if (!lastFaultKeys.has(key)) markError(key);
+      if (!lastFaultKeys.has(key)) recordFormFaults([key]);
     }
     lastFaultKeys = keys;
     activeFaults.value = [...keys];
@@ -502,17 +444,14 @@ export function usePoseDetection() {
         feedback.value = `坚持住！稳定性: ${lastScore.value}%`;
         if (duration.value > lastPlankStreakSecond) {
           lastPlankStreakSecond = duration.value;
-          standardStreak.value += 1;
-          if (standardStreak.value > bestStreak.value) {
-            bestStreak.value = standardStreak.value;
-          }
+          growStreak();
         }
       } else {
         if (plankStartTime) {
           plankAccumulatedSeconds += Math.floor((now - plankStartTime) / 1000);
           plankStartTime = null;
         }
-        standardStreak.value = 0;
+        breakStreak();
         lastPlankStreakSecond = 0;
         feedback.value =
           analysis.confidence < 0.45
@@ -544,7 +483,7 @@ export function usePoseDetection() {
       repTempo.value = analysis.repTempo;
       repVelocity.value = analysis.repVelocity;
       repDuration.value = analysis.repDurationMs;
-      markStandardOrBreakStreak(analysis.repScore);
+      registerRep(analysis.repScore);
       speakCountdown(repCount.value);
       if (repCount.value % 2 === 1) {
         scheduleSpeak(() => speakCadence('up'), 1800);
@@ -628,9 +567,7 @@ export function usePoseDetection() {
     activeFaults.value = [];
     repProgress.value = 0;
     lastScore.value = 0;
-    qualityLabel.value = '待评估';
-    qualityPercent.value = 0;
-    qualityColor.value = '#64748b';
+    resetFormMetrics();
     duration.value = 0;
     plankStartTime = null;
     plankAccumulatedSeconds = 0;
@@ -733,11 +670,7 @@ export function usePoseDetection() {
     voiceStressPass,
     resetCount: () => {
       repCount.value = 0;
-      standardStreak.value = 0;
-      bestStreak.value = 0;
-      commonErrorLabel.value = '暂无明显错误';
-      commonErrorTip.value = ERROR_TIP_MAP['暂无明显错误'];
-      errorCounters.value = {};
+      resetFormMetrics();
       resetTrackingState();
       vlmAdvice.value = '';
       resetVoiceStressStats();

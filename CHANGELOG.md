@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation system: `docs/ARCHITECTURE.md`, `docs/DEVELOPMENT.md`, `docs/DEPLOYMENT.md`, and an archived folder for historical dev notes.
 - Core algorithm: velocity-based-training (VBT) metrics — per-rep duration, mean velocity and a tempo bucket — exposed from the pose engine and shown in the training preview.
 - Synthetic demo data: a pure, deterministic generator (`utils/demo_data.py`) and the `seed_demo_history` command create reproducible training sessions, per-exercise records, interactions and aggregate stats; `seed_demo --with-history` wires it into setup.
+- Form-metric composable: quality badge, standard-rep streak and fault tally moved out of `usePoseDetection` into a unit-tested `useFormMetrics` (with coach tips for every engine fault, including the new lunge and crunch ones).
 - Pose engine: two new exercise modes — 弓步 (lunge, uses the more flexed knee as the primary signal with stride and symmetry checks) and 卷腹 (crunch, driven by hip flexion with knee-stability and hip-travel checks). Six modes are now supported.
 - Accessibility & UX: skip-to-content link, `aria-current` navigation, global keyboard shortcuts (`?` and `g` leader keys), a redesigned 404 page, and a scroll-progress back-to-top control.
 - Training history timeline (`/history`): month-grouped sessions with completion filter, pagination, an empty state,
