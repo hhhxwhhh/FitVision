@@ -75,7 +75,7 @@
 
     <div class="growth-grid">
       <div class="growth-main">
-        <section class="panel load-panel">
+        <section v-if="loadModel" class="panel load-panel">
           <div class="panel-head">
             <div>
               <h2>训练负荷</h2>
