@@ -26,3 +26,29 @@ known_first_party = [
   "ai_models",
   "utils",
 ]
+
+[tool.coverage.run]
+source = [
+  "fitvision",
+  "users",
+  "exercises",
+  "training",
+  "recommendations",
+  "growth",
+  "analytics",
+  "ai_models",
+  "utils",
+]
+omit = [
+  "*/migrations/*",
+  "*/tests.py",
+  "*/apps.py",
+  "*/wsgi.py",
+  "*/asgi.py",
+  "manage.py",
+  "fitvision/settings.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+

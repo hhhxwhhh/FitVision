@@ -81,6 +81,21 @@ CI 会执行同样的检查，提交前本地跑一遍能显著加快合并速�
 - 新增接口请补充 OpenAPI 描述（drf-spectacular）与必要测试。
 - 不要在代码或文档中写入真实密钥、数据库密码或用户数据。
 
+## 本地 Git 钩子（推荐）
+
+仓库根目录提供了 [pre-commit](https://pre-commit.com/) 配置，提交前自动格式化与校验，与 CI 保持一致：
+
+```bash
+pip install pre-commit
+pre-commit install --hook-type pre-commit --hook-type commit-msg
+```
+
+- 后端钩子使用 `requirements-dev.txt` 中 pin 的 Black / isort / flake8。
+- 前端钩子通过 `scripts/precommit-*.sh` 调用项目自带的 Prettier / ESLint。
+- commit-msg 钩子使用 `commitlint` 校验 [Conventional Commits](https://www.conventionalcommits.org/) 格式。
+
+跳过钩子（仅限紧急调试）：`git commit --no-verify`。
+
 ## PR 检查清单
 
 - [ ] 说明改动目的与用户可见效果

@@ -1,0 +1,69 @@
+# FitVision pre-commit hooks.
+#
+# Install once (after installing backend + frontend dependencies):
+#   pip install pre-commit
+#   pre-commit install --hook-type pre-commit --hook-type commit-msg
+#
+# Python hooks (black / isort / flake8) use the project's pinned versions from
+# requirements-dev.txt. Frontend hooks delegate to the project's own Prettier and
+# ESLint via small wrapper scripts under ./scripts so formatting stays identical
+# to `npm run lint` and the CI pipeline.
+
+minimum_pre_commit_version: "3.5.0"
+default_install_hook_types: [pre-commit, commit-msg]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-added-large-files
+        args: ["--maxkb=2000"]
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  - repo: local
+    hooks:
+      - id: black
+        name: black (backend)
+        entry: black
+        language: system
+        types: [python]
+        exclude: ^(backend/migrations/|.*/venv/|.*/.venv/)
+
+      - id: isort
+        name: isort (backend)
+        entry: isort
+        language: system
+        types: [python]
+        exclude: ^(backend/migrations/|.*/venv/|.*/.venv/)
+
+      - id: flake8
+        name: flake8 (backend)
+        entry: flake8
+        language: system
+        types: [python]
+        exclude: ^(backend/migrations/|.*/venv/|.*/.venv/)
+
+      - id: prettier
+        name: prettier (frontend)
+        entry: scripts/precommit-prettier.sh
+        language: script
+        files: ^frontend/.*\.(ts|vue|css|json)$
+
+      - id: eslint
+        name: eslint (frontend)
+        entry: scripts/precommit-eslint.sh
+        language: script
+        files: ^frontend/.*\.(ts|vue|js)$
+
+      - id: commitlint
+        name: commitlint
+        entry: scripts/precommit-commitlint.sh
+        language: script
+        stages: [commit-msg]
+        pass_filenames: false

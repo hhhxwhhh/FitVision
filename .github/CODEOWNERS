@@ -1,0 +1,15 @@
+# Default owners for everything in the repo.
+*       @hhhxwhhh
+
+# Frontend (Vue 3 + TypeScript)
+/frontend/      @hhhxwhhh
+
+# Backend (Django + DRF)
+/backend/       @hhhxwhhh
+
+# Documentation
+/docs/          @hhhxwhhh
+
+# CI / packaging
+/.github/       @hhhxwhhh
+/docker-compose.yml  @hhhxwhhh

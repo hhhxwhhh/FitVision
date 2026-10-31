@@ -1,0 +1,49 @@
+name: Release
+
+# Publishes a GitHub Release whenever a tag like `v1.2.0` is pushed.
+# Release notes are generated automatically from Conventional Commits since the
+# last tag, and the built frontend bundle is attached as a downloadable asset.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & publish release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Package frontend bundle
+        run: |
+          cd frontend/dist
+          zip -r ../../fitvision-frontend-${{ github.ref_name }}.zip .
+          cd ../..
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            --latest \
+            "fitvision-frontend-${{ github.ref_name }}.zip#Frontend bundle"
