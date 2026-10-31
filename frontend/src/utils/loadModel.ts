@@ -8,6 +8,10 @@
 
 /** 后端负荷模型（只声明 UI 真正用到的字段，其余透传）。 */
 export interface LoadModel {
+  score: number
+  tone: string
+  label: string
+  advice: string
   acwr: number
   fitness: number
   fatigue: number
@@ -66,6 +70,10 @@ export function parseLoadModel(raw: unknown): LoadModel | null {
     : []
 
   return {
+    score: toNumber(source.score) ?? 0,
+    tone: typeof source.tone === 'string' ? source.tone : '',
+    label: typeof source.label === 'string' ? source.label : '',
+    advice: typeof source.advice === 'string' ? source.advice : '',
     acwr: toNumber(source.acwr) as number,
     fitness: toNumber(source.fitness) ?? 0,
     fatigue: toNumber(source.fatigue) ?? 0,

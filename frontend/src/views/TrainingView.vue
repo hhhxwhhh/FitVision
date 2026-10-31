@@ -3,6 +3,9 @@
         <div class="page-header-row">
             <h1 class="page-title">智能训练中心</h1>
             <div class="header-tags">
+                <el-tag v-if="loadModel" round class="status-tag" :type="loadTagType">
+                    今日状态 {{ loadModel.score }} · {{ loadIntensityText }} · 容量 {{ loadVolumeText }}
+                </el-tag>
                 <el-tag v-if="sessionId" type="success" effect="dark" round class="status-tag">
                     <span class="dot accepted"></span> 会话进行中 #{{ sessionId }}
                 </el-tag>
@@ -384,7 +387,36 @@ import NextExerciseRecommendation from '../components/NextExerciseRecommendation
 import { ArrowRight, View, Sort } from '@element-plus/icons-vue'
 
 import { useRouter } from 'vue-router'
+import {
+    intensityText as loadIntensityTextOf,
+    parseLoadModel,
+    volumeText as loadVolumeTextOf,
+} from '../utils/loadModel'
 const router = useRouter()
+
+/**
+ * 今日训练负荷状态（Banister + ACWR）。只在拿到模型时展示，
+ * 取不到就整块隐藏 —— 训练页本身不依赖它。
+ */
+const loadModel = ref<ReturnType<typeof parseLoadModel>>(null)
+const loadIntensityText = computed(() => loadIntensityTextOf(loadModel.value))
+const loadVolumeText = computed(() => loadVolumeTextOf(loadModel.value))
+const loadTagType = computed(() => {
+    const score = Number(loadModel.value?.score ?? 0)
+    if (score >= 80) return 'success'
+    if (score >= 62) return 'info'
+    if (score >= 45) return 'warning'
+    return 'danger'
+})
+
+const fetchLoadModel = async () => {
+    try {
+        const res = await apiClient.get('/growth/overview/')
+        loadModel.value = parseLoadModel(res.data?.readiness)
+    } catch {
+        loadModel.value = null
+    }
+}
 
 const currentGifUrl = ref('')
 const route = useRoute()
@@ -845,6 +877,7 @@ const handleSelectRecommended = (ex: any) => {
 
 onMounted(async () => {
     await fetchPlans()
+    fetchLoadModel()
     const exerciseId = route.query.exercise_id
     const exerciseName = route.query.exercise_name
 
