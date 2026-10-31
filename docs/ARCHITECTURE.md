@@ -69,7 +69,20 @@ flowchart LR
 | `analytics` | 数据统计 |
 | `growth` | 等级、任务、挑战、成就、纪录、排行榜 |
 | `ai_models` | VLM 与姿态诊断编排 |
-| `utils` | 向量库等基础设施 |
+| `utils` | 向量库、演示数据生成器与**训练负荷模型**（`readiness.py`，纯 Python、可脱离 Django 单测） |
+
+### 训练负荷 / 准备度
+
+`utils/readiness.py` 把每日训练负荷折算成"今天该练多狠"：Banister 体能-疲劳冲激响应
+（TSB）、EWMA 版 ACWR、Foster 单调性、动作质量趋势与恢复间隔。
+
+```
+会话 → daily_training_loads（按本地日期聚合）
+     → readiness_report（评分 + 建议强度 + 容量系数 + 理由）
+     → 首页准备度卡 / 成长页负荷面板 / 负荷曲线接口 / 推荐疲劳抑制 / 训练计划容量
+```
+
+评分规则只在引擎里改（配单测），视图层不写魔数。详见 [开发指南](DEVELOPMENT.md#训练准备度模型)。
 
 目录说明见 [backend.md](backend.md)。
 

@@ -326,9 +326,19 @@ CI 会在每次 Push / PR 时执行以上检查（含前后端测试覆盖率与
 Docker Compose 镜像构建。另有 CodeQL 安全扫描与依赖自动更新（Dependabot）。本地可用
 `pre-commit` 钩子在提交前自动格式化与校验，详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-前端目前 **78 个单元测试 / 9 个测试文件**，覆盖姿态识别引擎、按键与滚动助手、
-训练周期统计、CSV 导出、HTML 消毒与用户状态；推荐端的 MMR 重排另有 10 个可脱离
-Django 直接运行的 Python 用例。
+前端目前 **132 个测试 / 16 个测试文件**，覆盖姿态识别引擎、按键与滚动助手、
+训练周期统计、CSV 导出、HTML 消毒、主题、负荷模型解析、用户状态，以及 4 个
+组件级用例（训练日历、回到顶部、主题切换、AI 智能接力）。
+
+后端 **144 个用例**，其中负荷模型 `utils/readiness` 有 53 个、MMR 重排与演示数据
+生成器各有 10+ 个，都可以脱离 Django 直接运行：
+
+```bash
+cd backend
+python -m unittest utils.test_readiness   # 训练负荷 / 准备度模型
+python -m unittest utils.test_demo_data   # 演示数据生成器
+python -m unittest recommendations.test_rerank
+```
 
 ---
 
@@ -390,8 +400,8 @@ JS chunk 设上限，超限即让 CI 失败，防止体积悄悄回退。
 | `dist` 总体积 | 3.0 MB | 2.2 MB |
 | Element Plus chunk | 898 KB | 按需拆分为多个小 chunk |
 | ECharts chunk | 1134 KB | 399 KB |
-| JS 合计（gzip） | — | 578 KB |
-| CSS 合计（gzip） | — | 61 KB |
+| JS 合计（gzip） | — | 583 KB |
+| CSS 合计（gzip） | — | 62 KB |
 
 ### 算法侧的近期升级
 
