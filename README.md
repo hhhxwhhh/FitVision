@@ -24,11 +24,12 @@
 - [系统架构](#系统架构)
 - [技术栈](#技术栈)
 - [快速开始](#快速开始)
-- [演示数据与账号](#演示数据与账号)
+- [演示数据与演示账号](#演示数据与演示账号)
 - [环境变量](#环境变量)
 - [API 与文档](#api-与文档)
 - [测试与代码质量](#测试与代码质量)
 - [项目结构](#项目结构)
+- [工程与技术亮点](#工程与技术亮点)
 - [设计要点](#设计要点)
 - [路线图](#路线图)
 - [文档](#文档)
@@ -306,13 +307,18 @@ cd frontend
 npm run lint
 npm run type-check
 npm run build
-npm run test            # Vitest 单元测试
-npm run test:coverage   # 覆盖率报告
+npm run size           # 体积预算守卫（gzip 超限即失败）
+npm run test           # Vitest 单元测试
+npm run test:coverage  # 覆盖率报告
 ```
 
-CI 会在每次 Push / PR 时执行以上检查（含前后端测试覆盖率），并验证 Docker
-Compose 镜像构建。另有 CodeQL 安全扫描与依赖自动更新（Dependabot）。本地可用
+CI 会在每次 Push / PR 时执行以上检查（含前后端测试覆盖率与体积预算），并验证
+Docker Compose 镜像构建。另有 CodeQL 安全扫描与依赖自动更新（Dependabot）。本地可用
 `pre-commit` 钩子在提交前自动格式化与校验，详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+前端目前 **78 个单元测试 / 9 个测试文件**，覆盖姿态识别引擎、按键与滚动助手、
+训练周期统计、CSV 导出、HTML 消毒与用户状态；推荐端的 MMR 重排另有 10 个可脱离
+Django 直接运行的 Python 用例。
 
 ---
 
@@ -337,11 +343,12 @@ FitVision/
 │   ├── src/
 │   │   ├── api/            # axios 客户端、自动刷新、媒体地址
 │   │   ├── components/     # 通用组件与姿态预览
-│   │   ├── composables/    # 姿态检测、诊断逻辑
+│   │   ├── composables/    # 姿态检测、表单指标、诊断逻辑
 │   │   ├── layouts/        # 应用外壳
 │   │   ├── router/         # 懒加载路由与守卫
 │   │   ├── stores/         # Pinia
 │   │   └── views/          # 页面
+│   ├── scripts/            # 体积预算校验脚本
 │   ├── public/             # PWA manifest、Service Worker、图标
 │   ├── Dockerfile
 │   └── nginx.conf
@@ -357,6 +364,36 @@ FitVision/
 ├── SECURITY.md
 └── LICENSE
 ```
+
+---
+
+## 工程与技术亮点
+
+### 按需加载与体积预算
+
+Element Plus 与 ECharts 都采用按需引入（`unplugin-vue-components` + 显式注册所需图表），
+不再整体打包。`scripts/check-bundle-size.mjs` 会对 gzip 后的入口 chunk、关键 CSS 与任一
+JS chunk 设上限，超限即让 CI 失败，防止体积悄悄回退。
+
+| 指标 | 优化前 | 当前 |
+| --- | --- | --- |
+| `dist` 总体积 | 3.0 MB | 2.2 MB |
+| Element Plus chunk | 898 KB | 按需拆分为多个小 chunk |
+| ECharts chunk | 1134 KB | 399 KB |
+| JS 合计（gzip） | — | 578 KB |
+| CSS 合计（gzip） | — | 61 KB |
+
+### 算法侧的近期升级
+
+- **VBT（基于速度的训练）指标**：每次动作输出用时、平均速度与节奏分类，直接呈现在训练画面。
+- **MMR 多样性重排**：推荐候选以最大边际相关重排，在相关性与冗余度之间做 λ 权衡，取代原先固定的肌群扣分。
+- **六动作姿态引擎**：深蹲、俯卧撑、开合跳、平板支撑、弓步蹲、卷腹；每个模式都有自己的测量函数、评分权重与可提示纠错项。
+
+### 可靠性
+
+- **不信任 AI 输出**：模型返回的富文本在渲染前统一消毒（白名单标签、剥离全部属性），杜绝 `v-html` 注入。
+- **可复现的演示数据**：`seed_demo --with-history` 以确定性种子生成数周的训练会话，让首页、统计与推荐从一开始就有数据。
+- **可降级依赖**：SQLite / LocMem / 可选 ML 依赖均有回退路径，无需完整 ML 环境即可跑通测试。
 
 ---
 
@@ -377,7 +414,7 @@ FitVision/
 - [ ] 推荐算法离线评测集与 A/B 实验框架
 - [ ] 中英文 i18n 与完整无障碍（a11y）审计
 - [ ] 移动端封装（Capacitor / React Native）
-- [ ] 更多端到端测试与性能预算
+- [ ] 更多视图层组件测试与端到端用例
 
 ---
 
