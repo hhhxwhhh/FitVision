@@ -41,7 +41,7 @@ docker compose up --build
 ```bash
 docker compose logs -f backend     # 查看后端日志
 docker compose exec backend python manage.py createsuperuser
-docker compose exec backend python manage.py loaddata exercises/fixtures/data.json
+docker compose exec backend python manage.py seed_demo   # 已有数据时自动跳过
 docker compose down                # 停止
 docker compose down -v             # 停止并删除数据卷
 ```
@@ -97,8 +97,7 @@ DEEPSEEK_API_KEY=
 
 ```bash
 python manage.py migrate
-python manage.py loaddata exercises/fixtures/data.json   # 动作库
-python manage.py loaddata training/fixtures/seed.json    # 训练种子数据（可选）
+python manage.py seed_demo                               # 自动导入动作库与示例计划
 python manage.py createsuperuser                         # 按需
 python manage.py runserver
 ```

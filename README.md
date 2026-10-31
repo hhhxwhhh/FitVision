@@ -177,8 +177,7 @@ python -m venv .venv
 pip install -r requirements-dev.txt
 cp .env.example .env              # 可全部留空，使用 SQLite + LocMem
 python manage.py migrate
-python manage.py loaddata exercises/fixtures/data.json   # 可选：动作库
-python manage.py loaddata training/fixtures/seed.json    # 可选：训练种子数据
+python manage.py seed_demo        # 自动导入动作库与示例训练计划（已有数据时跳过）
 python manage.py runserver
 
 # 2. 前端（另开终端）

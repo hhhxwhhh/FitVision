@@ -22,11 +22,11 @@ install-frontend: ## Install frontend dependencies from the lockfile
 migrate: ## Apply database migrations
 	cd backend && $(PYTHON) manage.py migrate
 
-seed: ## Load demo exercises and training data
-	cd backend && $(PYTHON) manage.py loaddata exercises/fixtures/data.json
-	cd backend && $(PYTHON) manage.py loaddata training/fixtures/seed.json
+seed: ## Import demo exercises and training plan when the database is empty
+	cd backend && $(PYTHON) manage.py seed_demo
 
-backend: ## Run the Django development server
+backend: ## Import demo data, then run the Django development server
+	cd backend && $(PYTHON) manage.py seed_demo
 	cd backend && $(PYTHON) manage.py runserver
 
 frontend: ## Run the Vite development server

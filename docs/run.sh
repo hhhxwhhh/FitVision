@@ -11,7 +11,7 @@ pip install -r requirements.txt
 # 后端
 cd FitVision/backend
 python manage.py migrate
-python manage.py loaddata exercises/fixtures/data.json
+python manage.py seed_demo
 
 # 启动
 python manage.py runserver

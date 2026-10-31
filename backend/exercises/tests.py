@@ -1,7 +1,13 @@
+from io import StringIO
+
 from django.contrib.auth.models import User
+from django.core.management import call_command
+from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
+
+from training.models import TrainingPlan
 
 from .models import Exercise, ExerciseCategory
 
@@ -52,3 +58,23 @@ class ExerciseAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["name"], "深蹲")
+
+
+class SeedDemoCommandTests(TestCase):
+    def test_seeds_exercises_and_plan_on_empty_database(self):
+        call_command("seed_demo", stdout=StringIO())
+
+        self.assertEqual(Exercise.objects.count(), 60)
+        self.assertEqual(TrainingPlan.objects.count(), 1)
+        plan = TrainingPlan.objects.get()
+        self.assertIsNotNone(plan.created_by)
+
+    def test_seed_is_idempotent(self):
+        call_command("seed_demo", stdout=StringIO())
+        user_count = User.objects.count()
+
+        call_command("seed_demo", stdout=StringIO())
+
+        self.assertEqual(Exercise.objects.count(), 60)
+        self.assertEqual(TrainingPlan.objects.count(), 1)
+        self.assertEqual(User.objects.count(), user_count)
