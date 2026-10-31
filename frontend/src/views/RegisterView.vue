@@ -1,69 +1,87 @@
 <template>
-  <div class="register-container">
-    <div class="register-content">
-      <div class="brand-section">
-        <h1>FitVision</h1>
-        <p class="brand-slogan">开启你的智能训练之旅</p>
-      </div>
-
-      <el-card class="register-card glass-effect">
-        <h2 class="form-title">创建账号</h2>
-
-        <el-form label-position="top" class="register-form" :model="form" :rules="rules" ref="formRef" size="large">
-          <el-form-item label="用户名" prop="username">
-            <el-input v-model="form.username" placeholder="请输入用户名">
-              <template #prefix>
-                <el-icon><User /></el-icon>
-              </template>
-            </el-input>
-          </el-form-item>
-
-          <el-form-item label="密码" prop="password">
-            <el-input v-model="form.password" type="password" show-password placeholder="请输入密码">
-              <template #prefix>
-                <el-icon><Lock /></el-icon>
-              </template>
-            </el-input>
-          </el-form-item>
-
-          <el-form-item label="确认密码" prop="passwordConfirm">
-            <el-input v-model="form.passwordConfirm" type="password" show-password placeholder="请再次输入密码">
-              <template #prefix>
-                <el-icon><Lock /></el-icon>
-              </template>
-            </el-input>
-          </el-form-item>
-
-          <div class="action-buttons">
-            <el-button type="primary" @click="handleRegister" :loading="loading" class="full-width-btn shadow-btn">
-              注册
-            </el-button>
-          </div>
-        </el-form>
-
-        <div class="form-footer">
-          <span class="footer-text">已有账号？</span>
-          <el-link type="primary" :underline="false" @click="goLogin">立即登录</el-link>
-        </div>
-
-        <transition name="el-fade-in">
-          <el-alert v-if="message" :title="message" :type="msgType" show-icon class="mt-4" @close="message = ''" />
-        </transition>
-      </el-card>
-
-      <div class="footer-copyright">
-        &copy; 2026 FitVision AI. All rights reserved.
-      </div>
+  <AuthShell>
+    <div class="form-head">
+      <span class="fv-eyebrow">CREATE ACCOUNT</span>
+      <h2>开启训练之旅</h2>
+      <p>30 秒完成注册，AI 会自动为你建立训练档案。</p>
     </div>
-  </div>
+
+    <el-form
+      ref="formRef"
+      class="auth-form"
+      label-position="top"
+      :model="form"
+      :rules="rules"
+      size="large"
+      @submit.prevent="handleRegister"
+    >
+      <el-form-item label="用户名" prop="username">
+        <el-input v-model="form.username" placeholder="3–20 个字符" autocomplete="username">
+          <template #prefix>
+            <el-icon><User /></el-icon>
+          </template>
+        </el-input>
+      </el-form-item>
+
+      <el-form-item label="密码" prop="password">
+        <el-input
+          v-model="form.password"
+          type="password"
+          show-password
+          placeholder="至少 8 位，避免纯数字"
+          autocomplete="new-password"
+        >
+          <template #prefix>
+            <el-icon><Lock /></el-icon>
+          </template>
+        </el-input>
+      </el-form-item>
+
+      <el-form-item label="确认密码" prop="passwordConfirm">
+        <el-input
+          v-model="form.passwordConfirm"
+          type="password"
+          show-password
+          placeholder="再次输入密码"
+          autocomplete="new-password"
+        >
+          <template #prefix>
+            <el-icon><Lock /></el-icon>
+          </template>
+        </el-input>
+      </el-form-item>
+
+      <el-button type="primary" class="submit-btn" :loading="loading" native-type="submit">
+        创建账号
+        <el-icon><Right /></el-icon>
+      </el-button>
+    </el-form>
+
+    <div class="form-footer">
+      <span>已有账号？</span>
+      <el-link type="primary" :underline="false" @click="goLogin">立即登录</el-link>
+    </div>
+
+    <transition name="el-fade-in">
+      <el-alert
+        v-if="message"
+        :title="message"
+        :type="msgType"
+        show-icon
+        class="auth-alert"
+        @close="message = ''"
+      />
+    </transition>
+  </AuthShell>
 </template>
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import apiClient from '../api'
 import { useRouter } from 'vue-router'
-import { User, Lock } from '@element-plus/icons-vue'
+import { Lock, Right, User } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
+import apiClient from '../api'
+import AuthShell from '../components/auth/AuthShell.vue'
 
 const router = useRouter()
 const formRef = ref<FormInstance>()
@@ -71,17 +89,17 @@ const formRef = ref<FormInstance>()
 const form = reactive({
   username: '',
   password: '',
-  passwordConfirm: ''
+  passwordConfirm: '',
 })
 
 const rules = reactive<FormRules>({
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 3, max: 20, message: '长度应在3到20个字符之间', trigger: 'blur' }
+    { min: 3, max: 20, message: '长度应在 3 到 20 个字符之间', trigger: 'blur' },
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, max: 20, message: '长度应在6到20个字符之间', trigger: 'blur' }
+    { min: 8, max: 128, message: '密码长度至少 8 位', trigger: 'blur' },
   ],
   passwordConfirm: [
     { required: true, message: '请再次输入密码', trigger: 'blur' },
@@ -95,17 +113,26 @@ const rules = reactive<FormRules>({
           callback()
         }
       },
-      trigger: 'blur'
-    }
-  ]
+      trigger: 'blur',
+    },
+  ],
 })
 
 const message = ref('')
 const msgType = ref<'success' | 'error' | 'info' | 'warning'>('info')
 const loading = ref(false)
 
+function extractError(data: unknown): string {
+  if (!data || typeof data !== 'object') return '注册失败，请稍后重试'
+  for (const value of Object.values(data as Record<string, unknown>)) {
+    if (typeof value === 'string' && value) return value
+    if (Array.isArray(value) && value.length) return String(value[0])
+  }
+  return '注册失败，请稍后重试'
+}
+
 const handleRegister = async () => {
-  if (!formRef.value) return
+  if (!formRef.value || loading.value) return
 
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
@@ -116,28 +143,25 @@ const handleRegister = async () => {
     await apiClient.post('/auth/register/', {
       username: form.username,
       password: form.password,
-      password_confirm: form.passwordConfirm
+      password_confirm: form.passwordConfirm,
     })
-    message.value = '注册成功，正在登录...'
+
+    message.value = '注册成功，正在进入 FitVision…'
     msgType.value = 'success'
 
     const loginRes = await apiClient.post('/auth/login/', {
       username: form.username,
-      password: form.password
+      password: form.password,
     })
 
     localStorage.setItem('jwt_token', loginRes.data.access)
     localStorage.setItem('refresh_token', loginRes.data.refresh)
     localStorage.setItem('username', loginRes.data.username)
 
-    router.push('/')
-  } catch (err: any) {
-    const errorData = err.response?.data
-    if (typeof errorData === 'object') {
-      message.value = (Object.values(errorData)[0] as string) || '注册失败'
-    } else {
-      message.value = errorData || '注册失败'
-    }
+    window.setTimeout(() => router.push('/'), 420)
+  } catch (err: unknown) {
+    const data = (err as { response?: { data?: unknown } }).response?.data
+    message.value = extractError(data)
     msgType.value = 'error'
   } finally {
     loading.value = false
@@ -150,195 +174,74 @@ const goLogin = () => {
 </script>
 
 <style scoped>
-.register-container {
-  --milan-bg-main: #F5F2ED; /* 页面亮面主色 */
-  --milan-bg-surface: #E5E0D8; /* 边框 / 分隔 */
-  --milan-text-primary: #3C2F2F; /* 主标题 / 正文 */
-  --milan-text-secondary: #7D756D; /* 辅助文字 */
-  --milan-accent: #BEA47E; /* 主按钮 / 交互强调 */
-  --milan-accent-soft: #D5C6B0; /* 次级高亮 */
-  --milan-accent-deep: #9F8462; /* 深强调 */
-  --milan-overlay: rgba(245, 242, 237, 0.08); /* 玻璃蒙层 */
-  --milan-overlay-strong: rgba(60, 47, 47, 0.2); /* 输入框深底 */
-
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: radial-gradient(circle at top right, #CDB99A, #4C403A);
-  background-size: cover;
-  position: relative;
-  overflow: hidden;
+.form-head {
+  margin-bottom: 24px;
 }
 
-.register-container::before {
-  content: '';
-  position: absolute;
-  top: -12%;
-  right: -12%;
-  width: 50%;
-  height: 50%;
-  background: radial-gradient(circle, rgba(245, 242, 237, 0.2) 0%, rgba(0, 0, 0, 0) 70%);
-  border-radius: 50%;
-  z-index: 1;
+.form-head h2 {
+  margin: 10px 0 8px;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+  color: var(--fv-text);
 }
 
-.register-container::after {
-  content: '';
-  position: absolute;
-  bottom: -10%;
-  left: -10%;
-  width: 60%;
-  height: 60%;
-  background: radial-gradient(circle, rgba(190, 164, 126, 0.22) 0%, rgba(0, 0, 0, 0) 70%);
-  border-radius: 50%;
-  z-index: 1;
-}
-
-.register-content {
-  position: relative;
-  z-index: 10;
-  width: 100%;
-  max-width: 420px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.brand-section {
-  text-align: center;
-  margin-bottom: 30px;
-  color: var(--milan-bg-main);
-}
-
-.brand-section h1 {
-  font-size: 42px;
-  font-weight: 800;
+.form-head p {
   margin: 0;
-  letter-spacing: -1px;
-  background: linear-gradient(135deg, #F5F2ED 0%, #E5E0D8 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--fv-text-2);
 }
 
-.brand-slogan {
-  margin-top: 8px;
-  font-size: 16px;
-  color: #E5E0D8;
-  font-weight: 300;
+.auth-form :deep(.el-form-item__label) {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--fv-text-2);
+  padding-bottom: 6px;
 }
 
-.register-card {
-  width: 100%;
-  border-radius: 20px;
-  border: 1px solid rgba(229, 224, 216, 0.35);
-  background: var(--milan-overlay) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 25px 50px -12px rgba(60, 47, 47, 0.45) !important;
+.auth-form :deep(.el-form-item) {
+  margin-bottom: 16px;
 }
 
-.register-card :deep(.el-card__body) {
-  padding: 32px;
+.auth-form :deep(.el-input__wrapper) {
+  height: 46px;
+  border-radius: 12px;
+  background: var(--fv-surface-2);
+  box-shadow: 0 0 0 1px transparent inset;
+  transition: box-shadow 0.2s ease;
 }
 
-.form-title {
-  text-align: center;
-  color: var(--milan-bg-main);
-  margin: 0 0 24px 0;
-  font-size: 20px;
-  font-weight: 600;
+.auth-form :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px var(--fv-primary) inset !important;
 }
 
-.register-form :deep(.el-form-item__label) {
-  color: #E5E0D8;
-}
-
-.register-form :deep(.el-input__wrapper) {
-  background-color: var(--milan-overlay-strong);
-  box-shadow: 0 0 0 1px rgba(229, 224, 216, 0.2) inset;
-  color: var(--milan-bg-main);
-}
-
-.register-form :deep(.el-input__inner) {
-  color: var(--milan-bg-main);
-}
-
-.register-form :deep(.el-input__inner::placeholder) {
-  color: #B7ADA2;
-}
-
-.action-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin-top: 32px;
-}
-
-.full-width-btn {
+.submit-btn {
   width: 100%;
   height: 48px;
-  font-size: 16px;
-  border-radius: 8px;
-}
-
-.shadow-btn {
-  box-shadow: 0 4px 6px -1px rgba(190, 164, 126, 0.35), 0 2px 4px -1px rgba(190, 164, 126, 0.18);
-}
-
-.mt-4 {
-  margin-top: 16px;
+  margin-top: 6px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: var(--fv-shadow-glow);
 }
 
 .form-footer {
-  margin-top: 24px;
-  text-align: center;
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 20px;
+  font-size: 13px;
+  color: var(--fv-text-2);
 }
 
-.footer-text {
-  color: #E5E0D8;
-  margin-right: 4px;
-}
-
-.footer-copyright {
-  margin-top: 40px;
-  color: #D5C6B0;
-  font-size: 12px;
-}
-
-.register-container :deep(.el-button--primary) {
-  --el-button-bg-color: var(--milan-accent);
-  --el-button-border-color: var(--milan-accent);
-  --el-button-hover-bg-color: var(--milan-accent-deep);
-  --el-button-hover-border-color: var(--milan-accent-deep);
-  --el-button-active-bg-color: var(--milan-accent-deep);
-  --el-button-active-border-color: var(--milan-accent-deep);
-  --el-button-text-color: var(--milan-bg-main);
-}
-
-.register-container :deep(.el-link.el-link--primary) {
-  --el-link-text-color: #F5F2ED;
-  --el-link-hover-text-color: var(--milan-accent-soft);
-}
-
-.register-container :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px var(--milan-accent-soft) inset !important;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.register-content {
-  animation: fadeInUp 0.8s ease-out;
+.auth-alert {
+  margin-top: 18px;
+  border-radius: 12px;
 }
 </style>

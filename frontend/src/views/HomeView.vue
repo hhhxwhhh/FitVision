@@ -1,327 +1,474 @@
 <template>
-  <div class="dashboard-container">
-    <transition name="banner-collapse">
-      <div v-if="showWelcomeBanner" class="welcome-banner">
-        <div class="banner-content">
-          <h1>欢迎回来，{{ username }}! 👋</h1>
-          <p>设定目标，坚持运动，AI 助你遇见更好的自己。</p>
+  <div class="home" v-loading="loading">
+    <section class="hero">
+      <div class="hero-copy">
+        <span class="fv-eyebrow">
+          <span class="pulse-dot"></span>
+          {{ greeting }} · {{ todayLabel }}
+        </span>
+        <h1>
+          {{ greeting }}，<span class="gradient-text">{{ displayName }}</span>
+        </h1>
+        <p class="hero-sub">{{ heroSub }}</p>
+
+        <div class="hero-actions">
+          <el-button type="primary" size="large" @click="router.push('/training')">
+            <el-icon><VideoPlay /></el-icon>
+            开始训练
+          </el-button>
+          <el-button size="large" @click="router.push('/ai-plan')">
+            <el-icon><MagicStick /></el-icon>
+            生成 AI 计划
+          </el-button>
+          <el-button size="large" text @click="router.push('/posture-diagnosis')">
+            姿态诊断
+            <el-icon><ArrowRight /></el-icon>
+          </el-button>
+        </div>
+
+        <div class="hero-meta">
+          <span class="fv-chip">
+            <el-icon><Calendar /></el-icon>
+            本周 {{ growth.weeklyTrainingDays }}/3 天
+          </span>
+          <span class="fv-chip">
+            <el-icon><Trophy /></el-icon>
+            连续 {{ growth.currentStreak }} 天
+          </span>
+          <span class="fv-chip">
+            <el-icon><Odometer /></el-icon>
+            疲劳 {{ fatiguePercent }}%
+          </span>
         </div>
       </div>
-    </transition>
 
-    <el-alert
-      v-if="userStatus?.fatigue_level > 0.7"
-      title="AI 检测到您处于疲劳状态"
-      type="warning"
-      description="建议今天进行低强度恢复训练。我们已为您准备了专门的放松动作。"
-      show-icon
-      class="mb-6"
-    >
-      <template #default>
-        <div class="mt-2">
-          <el-button type="warning" size="small" @click="scrollToRecs('auto_adjust')">查看恢复建议</el-button>
+      <div class="readiness" :class="`tone-${readinessTone}`">
+        <div class="readiness-ring">
+          <svg viewBox="0 0 120 120" role="img" :aria-label="`今日状态 ${readiness} 分`">
+            <circle class="ring-track" cx="60" cy="60" r="52" />
+            <circle
+              class="ring-value"
+              cx="60"
+              cy="60"
+              r="52"
+              :stroke-dasharray="`${readiness * 3.267} 326.7`"
+            />
+          </svg>
+          <div class="ring-center">
+            <strong>{{ readiness }}</strong>
+            <span>今日状态</span>
+          </div>
         </div>
-      </template>
-    </el-alert>
+        <div class="readiness-copy">
+          <span class="readiness-label">{{ readinessLabel }}</span>
+          <p>{{ readinessAdvice }}</p>
+        </div>
+      </div>
+    </section>
 
-    <div class="dashboard-grid">
-      <div class="left-panel">
-        <el-card class="left-overview-shell" shadow="never" v-loading="growthLoading">
-          <section class="section growth-section">
-          <div class="section-header growth-header">
-            <h2 class="section-title">成长看板</h2>
-            <el-tag type="success" effect="dark">{{ growth.positiveMessage }}</el-tag>
+    <section class="insights">
+      <div class="section-heading">
+        <div>
+          <h2>AI 教练洞察</h2>
+          <p>基于最近 30 天训练数据实时生成</p>
+        </div>
+        <span class="section-badge">LIVE</span>
+      </div>
+      <div class="insight-grid">
+        <article
+          v-for="insight in insights"
+          :key="insight.title"
+          class="insight-card"
+          :class="insight.tone"
+        >
+          <span class="insight-icon"><el-icon><component :is="insight.icon" /></el-icon></span>
+          <div>
+            <strong>{{ insight.title }}</strong>
+            <p>{{ insight.body }}</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <div class="home-grid">
+      <div class="home-main">
+        <section class="panel rhythm-panel">
+          <div class="panel-head">
+            <div>
+              <h2>本周节奏</h2>
+              <p>最近 7 天训练时长</p>
+            </div>
+            <div class="rhythm-total">
+              <strong>{{ weeklyMinutes }}</strong>
+              <span>分钟</span>
+            </div>
           </div>
 
-          <el-row :gutter="16" class="growth-cards">
-            <el-col :xs="24" :sm="8">
-              <el-card shadow="hover" class="growth-card">
-                <div class="growth-card-title">本周已训练</div>
-                <div class="growth-card-value">{{ growth.weeklyTrainingDays }} <span>天</span></div>
-                <div class="growth-card-sub">目标: 3 天起步，5 天优秀</div>
-              </el-card>
-            </el-col>
-            <el-col :xs="24" :sm="8">
-              <el-card shadow="hover" class="growth-card">
-                <div class="growth-card-title">连续打卡</div>
-                <div class="growth-card-value">{{ growth.currentStreak }} <span>天</span></div>
-                <div class="growth-card-sub">保持节奏，连击越高越强</div>
-              </el-card>
-            </el-col>
-            <el-col :xs="24" :sm="8">
-              <el-card shadow="hover" class="growth-card growth-action-card">
-                <div class="growth-card-title">继续训练</div>
-                <div class="growth-card-value growth-action">解锁进阶动作</div>
-                <div class="growth-action-buttons">
-                  <el-button size="small" type="primary" @click="router.push('/training')">今日训练</el-button>
-                  <el-button size="small" @click="router.push('/posture-diagnosis')">AI姿态诊断</el-button>
-                </div>
-              </el-card>
-            </el-col>
-          </el-row>
+          <div class="rhythm">
+            <div v-for="day in weekDays" :key="day.key" class="rhythm-day">
+              <div class="rhythm-bar">
+                <span
+                  :class="{ today: day.isToday, rest: day.minutes === 0 }"
+                  :style="{ height: `${day.height}%` }"
+                ></span>
+              </div>
+              <span class="rhythm-label" :class="{ today: day.isToday }">{{ day.label }}</span>
+            </div>
+          </div>
+        </section>
 
-          <el-card class="achievement-card" shadow="never">
-            <div class="achievement-title">成就系统</div>
-            <div class="achievement-list">
-              <div v-for="item in growth.achievements" :key="item.key" class="achievement-item">
-                <el-tag :type="item.unlocked ? 'success' : 'info'" effect="plain" size="small">
-                  {{ item.unlocked ? '已达成' : '进行中' }}
-                </el-tag>
-                <div class="achievement-content">
-                  <div class="achievement-name">{{ item.title }}</div>
-                  <div class="achievement-desc">{{ item.description }}</div>
-                </div>
+        <section class="stat-grid">
+          <article v-for="stat in statCards" :key="stat.label" class="stat-card">
+            <span class="stat-icon" :class="`tone-${stat.tone}`">
+              <el-icon><component :is="stat.icon" /></el-icon>
+            </span>
+            <div class="stat-copy">
+              <span>{{ stat.label }}</span>
+              <strong>{{ stat.value }}<small>{{ stat.unit }}</small></strong>
+              <em>{{ stat.hint }}</em>
+            </div>
+          </article>
+        </section>
+
+        <section class="panel achievements-panel">
+          <div class="panel-head">
+            <div>
+              <h2>成就进度</h2>
+              <p>每一次训练都在点亮新的节点</p>
+            </div>
+            <span class="achievement-count">{{ unlockedCount }}/{{ growth.achievements.length }}</span>
+          </div>
+
+          <div class="achievement-grid">
+            <div
+              v-for="item in growth.achievements"
+              :key="item.key"
+              class="achievement"
+              :class="{ unlocked: item.unlocked }"
+            >
+              <span class="achievement-dot">
+                <el-icon><Check v-if="item.unlocked" /><Lock v-else /></el-icon>
+              </span>
+              <div>
+                <strong>{{ item.title }}</strong>
+                <span>{{ item.description }}</span>
               </div>
             </div>
-          </el-card>
-
-          <el-card class="module-shell compact-status-shell" shadow="never">
-            <template #header>
-              <div class="module-header section-header">
-                <h2 class="section-title">今日状态</h2>
-                <el-tag v-if="profile?.bmi" :type="getBMIType(profile.bmi)" size="small" effect="plain" class="bmi-tag">
-                  BMI: {{ profile.bmi.toFixed(1) }} ({{ getBMIText(profile.bmi) }})
-                </el-tag>
-              </div>
-            </template>
-            <div class="status-grid status-inline-four" v-loading="loading">
-              <el-card shadow="hover" class="status-card">
-                <div class="status-header-row">
-                  <div class="status-header">
-                    已消耗热量
-                    <span class="status-inline-value">{{ stats.total_calories_burned || 0 }} <span>kcal</span></span>
-                  </div>
-                  <div class="status-note-inline">目标: {{ calorieGoal }} kcal</div>
-                </div>
-                <el-progress :percentage="Math.min(100, ((stats.total_calories_burned || 0) / calorieGoal) * 100)"
-                  :show-text="false" :color="customColors" />
-              </el-card>
-
-              <el-card shadow="hover" class="status-card">
-                <div class="status-header-row">
-                  <div class="status-header">
-                    累计训练时长
-                    <span class="status-inline-value">{{ stats.total_duration_minutes || 0 }} <span>min</span></span>
-                  </div>
-                  <div class="status-note-inline">目标: 30 min</div>
-                </div>
-                <el-progress :percentage="Math.min(100, ((stats.total_duration_minutes || 0) / 30) * 100)"
-                  :show-text="false" status="success" />
-              </el-card>
-
-              <el-card shadow="hover" class="status-card">
-                <div class="status-header-row">
-                  <div class="status-header">本周部位训练负荷</div>
-                  <div class="status-note-inline">基于本周训练容量</div>
-                </div>
-                <div class="muscle-recovery-list">
-                  <div v-for="muscle in volumeStatus" :key="muscle.name" class="muscle-item">
-                    <span class="m-name">{{ muscle.name }}</span>
-                    <el-progress :percentage="muscle.percentage" :stroke-width="10" :color="muscle.color" />
-                  </div>
-                </div>
-              </el-card>
-
-              <el-card shadow="hover" class="status-card trend-card" @click="router.push('/analytics')">
-                <div class="status-header">📈 进度轨迹</div>
-                <p class="status-desc">查看体重、围度、训练完成度等指标变化。</p>
-              </el-card>
-            </div>
-          </el-card>
-          </section>
-        </el-card>
-
+          </div>
+        </section>
       </div>
 
-      <aside class="right-panel">
-        <AIRecommendations ref="recommendationsRef" :max-items="4" />
+      <aside class="home-side">
+        <AIRecommendations :max-items="4" />
+
+        <section class="coach-card">
+          <span class="coach-icon"><el-icon><MagicStick /></el-icon></span>
+          <h3>不知道今天练什么？</h3>
+          <p>让 AI 根据你的目标、疲劳与器械条件，生成一份可以直接执行的训练计划。</p>
+          <el-button type="primary" class="coach-btn" @click="router.push('/ai-plan')">
+            生成训练计划
+            <el-icon><ArrowRight /></el-icon>
+          </el-button>
+        </section>
       </aside>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { computed, onMounted, ref, type Component } from 'vue'
 import { useRouter } from 'vue-router'
+import {
+  Aim,
+  ArrowRight,
+  Calendar,
+  Check,
+  Clock,
+  DataLine,
+  HotWater,
+  Lock,
+  MagicStick,
+  Odometer,
+  TrendCharts,
+  Trophy,
+  VideoPlay,
+  Warning,
+} from '@element-plus/icons-vue'
 import apiClient from '../api'
 import AIRecommendations from '../components/AIRecommendations.vue'
 
-const router = useRouter()
-const username = ref(localStorage.getItem('username') || '健身者')
-const loading = ref(false)
-const growthLoading = ref(false)
-const stats = ref<any>({})
-const userStatus = ref<any>(null)
-const recommendationsRef = ref<any>(null)
-const profile = ref<any>(null)
-const showWelcomeBanner = ref(true)
-let welcomeTimer: number | null = null
-
-// 调试开关：
-// true  -> 每次进入首页都播放欢迎横幅（便于调试动画）
-// false -> 仅首次进入显示一次，后续不再出现
-const FORCE_REPEAT_WELCOME_BANNER = false
-const WELCOME_BANNER_SEEN_KEY = 'fitvision_home_welcome_seen'
-
-// 米兰色系（低饱和、高质感）
-const MILAN_COLORS = {
-  pageBase: '#F5F2ED', // 页面大背景 / 卡片背景
-  surface: '#E5E0D8', // 悬浮层 / 输入区背景 / 弱对比边框
-  surfaceMid: '#DCCFBE', // 低中进度条 / 轻强调底色
-  textPrimary: '#3C2F2F', // 标题 / 正文主文字
-  textSecondary: '#7D756D', // 注释 / 辅助信息
-  accent: '#BEA47E', // 按钮 / 选中状态 / 重点进度
-  accentSoft: '#D5C6B0', // 次级点缀 / 中段进度
-  accentDeep: '#9F8462', // 深层强调 / 渐变深色端
+interface Achievement {
+  key: string
+  title: string
+  description: string
+  unlocked: boolean
 }
 
+interface Insight {
+  title: string
+  body: string
+  tone: 'positive' | 'warning' | 'neutral'
+  icon: Component
+}
+
+const router = useRouter()
+const loading = ref(false)
+const stats = ref<any>({})
+const userStatus = ref<any>({})
+const profile = ref<any>({})
 const userStats = ref<any>({})
+const dailyStats = ref<any[]>([])
+const progress = ref<any[]>([])
 
 const growth = ref({
   weeklyTrainingDays: 0,
   currentStreak: 0,
-  bestWeeklyExercise: '继续训练解锁',
-  bestWeeklyImprovementText: '完成训练后自动计算进步幅度',
-  positiveMessage: '每次打开都在向更好的自己靠近',
+  bestExercise: '',
+  bestExerciseText: '',
   achievements: [
     { key: 'first_training', title: '完成首训', description: '完成 1 次训练', unlocked: false },
     { key: 'streak_3', title: '连续 3 天', description: '连续打卡 3 天', unlocked: false },
     { key: 'week_3', title: '稳定习惯', description: '本周训练达到 3 天', unlocked: false },
     { key: 'improve_action', title: '动作进步', description: '本周至少 1 个动作明显进步', unlocked: false },
-  ] as Array<{ key: string; title: string; description: string; unlocked: boolean }>,
+  ] as Achievement[],
 })
 
-const calorieGoal = computed(() => {
-  if (!profile.value?.bmr) return 500
-  // 建议目标为 BMR 的 25% 左右作为额外训练消耗
-  return Math.round(profile.value.bmr * 0.3)
+const displayName = computed(
+  () => profile.value?.nickname || localStorage.getItem('username') || '健身者',
+)
+
+const todayLabel = new Intl.DateTimeFormat('zh-CN', {
+  month: 'long',
+  day: 'numeric',
+  weekday: 'long',
+}).format(new Date())
+
+const greeting = computed(() => {
+  const hour = new Date().getHours()
+  if (hour < 6) return '夜深了'
+  if (hour < 12) return '早上好'
+  if (hour < 18) return '下午好'
+  return '晚上好'
 })
 
-// 新增：容量达标颜色逻辑（练得越好越绿，缺乏锻炼标红）
-const getVolumeColor = (percentage: number) => {
-  if (percentage >= 80) return MILAN_COLORS.accent // 本周负荷高：重点色
-  if (percentage >= 40) return MILAN_COLORS.accentSoft // 本周负荷中：次级点缀
-  return MILAN_COLORS.surface // 本周负荷低：弱强调背景色
+const fatigue = computed(() => {
+  const raw = Number(userStatus.value?.fatigue_level ?? 0)
+  return Math.max(0, Math.min(1, Number.isFinite(raw) ? raw : 0))
+})
+
+const fatiguePercent = computed(() => Math.round(fatigue.value * 100))
+
+const trainedToday = computed(() => Number(stats.value?.completed_sessions || 0) > 0)
+
+const readiness = computed(() => {
+  let score = 94 - fatigue.value * 55
+  if (trainedToday.value) score -= 4
+  if (growth.value.currentStreak >= 3) score += 3
+  if (growth.value.weeklyTrainingDays >= 3) score += 2
+  return Math.round(Math.max(25, Math.min(99, score)))
+})
+
+const readinessTone = computed(() => {
+  if (readiness.value >= 80) return 'excellent'
+  if (readiness.value >= 62) return 'good'
+  if (readiness.value >= 45) return 'moderate'
+  return 'recover'
+})
+
+const readinessLabel = computed(() => {
+  const labels: Record<string, string> = {
+    excellent: '状态极佳',
+    good: '适合训练',
+    moderate: '中等强度',
+    recover: '恢复优先',
+  }
+  return labels[readinessTone.value]
+})
+
+const topVolume = computed(() => {
+  const volumes = userStatus.value?.volume_stats
+  if (!Array.isArray(volumes) || volumes.length === 0) return null
+  return [...volumes].sort((a, b) => Number(b.percentage) - Number(a.percentage))[0]
+})
+
+const readinessAdvice = computed(() => {
+  if (fatigue.value > 0.7) return '疲劳度偏高，建议安排 20 分钟低强度恢复训练。'
+  if (topVolume.value && Number(topVolume.value.percentage) >= 80) {
+    return `${topVolume.value.name}训练量较高，今天优先练其他部位或做主动恢复。`
+  }
+  if (readiness.value >= 80) return '身体信号良好，可以安排一次高质量力量或技术训练。'
+  if (readiness.value >= 62) return '状态稳定，按计划完成中等强度训练即可。'
+  return '先补充睡眠与水分，再用轻量活动唤醒身体。'
+})
+
+const heroSub = computed(() => {
+  if (growth.value.weeklyTrainingDays === 0) return '新的一周，从一次 15 分钟的训练开始。'
+  if (growth.value.weeklyTrainingDays >= 3) {
+    return `本周已完成 ${growth.value.weeklyTrainingDays} 天训练，节奏保持得很好。`
+  }
+  return `本周已训练 ${growth.value.weeklyTrainingDays} 天，再完成 ${3 - growth.value.weeklyTrainingDays} 天达成基础目标。`
+})
+
+const insights = computed<Insight[]>(() => {
+  const items: Insight[] = []
+
+  if (fatigue.value > 0.7) {
+    items.push({
+      title: '恢复优先级已提升',
+      body: 'AI 检测到疲劳累积，今天的推荐会自动降低训练强度，并优先安排拉伸与核心稳定动作。',
+      tone: 'warning',
+      icon: Warning,
+    })
+  } else if (topVolume.value && Number(topVolume.value.percentage) >= 75) {
+    items.push({
+      title: `${topVolume.value.name}负荷偏高`,
+      body: `本周${topVolume.value.name}训练量已接近上限，建议间隔 48 小时再练同一部位，让肌肉完成超量恢复。`,
+      tone: 'warning',
+      icon: Odometer,
+    })
+  }
+
+  if (growth.value.weeklyTrainingDays < 3) {
+    items.push({
+      title: `本周还差 ${3 - growth.value.weeklyTrainingDays} 天`,
+      body: '基础目标是一周 3 天。安排一次 20 分钟的训练，就能让习惯链条继续延伸。',
+      tone: 'neutral',
+      icon: Calendar,
+    })
+  }
+
+  if (growth.value.bestExercise) {
+    items.push({
+      title: `${growth.value.bestExercise}正在进步`,
+      body: growth.value.bestExerciseText,
+      tone: 'positive',
+      icon: TrendCharts,
+    })
+  }
+
+  if (growth.value.currentStreak >= 3) {
+    items.push({
+      title: `连续 ${growth.value.currentStreak} 天`,
+      body: '连续性比单次强度更重要。今天保持轻量训练，也能守住这条连胜记录。',
+      tone: 'positive',
+      icon: Trophy,
+    })
+  }
+
+  if (items.length === 0) {
+    items.push({
+      title: '从第一次训练开始',
+      body: '完成一次训练后，这里会出现基于你的动作质量、训练量与恢复状态的个性化洞察。',
+      tone: 'neutral',
+      icon: Aim,
+    })
+  }
+
+  return items.slice(0, 3)
+})
+
+interface WeekDay {
+  key: string
+  label: string
+  minutes: number
+  height: number
+  isToday: boolean
 }
 
-// 修改：变量名更替，并套用动态颜色函数
-const volumeStatus = ref([
-  { name: '胸部', percentage: 85, color: getVolumeColor(85) },
-  { name: '腿部', percentage: 30, color: getVolumeColor(30) },
-  { name: '核心', percentage: 60, color: getVolumeColor(60) }
+const weekDays = computed<WeekDay[]>(() => {
+  const byDate = new Map<string, any>()
+  dailyStats.value.forEach((item) => byDate.set(String(item.date), item))
+  const labels = ['日', '一', '二', '三', '四', '五', '六']
+  const today = new Date()
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(today)
+    date.setDate(today.getDate() - (6 - index))
+    const key = dateKey(date)
+    const item = byDate.get(key)
+    const minutes = Number(item?.total_duration_minutes || 0)
+    return {
+      key,
+      label: labels[date.getDay()],
+      minutes,
+      height: minutes > 0 ? Math.min(100, 24 + minutes * 1.6) : 7,
+      isToday: key === dateKey(today),
+    }
+  })
+})
+
+const weeklyMinutes = computed(() =>
+  weekDays.value.reduce((total, day) => total + day.minutes, 0),
+)
+
+const statCards = computed(() => [
+  {
+    label: '今日消耗',
+    value: Math.round(Number(stats.value?.total_calories_burned || 0)),
+    unit: 'kcal',
+    hint: '训练与活动合计',
+    tone: 'fire',
+    icon: HotWater,
+  },
+  {
+    label: '今日时长',
+    value: Math.round(Number(stats.value?.total_duration_minutes || 0)),
+    unit: 'min',
+    hint: '建议每天 30 分钟',
+    tone: 'clock',
+    icon: Clock,
+  },
+  {
+    label: '完成训练',
+    value: Number(stats.value?.completed_sessions || 0),
+    unit: '次',
+    hint: '今天的训练会话',
+    tone: 'session',
+    icon: VideoPlay,
+  },
+  {
+    label: '平均动作评分',
+    value: Math.round(Number(stats.value?.average_form_score || 0)),
+    unit: '分',
+    hint: '由姿态识别计算',
+    tone: 'score',
+    icon: DataLine,
+  },
 ])
 
-const customColors = [
-  { color: MILAN_COLORS.surface, percentage: 20 }, // 低进度：浅米灰
-  { color: MILAN_COLORS.surfaceMid, percentage: 40 }, // 低中进度：浅暖米色
-  { color: MILAN_COLORS.accentSoft, percentage: 60 }, // 中进度：柔和金棕
-  { color: MILAN_COLORS.accent, percentage: 80 }, // 高进度：米兰主点缀
-  { color: MILAN_COLORS.accentDeep, percentage: 100 }, // 满进度：深金棕强调
-]
+const unlockedCount = computed(
+  () => growth.value.achievements.filter((item) => item.unlocked).length,
+)
 
-const getBMIType = (bmi: number) => {
-  if (bmi < 18.5) return 'warning'
-  if (bmi < 24) return 'success'
-  if (bmi < 28) return 'warning'
-  return 'danger'
+function dateKey(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
-const getBMIText = (bmi: number) => {
-  if (bmi < 18.5) return '偏瘦'
-  if (bmi < 24) return '标准'
-  if (bmi < 28) return '微胖'
-  return '肥胖'
-}
-
-const fetchProfile = async () => {
-  try {
-    const res = await apiClient.get('/auth/profile/')
-    profile.value = res.data
-  } catch (err) {
-    console.error('Failed to fetch profile:', err)
-  }
-}
-
-const scrollToRecs = (targetScenario?: string) => {
-  recommendationsRef.value?.$el.scrollIntoView({ behavior: 'smooth' })
-  const finalScenario = targetScenario || (userStatus.value?.fatigue_level > 0.7 ? 'auto_adjust' : null)
-  if (finalScenario) {
-    recommendationsRef.value?.setScenario(finalScenario)
-  }
-}
-
-const fetchUserStatus = async () => {
-  try {
-    const res = await apiClient.get('/recommendations/list/user_status/')
-    userStatus.value = res.data
-    // 修改：如果后端传来了 volume_stats，动态计算并赋值颜色
-    if (res.data.volume_stats) {
-      volumeStatus.value = res.data.volume_stats.map((item: any) => ({
-        ...item,
-        color: getVolumeColor(item.percentage)
-      }))
-    }
-  } catch (err) {
-    console.error('Failed to fetch user status:', err)
-  }
-}
-
-const fetchTodayStats = async () => {
-  loading.value = true
-  try {
-    const res = await apiClient.get('/analytics/daily-stats/today/')
-    stats.value = res.data
-  } catch (err) {
-    console.error('Failed to fetch today stats:', err)
-  } finally {
-    loading.value = false
-  }
-}
-
-const dateToKey = (date: Date) => {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-const shiftDays = (date: Date, delta: number) => {
+function shiftDays(date: Date, delta: number) {
   const next = new Date(date)
   next.setDate(next.getDate() + delta)
   return next
 }
 
-const computeCurrentStreak = (trainedDateKeys: Set<string>) => {
-  if (trainedDateKeys.size === 0) return 0
-
-  const today = new Date()
-  let cursor = new Date(today)
-
-  if (!trainedDateKeys.has(dateToKey(cursor))) {
-    cursor = shiftDays(cursor, -1)
-  }
-
+function computeStreak(trainedDates: Set<string>) {
+  if (trainedDates.size === 0) return 0
+  let cursor = new Date()
+  if (!trainedDates.has(dateKey(cursor))) cursor = shiftDays(cursor, -1)
   let streak = 0
-  while (trainedDateKeys.has(dateToKey(cursor))) {
+  while (trainedDates.has(dateKey(cursor))) {
     streak += 1
     cursor = shiftDays(cursor, -1)
   }
   return streak
 }
 
-const isTrainingDay = (item: any) => {
-  return (item?.total_duration_minutes || 0) > 0 ||
-    (item?.completed_sessions || 0) > 0 ||
-    (item?.completed_exercises || 0) > 0
-}
+function evaluateWeeklyProgress(items: any[]) {
+  if (!items?.length) return { name: '', text: '', improved: false }
 
-const evaluateBestWeeklyExercise = (items: any[]) => {
-  if (!items?.length) {
-    return { name: '继续训练解锁', text: '完成训练后自动计算进步幅度', improved: false }
-  }
-
-  const start = shiftDays(new Date(), -6)
-  const startKey = dateToKey(start)
+  const weekStart = dateKey(shiftDays(new Date(), -6))
   const grouped = new Map<number, any[]>()
 
   for (const item of items) {
@@ -332,650 +479,763 @@ const evaluateBestWeeklyExercise = (items: any[]) => {
     grouped.set(id, list)
   }
 
-  let best: { name: string; score: number } | null = null
+  let best: { name: string; score: number; text: string } | null = null
   for (const records of grouped.values()) {
     records.sort((a, b) => String(a.date).localeCompare(String(b.date)))
-    const thisWeek = records.filter((r) => String(r.date) >= startKey)
+    const thisWeek = records.filter((record) => String(record.date) >= weekStart)
     if (thisWeek.length === 0) continue
 
     const latest = thisWeek[thisWeek.length - 1]
-    const previous = records.filter((r) => String(r.date) < startKey).slice(-1)[0]
-
-    const scoreDelta = (Number(latest.best_form_score) || 0) - (Number(previous?.best_form_score) || 0)
-    const volPrev = Number(previous?.total_volume) || 0
-    const volNow = Number(latest.total_volume) || 0
-    const volDeltaRatio = volPrev > 0 ? (volNow - volPrev) / volPrev : (volNow > 0 ? 0.2 : 0)
-    const repDelta = (Number(latest.max_reps) || 0) - (Number(previous?.max_reps) || 0)
-    const totalGain = scoreDelta * 1.2 + volDeltaRatio * 30 + repDelta * 1.8
+    const previous = records.filter((record) => String(record.date) < weekStart).slice(-1)[0]
+    const scoreDelta =
+      (Number(latest.best_form_score) || 0) - (Number(previous?.best_form_score) || 0)
+    const previousVolume = Number(previous?.total_volume) || 0
+    const currentVolume = Number(latest.total_volume) || 0
+    const volumeDelta =
+      previousVolume > 0 ? (currentVolume - previousVolume) / previousVolume : currentVolume > 0 ? 0.2 : 0
+    const repsDelta = (Number(latest.max_reps) || 0) - (Number(previous?.max_reps) || 0)
+    const totalGain = scoreDelta * 1.2 + volumeDelta * 30 + repsDelta * 1.8
 
     if (!best || totalGain > best.score) {
       best = {
         name: latest.exercise_name || '未命名动作',
         score: totalGain,
+        text: `综合进步 +${Math.max(0, totalGain).toFixed(1)}，动作质量与训练量正在同步提升。`,
       }
     }
   }
 
-  if (!best || best.score <= 0) {
-    return { name: '继续训练解锁', text: '再完成几次训练即可看到明显进步', improved: false }
-  }
-  return {
-    name: best.name,
-    text: `综合进步 +${best.score.toFixed(1)}（动作质量/训练量）`,
-    improved: true,
-  }
+  if (!best || best.score <= 0) return { name: '', text: '', improved: false }
+  return { name: best.name, text: best.text, improved: true }
 }
 
-const updateAchievements = (weeklyTrainingDays: number, currentStreak: number, improved: boolean) => {
+function updateAchievements(improved: boolean) {
   const totalTrainings = Number(userStats.value?.total_trainings || 0)
   growth.value.achievements = growth.value.achievements.map((item) => {
     if (item.key === 'first_training') return { ...item, unlocked: totalTrainings >= 1 }
-    if (item.key === 'streak_3') return { ...item, unlocked: currentStreak >= 3 }
-    if (item.key === 'week_3') return { ...item, unlocked: weeklyTrainingDays >= 3 }
+    if (item.key === 'streak_3') return { ...item, unlocked: growth.value.currentStreak >= 3 }
+    if (item.key === 'week_3') {
+      return { ...item, unlocked: growth.value.weeklyTrainingDays >= 3 }
+    }
     if (item.key === 'improve_action') return { ...item, unlocked: improved }
     return item
   })
-
-  if (currentStreak >= 3) {
-    growth.value.positiveMessage = `太棒了，已连续打卡 ${currentStreak} 天！`
-  } else if (weeklyTrainingDays >= 3) {
-    growth.value.positiveMessage = `本周已训练 ${weeklyTrainingDays} 天，状态很稳！`
-  } else if (totalTrainings >= 1) {
-    growth.value.positiveMessage = '训练习惯正在形成，今天继续打卡吧！'
-  } else {
-    growth.value.positiveMessage = '完成首训就能点亮第一枚成就！'
-  }
 }
 
-const fetchGrowthData = async () => {
-  growthLoading.value = true
+async function fetchDashboard() {
+  loading.value = true
   try {
-    const [summaryRes, userStatsRes, progressRes] = await Promise.all([
-      apiClient.get('/analytics/daily-stats/summary/?days=30'),
-      apiClient.get('/auth/stats/'),
-      apiClient.get('/analytics/exercise-progress/'),
-    ])
+    const [profileRes, statsRes, statusRes, summaryRes, userStatsRes, progressRes] =
+      await Promise.allSettled([
+        apiClient.get('/auth/profile/'),
+        apiClient.get('/analytics/daily-stats/today/'),
+        apiClient.get('/recommendations/list/user_status/'),
+        apiClient.get('/analytics/daily-stats/summary/?days=30'),
+        apiClient.get('/auth/stats/'),
+        apiClient.get('/analytics/exercise-progress/'),
+      ])
 
-    userStats.value = userStatsRes.data || {}
-    const dailyStats = summaryRes.data?.daily_breakdown || []
-    const progressItems = progressRes.data || []
+    if (profileRes.status === 'fulfilled') profile.value = profileRes.value.data || {}
+    if (statsRes.status === 'fulfilled') stats.value = statsRes.value.data || {}
+    if (statusRes.status === 'fulfilled') userStatus.value = statusRes.value.data || {}
+    if (userStatsRes.status === 'fulfilled') userStats.value = userStatsRes.value.data || {}
 
-    const trainedKeys: Set<string> = new Set(
-      dailyStats
-        .filter((item: any) => isTrainingDay(item))
-        .map((item: any) => String(item.date))
+    if (summaryRes.status === 'fulfilled') {
+      dailyStats.value = summaryRes.value.data?.daily_breakdown || []
+    }
+    if (progressRes.status === 'fulfilled') {
+      progress.value = progressRes.value.data || []
+    }
+
+    const trainedDates = new Set(
+      dailyStats.value
+        .filter(
+          (item) =>
+            Number(item.total_duration_minutes || 0) > 0 ||
+            Number(item.completed_sessions || 0) > 0 ||
+            Number(item.completed_exercises || 0) > 0,
+        )
+        .map((item) => String(item.date)),
     )
+    const weekStart = dateKey(shiftDays(new Date(), -6))
+    const weeklyDays = dailyStats.value.filter(
+      (item) => String(item.date) >= weekStart && trainedDates.has(String(item.date)),
+    ).length
 
-    const weekStart = dateToKey(shiftDays(new Date(), -6))
-    const weeklyTrainingDays = dailyStats.filter((item: any) => String(item.date) >= weekStart && isTrainingDay(item)).length
-    const currentStreak = computeCurrentStreak(trainedKeys)
-    const bestProgress = evaluateBestWeeklyExercise(progressItems)
-
-    growth.value.weeklyTrainingDays = weeklyTrainingDays
-    growth.value.currentStreak = currentStreak
-    growth.value.bestWeeklyExercise = bestProgress.name
-    growth.value.bestWeeklyImprovementText = bestProgress.text
-
-    updateAchievements(weeklyTrainingDays, currentStreak, bestProgress.improved)
-  } catch (err) {
-    console.error('Failed to fetch growth data:', err)
+    const progressSummary = evaluateWeeklyProgress(progress.value)
+    growth.value.weeklyTrainingDays = weeklyDays
+    growth.value.currentStreak = computeStreak(trainedDates)
+    growth.value.bestExercise = progressSummary.name
+    growth.value.bestExerciseText = progressSummary.text
+    updateAchievements(progressSummary.improved)
+  } catch (error) {
+    console.error('Failed to load dashboard:', error)
   } finally {
-    growthLoading.value = false
+    loading.value = false
   }
 }
 
-onMounted(() => {
-  const hasSeenWelcomeBanner = localStorage.getItem(WELCOME_BANNER_SEEN_KEY) === '1'
-
-  // 非调试模式且已经展示过：直接不显示横幅
-  if (!FORCE_REPEAT_WELCOME_BANNER && hasSeenWelcomeBanner) {
-    showWelcomeBanner.value = false
-  } else {
-    // 首次（或调试模式）展示 5 秒后淡出并记录已展示
-    welcomeTimer = window.setTimeout(() => {
-      showWelcomeBanner.value = false
-      if (!FORCE_REPEAT_WELCOME_BANNER) {
-        localStorage.setItem(WELCOME_BANNER_SEEN_KEY, '1')
-      }
-    }, 5000)
-  }
-
-  fetchTodayStats()
-  fetchUserStatus()
-  fetchProfile()
-  fetchGrowthData()
-})
-
-onUnmounted(() => {
-  if (welcomeTimer) {
-    clearTimeout(welcomeTimer)
-  }
-})
+onMounted(fetchDashboard)
 </script>
 
 <style scoped>
-.dashboard-container {
-  --milan-page-bg: #EEE6DB; /* 页面背景基底（比卡片更深，形成层次） */
-  --milan-page-bg-soft: #E4D8C8; /* 页面背景过渡色 */
-  --milan-bg-main: #FBF8F3; /* 主卡片底色（比页面更亮） */
-  --milan-bg-surface: #E5E0D8; /* 浮层背景 / 弱对比边框 */
-  --milan-bg-soft-contrast: #DCCFBE; /* 次级底色 / 低中进度衔接 */
-  --milan-text-primary: #3C2F2F; /* 标题 / 正文主文字 */
-  --milan-text-secondary: #7D756D; /* 注释 / 时间戳 / 辅助文字 */
-  --milan-accent: #BEA47E; /* 按钮 / 选中状态 / 强调色 */
-  --milan-accent-soft: #D5C6B0; /* 悬浮弱强调 / 次级高亮 */
-  --milan-accent-deep: #9F8462; /* 渐变深色端 / 高权重强调 */
-  --milan-on-accent: #F5F2ED; /* 强调色上的文字 */
-  --milan-shadow-soft: rgba(60, 47, 47, 0.12); /* 常规浮层阴影 */
-  --milan-shadow-medium: rgba(60, 47, 47, 0.14); /* 中等悬浮阴影 */
-  --milan-shadow-accent: rgba(190, 164, 126, 0.24); /* 强调态阴影 */
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
 
+/* Hero ------------------------------------------------------------------ */
+.hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.8fr);
+  gap: 28px;
+  align-items: center;
+  padding: clamp(28px, 4vw, 48px);
+  border-radius: var(--fv-radius-xl);
+  border: 1px solid var(--fv-border);
   background:
-    radial-gradient(1200px 400px at 10% -10%, rgba(245, 242, 237, 0.65), transparent 55%),
-    radial-gradient(1000px 360px at 95% 0%, rgba(213, 198, 176, 0.22), transparent 58%),
-    linear-gradient(180deg, var(--milan-page-bg) 0%, var(--milan-page-bg-soft) 100%);
-  color: var(--milan-text-primary);
-  border-radius: 12px;
-  padding: 8px;
-  padding-bottom: 12px;
-}
-
-.welcome-banner {
-  background: linear-gradient(135deg, var(--milan-accent) 0%, var(--milan-accent-deep) 100%);
-  border-radius: 12px;
-  padding: 18px 22px;
-  color: var(--milan-on-accent);
-  margin-bottom: 14px;
-  box-shadow: 0 6px 14px var(--milan-shadow-soft);
-}
-
-.banner-content h1 {
-  font-size: 24px;
-  margin-bottom: 4px;
-}
-
-.banner-collapse-enter-active,
-.banner-collapse-leave-active {
-  transition: all 0.32s ease;
+    radial-gradient(700px 280px at 12% 0%, rgba(109, 94, 252, 0.16), transparent 62%),
+    radial-gradient(600px 260px at 92% 100%, rgba(6, 182, 212, 0.13), transparent 60%),
+    var(--fv-surface);
+  box-shadow: var(--fv-shadow-md);
   overflow: hidden;
 }
 
-.banner-collapse-enter-from,
-.banner-collapse-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-  max-height: 0;
-  margin-bottom: 0;
-  padding-top: 0;
-  padding-bottom: 0;
+.hero::after {
+  content: '';
+  position: absolute;
+  width: 260px;
+  height: 260px;
+  right: -80px;
+  top: -120px;
+  border-radius: 50%;
+  border: 1px solid rgba(109, 94, 252, 0.18);
+  box-shadow:
+    0 0 0 40px rgba(109, 94, 252, 0.04),
+    0 0 0 90px rgba(109, 94, 252, 0.03);
+  pointer-events: none;
 }
 
-.banner-content p {
-  font-size: 14px;
-  opacity: 0.9;
-  margin-bottom: 0;
+.hero-copy {
+  position: relative;
+  z-index: 1;
 }
 
-.section {
-  margin-bottom: 12px;
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--fv-success);
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+  animation: pulse 2.4s ease-in-out infinite;
 }
 
-.left-overview-shell {
-  border: 1px solid var(--milan-bg-surface);
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0.02);
+  }
+}
+
+.hero h1 {
+  margin: 14px 0 12px;
+  font-size: clamp(34px, 4.2vw, 54px);
+  line-height: 1.04;
+  letter-spacing: -0.045em;
+  font-weight: 900;
+  color: var(--fv-text);
+}
+
+.hero-sub {
+  margin: 0;
+  max-width: 560px;
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: var(--fv-text-2);
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.hero-actions :deep(.el-button) {
+  height: 44px;
+  padding: 0 18px;
   border-radius: 12px;
-  height: 100%;
-  width: 100%;
-  background: var(--milan-bg-main);
 }
 
-.left-overview-shell :deep(.el-card__body) {
-  padding: 10px;
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
 }
 
-.left-overview-shell .section {
-  margin-bottom: 0;
-}
-
-.right-panel :deep(.recommendation-section) {
-  width: 100%;
-  height: 100%;
-}
-
-.right-panel :deep(.recommendation-section .el-card__body) {
-  height: 100%;
+/* Readiness ------------------------------------------------------------- */
+.readiness {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
-}
-
-.module-shell {
-  border: 1px solid var(--milan-bg-surface);
-  background: var(--milan-bg-main);
-}
-
-.module-shell :deep(.el-card__header) {
-  padding: 10px 12px;
-}
-
-.module-shell :deep(.el-card__body) {
-  padding: 12px;
-}
-
-.module-header {
-  display: flex;
   align-items: center;
+  gap: 14px;
+  padding: 24px;
+  border-radius: var(--fv-radius-lg);
+  border: 1px solid var(--fv-border);
+  background: var(--fv-surface-translucent);
+  backdrop-filter: blur(12px);
+  text-align: center;
+}
+
+.readiness-ring {
+  position: relative;
+  width: 158px;
+  height: 158px;
+}
+
+.readiness-ring svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.ring-track,
+.ring-value {
+  fill: none;
+  stroke-width: 9;
+}
+
+.ring-track {
+  stroke: var(--fv-surface-3);
+}
+
+.ring-value {
+  stroke: var(--fv-primary);
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  filter: drop-shadow(0 0 8px rgba(109, 94, 252, 0.4));
+}
+
+.tone-excellent .ring-value {
+  stroke: var(--fv-success);
+  filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.4));
+}
+
+.tone-moderate .ring-value {
+  stroke: var(--fv-warning);
+  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.35));
+}
+
+.tone-recover .ring-value {
+  stroke: var(--fv-danger);
+  filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.35));
+}
+
+.ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.ring-center strong {
+  font-size: 44px;
+  font-weight: 900;
+  letter-spacing: -0.06em;
+  line-height: 1;
+  color: var(--fv-text);
+}
+
+.ring-center span {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--fv-text-2);
+}
+
+.readiness-label {
+  display: inline-flex;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--fv-primary-soft);
+  color: var(--fv-primary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.tone-excellent .readiness-label {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--fv-success);
+}
+
+.tone-moderate .readiness-label {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+}
+
+.tone-recover .readiness-label {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--fv-danger);
+}
+
+.readiness-copy p {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--fv-text-2);
+}
+
+/* Insights -------------------------------------------------------------- */
+.section-heading,
+.panel-head {
+  display: flex;
+  align-items: flex-end;
   justify-content: space-between;
+  gap: 16px;
+}
+
+.section-heading h2,
+.panel-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--fv-text);
+}
+
+.section-heading p,
+.panel-head p {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--fv-text-2);
+}
+
+.section-badge {
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--fv-primary-soft);
+  color: var(--fv-primary);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.insight-card {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--fv-radius-md);
+  border: 1px solid var(--fv-border);
+  background: var(--fv-surface);
+  box-shadow: var(--fv-shadow-sm);
+}
+
+.insight-icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--fv-primary-soft);
+  color: var(--fv-primary);
+}
+
+.insight-card.warning .insight-icon {
+  background: rgba(245, 158, 11, 0.14);
+  color: #d97706;
+}
+
+.insight-card.positive .insight-icon {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--fv-success);
+}
+
+.insight-card strong {
+  display: block;
+  font-size: 13.5px;
+  color: var(--fv-text);
+  margin-bottom: 4px;
+}
+
+.insight-card p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fv-text-2);
+}
+
+/* Main grid ------------------------------------------------------------- */
+.home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.9fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.home-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.home-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.panel {
+  padding: 20px;
+  border-radius: var(--fv-radius-lg);
+  border: 1px solid var(--fv-border);
+  background: var(--fv-surface);
+  box-shadow: var(--fv-shadow-sm);
+}
+
+.rhythm-total {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.rhythm-total strong {
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  color: var(--fv-text);
+}
+
+.rhythm-total span {
+  font-size: 12px;
+  color: var(--fv-text-2);
+}
+
+.rhythm {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+  height: 150px;
+  margin-top: 18px;
+  align-items: end;
+}
+
+.rhythm-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+}
+
+.rhythm-bar {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  border-radius: 10px;
+  background: var(--fv-surface-2);
+  overflow: hidden;
+}
+
+.rhythm-bar span {
+  width: 100%;
+  min-height: 5px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #8b5cf6, var(--fv-primary));
+  transition: height 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rhythm-bar span.rest {
+  background: var(--fv-surface-3);
+}
+
+.rhythm-bar span.today {
+  background: linear-gradient(180deg, #22d3ee, var(--fv-primary));
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.35);
+}
+
+.rhythm-label {
+  font-size: 11px;
+  color: var(--fv-text-3);
+}
+
+.rhythm-label.today {
+  color: var(--fv-primary);
+  font-weight: 800;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr);
-  gap: 10px;
-  align-items: stretch;
-}
-
-.left-panel,
-.right-panel {
-  min-width: 0;
+.stat-card {
   display: flex;
-}
-
-.training-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.status-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.growth-section {
-  margin-top: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 0.42fr) minmax(0, 0.58fr);
-  gap: 8px;
-}
-
-.growth-header {
-  grid-column: 1 / -1;
-  justify-content: space-between;
-}
-
-.growth-cards {
-  grid-column: 1 / -1;
-  margin-bottom: 8px;
-}
-
-.growth-card {
-  border-radius: 10px;
-  border: 1px solid var(--milan-bg-surface);
-  background: var(--milan-bg-main);
-}
-
-.growth-card :deep(.el-card__body) {
-  padding: 9px;
-}
-
-.growth-action-card {
-  cursor: default;
-}
-
-.growth-action-card:hover {
-  border-color: var(--milan-accent);
-  box-shadow: 0 6px 14px var(--milan-shadow-accent);
-}
-
-.growth-action-buttons {
-  display: flex;
-  gap: 6px;
-  margin-top: 6px;
-}
-
-.growth-action-buttons .el-button {
-  flex: 1;
-}
-
-.growth-card-title {
-  color: var(--milan-text-secondary);
-  font-size: 12px;
-  margin-bottom: 6px;
-}
-
-.growth-card-value {
-  color: var(--milan-text-primary);
-  font-size: 24px;
-  font-weight: 800;
-  margin-bottom: 4px;
-}
-
-.growth-card-value span {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--milan-text-secondary);
-}
-
-.growth-action {
-  font-size: 17px;
-  line-height: 1.2;
-}
-
-.growth-card-sub {
-  color: var(--milan-text-secondary);
-  font-size: 11px;
-}
-
-.achievement-card {
-  border-radius: 10px;
-  border: 1px dashed var(--milan-accent-soft);
-  background: var(--milan-bg-main);
-  width: 100%;
-  max-width: none;
-  margin: 0;
-}
-
-.achievement-card :deep(.el-card__body) {
-  padding: 9px;
-}
-
-.compact-status-shell {
-  width: 100%;
-}
-
-.compact-status-shell :deep(.el-card__header) {
-  padding: 8px 10px;
-}
-
-.compact-status-shell :deep(.el-card__body) {
-  padding: 8px;
-}
-
-.status-inline-four {
-  grid-template-columns: 1fr;
-  gap: 6px;
-}
-
-.compact-status-shell .status-header-row {
-  display: flex;
-  justify-content: space-between;
+  gap: 12px;
   align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 4px;
+  padding: 16px;
+  border-radius: var(--fv-radius-md);
+  border: 1px solid var(--fv-border);
+  background: var(--fv-surface);
+  box-shadow: var(--fv-shadow-sm);
 }
 
-.compact-status-shell .status-note-inline {
-  font-size: 9px;
-  color: var(--milan-text-secondary);
-  text-align: right;
-  line-height: 1.25;
-  max-width: 56%;
+.stat-icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--fv-primary-soft);
+  color: var(--fv-primary);
 }
 
-.compact-status-shell .status-header {
-  font-size: 10px;
-  margin-bottom: 0;
+.stat-icon.tone-fire {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--fv-danger);
 }
 
-.compact-status-shell .status-inline-value {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--milan-text-primary);
-  margin-left: 6px;
-  line-height: 1;
+.stat-icon.tone-clock {
+  background: rgba(6, 182, 212, 0.12);
+  color: var(--fv-accent);
 }
 
-.compact-status-shell .status-inline-value span {
-  font-size: 9px;
-  font-weight: 500;
-  color: var(--milan-text-secondary);
+.stat-icon.tone-score {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--fv-success);
 }
 
-.compact-status-shell .status-value {
-  font-size: 16px;
-  margin-bottom: 4px;
-}
-
-.compact-status-shell .status-value span {
-  font-size: 11px;
-}
-
-.compact-status-shell .status-desc {
-  font-size: 10px;
-  margin: 3px 0 4px;
-}
-
-.compact-status-shell .m-name {
-  font-size: 10px;
-}
-
-.achievement-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--milan-text-primary);
-  margin-bottom: 6px;
-}
-
-.achievement-list {
+.stat-copy {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
+  min-width: 0;
 }
 
-.achievement-item {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+.stat-copy > span {
+  font-size: 11.5px;
+  color: var(--fv-text-2);
 }
 
-.achievement-content {
-  display: flex;
-  flex-direction: column;
+.stat-copy strong {
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+  color: var(--fv-text);
 }
 
-.achievement-name {
-  font-size: 12px;
-  color: var(--milan-text-primary);
+.stat-copy small {
+  margin-left: 3px;
+  font-size: 10.5px;
   font-weight: 600;
+  color: var(--fv-text-3);
 }
 
-.achievement-desc {
-  font-size: 11px;
-  color: var(--milan-text-secondary);
+.stat-copy em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--fv-text-3);
 }
 
-.section-title {
-  font-size: 18px;
-  font-weight: bold;
-  margin: 0;
-  color: var(--milan-text-primary);
+.achievement-count {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--fv-primary);
 }
 
-.feature-card {
-  height: 100%;
-  cursor: pointer;
-  transition: all 0.3s;
-  text-align: center;
-  padding: 2px;
-}
-
-.feature-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 16px var(--milan-shadow-medium);
-  border-color: var(--milan-accent);
-}
-
-.feature-card.compact {
-  padding: 2px;
-}
-
-.feature-card.compact :deep(.el-card__body) {
-  padding: 10px;
-}
-
-.card-icon {
-  font-size: 22px;
-  margin-bottom: 6px;
-}
-
-.feature-card h3 {
-  margin: 4px 0;
-  font-size: 14px;
-}
-
-.feature-card p {
-  font-size: 12px;
-  color: var(--milan-text-secondary);
-  margin: 0;
-}
-
-.status-card {
-  height: 100%;
-}
-
-.status-card :deep(.el-card__body) {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  padding: 8px;
-}
-
-.status-header {
-  font-size: 12px;
-  color: var(--milan-text-secondary);
-  margin-bottom: 6px;
-}
-
-.status-value {
-  font-size: 22px;
-  font-weight: bold;
-  color: var(--milan-text-primary);
-  margin-bottom: 8px;
-}
-
-.status-value span {
-  font-size: 12px;
-  font-weight: normal;
-  color: var(--milan-text-secondary);
-}
-
-.status-desc {
-  margin: 6px 0 8px;
-  font-size: 12px;
-  color: var(--milan-text-secondary);
-  line-height: 1.35;
-  flex: 0;
-}
-
-.trend-card :deep(.el-card__body) {
-  justify-content: flex-start;
-}
-
-.trend-card .status-desc {
-  margin: 4px 0 6px;
-}
-
-.trend-card .el-button {
-  margin-top: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-  align-self: flex-start;
-}
-
-.section-header {
+.achievement-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  margin-top: 16px;
 }
 
-.muscle-recovery-list {
+.achievement {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 6px 0;
-}
-
-.muscle-item {
-  display: flex;
+  gap: 10px;
   align-items: center;
-  gap: 8px;
+  padding: 12px;
+  border-radius: 13px;
+  border: 1px dashed var(--fv-border-strong);
+  background: var(--fv-surface-2);
+  opacity: 0.72;
 }
 
-.m-name {
-  font-size: 12px;
-  color: var(--milan-text-secondary);
-  min-width: 40px;
+.achievement.unlocked {
+  border-style: solid;
+  border-color: rgba(109, 94, 252, 0.28);
+  background: var(--fv-primary-soft);
+  opacity: 1;
 }
 
-.muscle-item :deep(.el-progress) {
-  flex: 1;
+.achievement-dot {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--fv-surface);
+  color: var(--fv-text-3);
 }
 
-.status-footer {
-  margin-top: 6px;
-  font-size: 11px;
-  color: var(--milan-text-secondary);
+.achievement.unlocked .achievement-dot {
+  background: var(--fv-primary);
+  color: #fff;
 }
 
-.dashboard-container :deep(.el-button--primary) {
-  --el-button-bg-color: var(--milan-accent);
-  --el-button-border-color: var(--milan-accent);
-  --el-button-hover-bg-color: var(--milan-accent-deep);
-  --el-button-hover-border-color: var(--milan-accent-deep);
-  --el-button-active-bg-color: var(--milan-accent-deep);
-  --el-button-active-border-color: var(--milan-accent-deep);
-  --el-button-text-color: var(--milan-on-accent);
+.achievement strong {
+  display: block;
+  font-size: 12.5px;
+  color: var(--fv-text);
 }
 
-.dashboard-container :deep(.el-button--default) {
-  --el-button-border-color: var(--milan-bg-surface);
-  --el-button-hover-border-color: var(--milan-accent-soft);
-  --el-button-hover-text-color: var(--milan-accent-deep);
+.achievement span {
+  display: block;
+  font-size: 10.5px;
+  color: var(--fv-text-2);
 }
 
-.dashboard-container :deep(.el-progress-bar__outer) {
-  background: var(--milan-bg-soft-contrast);
+/* Recommendation side --------------------------------------------------- */
+.home-side :deep(.recommendation-section) {
+  border-radius: var(--fv-radius-lg);
 }
 
-@media (max-width: 1200px) {
-  .dashboard-grid {
+.coach-card {
+  padding: 22px;
+  border-radius: var(--fv-radius-lg);
+  color: #fff;
+  background:
+    radial-gradient(420px 180px at 88% 0%, rgba(34, 211, 238, 0.4), transparent 60%),
+    linear-gradient(150deg, #5546e8 0%, #6d5efc 46%, #4338ca 100%);
+  box-shadow: var(--fv-shadow-glow);
+}
+
+.coach-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 20px;
+}
+
+.coach-card h3 {
+  margin: 16px 0 8px;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.coach-card p {
+  margin: 0 0 18px;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.coach-btn {
+  width: 100%;
+  background: #fff !important;
+  border-color: #fff !important;
+  color: #4338ca !important;
+}
+
+.coach-btn:hover {
+  background: rgba(255, 255, 255, 0.9) !important;
+}
+
+@media (max-width: 1100px) {
+  .hero {
     grid-template-columns: 1fr;
-    align-items: start;
   }
 
-  .growth-section {
+  .readiness {
+    flex-direction: row;
+    text-align: left;
+    justify-content: flex-start;
+  }
+
+  .readiness-ring {
+    width: 122px;
+    height: 122px;
+    flex: none;
+  }
+
+  .ring-center strong {
+    font-size: 34px;
+  }
+
+  .home-grid {
     grid-template-columns: 1fr;
   }
 
-  .status-inline-four {
+  .insight-grid {
     grid-template-columns: 1fr;
-  }
-
-  .left-panel,
-  .right-panel {
-    display: block;
-  }
-
-  .left-overview-shell,
-  .right-panel :deep(.recommendation-section) {
-    height: auto;
   }
 }
 
-@media (max-width: 900px) {
-  .training-grid,
-  .status-grid {
+@media (max-width: 760px) {
+  .home {
+    gap: 16px;
+  }
+
+  .hero {
+    padding: 24px 20px;
+  }
+
+  .hero-actions :deep(.el-button) {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .achievement-grid {
     grid-template-columns: 1fr;
+  }
+
+  .readiness {
+    align-items: center;
+    flex-direction: column;
+    text-align: center;
   }
 }
 
-@media (max-width: 768px) {
-  .welcome-banner {
-    padding: 14px 16px;
+@media (max-width: 420px) {
+  .stat-grid {
+    grid-template-columns: 1fr;
   }
 
-  .achievement-card {
-    width: 100%;
-    max-width: none;
+  .rhythm {
+    gap: 6px;
   }
 }
 </style>
