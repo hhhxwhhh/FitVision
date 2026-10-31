@@ -12,8 +12,12 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--users', type=int, default=10, help='生成多少个虚构用户的历史')
         parser.add_argument('--days', type=int, default=30, help='追溯多少天的历史')
+        parser.add_argument('--seed', type=int, default=None, help='随机种子，便于复现')
 
     def handle(self, *args, **options):
+        if options.get('seed') is not None:
+            random.seed(options['seed'])
+
         num_users = options['users']
         num_days = options['days']
         
@@ -57,32 +61,38 @@ class Command(BaseCommand):
                     timestamp = session_time + timedelta(minutes=i * 10)
                     
                     # 创建完成记录
-                    UserInteraction.objects.create(
+                    finish = UserInteraction.objects.create(
                         user=user,
                         exercise=ex,
                         interaction_type='finish',
                         score=1.0,
                     )
                     # 强行修改 auto_now_add 的时间（仅用于模拟历史数据）
-                    UserInteraction.objects.filter(user=user, exercise=ex).update(timestamp=timestamp)
+                    UserInteraction.objects.filter(pk=finish.pk).update(timestamp=timestamp)
                     
                     interaction_count += 1
                     
                     # 偶尔点个赞
                     if random.random() > 0.8:
-                        UserInteraction.objects.create(
+                        like = UserInteraction.objects.create(
                             user=user,
                             exercise=ex,
                             interaction_type='like',
                             score=1.0,
                         )
+                        UserInteraction.objects.filter(pk=like.pk).update(
+                            timestamp=timestamp + timedelta(minutes=2)
+                        )
                     # 偶尔跳过一些不喜欢的
                     elif random.random() > 0.95:
-                        UserInteraction.objects.create(
+                        skip = UserInteraction.objects.create(
                             user=user,
                             exercise=ex,
                             interaction_type='skip',
                             score=-0.5,
+                        )
+                        UserInteraction.objects.filter(pk=skip.pk).update(
+                            timestamp=timestamp + timedelta(minutes=3)
                         )
 
         self.stdout.write(self.style.SUCCESS(f'成功生成了 {interaction_count} 条模拟交互数据！'))

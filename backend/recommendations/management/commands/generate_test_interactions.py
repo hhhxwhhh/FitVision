@@ -10,7 +10,12 @@ from datetime import timedelta
 class Command(BaseCommand):
     help = '生成用于测试知识图谱推荐的模拟用户交互数据 (数据增强)'
 
+    def add_arguments(self, parser):
+        parser.add_argument('--seed', type=int, default=None, help='随机种子，便于复现')
+
     def handle(self, *args, **options):
+        if options.get('seed') is not None:
+            random.seed(options['seed'])
         # 1. 确保有用户
         users = User.objects.all()
         if not users.exists():
@@ -50,22 +55,27 @@ class Command(BaseCommand):
                 for i in range(num_to_train):
                     ex = group[i]
                     # 模拟完成记录
-                    UserExerciseRecord.objects.create(
+                    record = UserExerciseRecord.objects.create(
                         user=user,
                         exercise=ex,
                         count=random.randint(10, 30),
                         duration=random.randint(60, 300),
                         accuracy_score=random.uniform(70, 95),
                         calories_burned=random.uniform(20, 100),
+                    )
+                    # created_at is auto_now_add; backdate it explicitly.
+                    UserExerciseRecord.objects.filter(pk=record.pk).update(
                         created_at=current_time
                     )
-                    
+
                     # 模拟实时交互记录
-                    UserInteraction.objects.create(
+                    interaction = UserInteraction.objects.create(
                         user=user,
                         exercise=ex,
                         interaction_type='finish',
                         score=random.uniform(0.7, 1.0),
+                    )
+                    UserInteraction.objects.filter(pk=interaction.pk).update(
                         timestamp=current_time
                     )
                     
