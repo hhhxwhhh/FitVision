@@ -614,7 +614,7 @@ onMounted(fetchDashboard)
   border: 1px solid var(--fv-border);
   background:
     radial-gradient(700px 280px at 12% 0%, rgba(194, 65, 12, 0.12), transparent 62%),
-    radial-gradient(600px 260px at 92% 100%, rgba(6, 182, 212, 0.13), transparent 60%),
+    radial-gradient(600px 260px at 92% 100%, rgba(101, 163, 13, 0.1), transparent 60%),
     var(--fv-surface);
   box-shadow: var(--fv-shadow-md);
   overflow: hidden;
@@ -988,8 +988,8 @@ onMounted(fetchDashboard)
 }
 
 .rhythm-bar span.today {
-  background: linear-gradient(180deg, #22d3ee, var(--fv-primary));
-  box-shadow: 0 0 18px rgba(34, 211, 238, 0.35);
+  background: linear-gradient(180deg, #65a30d, var(--fv-primary));
+  box-shadow: none;
 }
 
 .rhythm-label {
@@ -1036,7 +1036,7 @@ onMounted(fetchDashboard)
 }
 
 .stat-icon.tone-clock {
-  background: rgba(6, 182, 212, 0.12);
+  background: rgba(101, 163, 13, 0.12);
   color: var(--fv-accent);
 }
 
@@ -1152,10 +1152,9 @@ onMounted(fetchDashboard)
   padding: 22px;
   border-radius: var(--fv-radius-lg);
   color: #fff;
-  background:
-    radial-gradient(420px 180px at 88% 0%, rgba(34, 211, 238, 0.4), transparent 60%),
-    linear-gradient(150deg, #9a3412 0%, #c2410c 46%, #7c2d12 100%);
-  box-shadow: var(--fv-shadow-glow);
+  background: #1c1917;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--fv-shadow-md);
 }
 
 .coach-icon {

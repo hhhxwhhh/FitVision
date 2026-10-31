@@ -756,7 +756,7 @@ onMounted(loadAll)
   border: 1px solid var(--fv-border);
   background:
     radial-gradient(620px 240px at 8% 0%, rgba(194, 65, 12, 0.12), transparent 62%),
-    radial-gradient(520px 220px at 92% 100%, rgba(6, 182, 212, 0.12), transparent 60%),
+    radial-gradient(520px 220px at 92% 100%, rgba(101, 163, 13, 0.1), transparent 60%),
     var(--fv-surface);
   box-shadow: var(--fv-shadow-md);
   overflow: hidden;
@@ -913,7 +913,7 @@ onMounted(loadAll)
 }
 
 .stat-icon.sessions {
-  background: rgba(6, 182, 212, 0.12);
+  background: rgba(101, 163, 13, 0.1);
   color: var(--fv-accent);
 }
 

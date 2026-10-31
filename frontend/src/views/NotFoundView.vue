@@ -66,7 +66,7 @@ const goBack = () => {
   height: 360px;
   right: -100px;
   bottom: -120px;
-  background: radial-gradient(circle, rgba(6, 182, 212, 0.4), transparent 70%);
+  background: radial-gradient(circle, rgba(101, 163, 13, 0.25), transparent 70%);
 }
 
 .nf-card {

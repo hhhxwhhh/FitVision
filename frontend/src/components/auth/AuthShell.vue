@@ -82,7 +82,7 @@ const year = new Date().getFullYear()
   overflow: hidden;
   background:
     radial-gradient(1200px 600px at 12% -10%, rgba(194, 65, 12, 0.12), transparent 55%),
-    radial-gradient(900px 520px at 100% 100%, rgba(34, 211, 238, 0.14), transparent 60%),
+    radial-gradient(900px 520px at 100% 100%, rgba(101, 163, 13, 0.12), transparent 60%),
     var(--fv-bg);
 }
 
@@ -107,7 +107,7 @@ const year = new Date().getFullYear()
   height: 320px;
   bottom: -100px;
   left: -60px;
-  background: rgba(34, 211, 238, 0.28);
+  background: rgba(101, 163, 13, 0.28);
 }
 
 .auth-story {
