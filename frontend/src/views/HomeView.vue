@@ -27,13 +27,17 @@
         </div>
 
         <div class="hero-meta">
+          <span v-if="growthOverview.progress" class="fv-chip">
+            <el-icon><Medal /></el-icon>
+            Lv.{{ growthOverview.progress.level }} {{ growthOverview.progress.title }}
+          </span>
           <span class="fv-chip">
             <el-icon><Calendar /></el-icon>
-            本周 {{ growth.weeklyTrainingDays }}/3 天
+            本周 {{ weeklyTrainingDays }}/{{ weeklyGoalTarget }} 天
           </span>
           <span class="fv-chip">
             <el-icon><Trophy /></el-icon>
-            连续 {{ growth.currentStreak }} 天
+            连续 {{ currentStreak }} 天
           </span>
           <span class="fv-chip">
             <el-icon><Odometer /></el-icon>
@@ -136,13 +140,16 @@
               <h2>成就进度</h2>
               <p>每一次训练都在点亮新的节点</p>
             </div>
-            <span class="achievement-count">{{ unlockedCount }}/{{ growth.achievements.length }}</span>
+            <div class="achievement-head-actions">
+              <span class="achievement-count">{{ unlockedCount }}/{{ achievementTotal }}</span>
+              <el-button text size="small" @click="router.push('/growth')">查看全部</el-button>
+            </div>
           </div>
 
           <div class="achievement-grid">
             <div
-              v-for="item in growth.achievements"
-              :key="item.key"
+              v-for="item in achievementItems"
+              :key="item.code"
               class="achievement"
               :class="{ unlocked: item.unlocked }"
             >
@@ -188,6 +195,7 @@ import {
   HotWater,
   Lock,
   MagicStick,
+  Medal,
   Odometer,
   TrendCharts,
   Trophy,
@@ -196,13 +204,6 @@ import {
 } from '@element-plus/icons-vue'
 import apiClient from '../api'
 import AIRecommendations from '../components/AIRecommendations.vue'
-
-interface Achievement {
-  key: string
-  title: string
-  description: string
-  unlocked: boolean
-}
 
 interface Insight {
   title: string
@@ -216,22 +217,41 @@ const loading = ref(false)
 const stats = ref<any>({})
 const userStatus = ref<any>({})
 const profile = ref<any>({})
-const userStats = ref<any>({})
 const dailyStats = ref<any[]>([])
 const progress = ref<any[]>([])
+const growthOverview = ref<any>({})
 
 const growth = ref({
   weeklyTrainingDays: 0,
   currentStreak: 0,
   bestExercise: '',
   bestExerciseText: '',
-  achievements: [
-    { key: 'first_training', title: '完成首训', description: '完成 1 次训练', unlocked: false },
-    { key: 'streak_3', title: '连续 3 天', description: '连续打卡 3 天', unlocked: false },
-    { key: 'week_3', title: '稳定习惯', description: '本周训练达到 3 天', unlocked: false },
-    { key: 'improve_action', title: '动作进步', description: '本周至少 1 个动作明显进步', unlocked: false },
-  ] as Achievement[],
 })
+
+const weeklyTrainingDays = computed(() =>
+  Number(growthOverview.value?.weekly_goal?.completed_days ?? growth.value.weeklyTrainingDays),
+)
+const currentStreak = computed(() =>
+  Number(growthOverview.value?.progress?.current_streak ?? growth.value.currentStreak),
+)
+const weeklyGoalTarget = computed(() =>
+  Number(growthOverview.value?.weekly_goal?.target_sessions ?? 3),
+)
+
+const achievementItems = computed(() => {
+  const preview = growthOverview.value?.achievements?.preview
+  if (Array.isArray(preview) && preview.length > 0) return preview
+  return [
+    { code: 'first_session', title: '初次登场', description: '完成第一次训练', unlocked: false },
+    { code: 'streak_3', title: '三日连击', description: '连续训练 3 天', unlocked: false },
+    { code: 'weekly_3', title: '稳定节奏', description: '单周训练达到 3 天', unlocked: false },
+    { code: 'form_90', title: '动作大师', description: '单个动作评分达到 90 分', unlocked: false },
+  ]
+})
+
+const achievementTotal = computed(
+  () => Number(growthOverview.value?.achievements?.total ?? achievementItems.value.length),
+)
 
 const displayName = computed(
   () => profile.value?.nickname || localStorage.getItem('username') || '健身者',
@@ -261,14 +281,19 @@ const fatiguePercent = computed(() => Math.round(fatigue.value * 100))
 const trainedToday = computed(() => Number(stats.value?.completed_sessions || 0) > 0)
 
 const readiness = computed(() => {
+  const serverScore = Number(growthOverview.value?.readiness?.score)
+  if (Number.isFinite(serverScore) && serverScore > 0) return serverScore
+
   let score = 94 - fatigue.value * 55
   if (trainedToday.value) score -= 4
-  if (growth.value.currentStreak >= 3) score += 3
-  if (growth.value.weeklyTrainingDays >= 3) score += 2
+  if (currentStreak.value >= 3) score += 3
+  if (weeklyTrainingDays.value >= 3) score += 2
   return Math.round(Math.max(25, Math.min(99, score)))
 })
 
 const readinessTone = computed(() => {
+  const serverTone = growthOverview.value?.readiness?.tone
+  if (typeof serverTone === 'string' && serverTone) return serverTone
   if (readiness.value >= 80) return 'excellent'
   if (readiness.value >= 62) return 'good'
   if (readiness.value >= 45) return 'moderate'
@@ -276,6 +301,8 @@ const readinessTone = computed(() => {
 })
 
 const readinessLabel = computed(() => {
+  const serverLabel = growthOverview.value?.readiness?.label
+  if (typeof serverLabel === 'string' && serverLabel) return serverLabel
   const labels: Record<string, string> = {
     excellent: '状态极佳',
     good: '适合训练',
@@ -292,6 +319,8 @@ const topVolume = computed(() => {
 })
 
 const readinessAdvice = computed(() => {
+  const serverAdvice = growthOverview.value?.readiness?.advice
+  if (typeof serverAdvice === 'string' && serverAdvice) return serverAdvice
   if (fatigue.value > 0.7) return '疲劳度偏高，建议安排 20 分钟低强度恢复训练。'
   if (topVolume.value && Number(topVolume.value.percentage) >= 80) {
     return `${topVolume.value.name}训练量较高，今天优先练其他部位或做主动恢复。`
@@ -302,11 +331,11 @@ const readinessAdvice = computed(() => {
 })
 
 const heroSub = computed(() => {
-  if (growth.value.weeklyTrainingDays === 0) return '新的一周，从一次 15 分钟的训练开始。'
-  if (growth.value.weeklyTrainingDays >= 3) {
-    return `本周已完成 ${growth.value.weeklyTrainingDays} 天训练，节奏保持得很好。`
+  if (weeklyTrainingDays.value === 0) return '新的一周，从一次 15 分钟的训练开始。'
+  if (weeklyTrainingDays.value >= weeklyGoalTarget.value) {
+    return `本周已完成 ${weeklyTrainingDays.value} 天训练，节奏保持得很好。`
   }
-  return `本周已训练 ${growth.value.weeklyTrainingDays} 天，再完成 ${3 - growth.value.weeklyTrainingDays} 天达成基础目标。`
+  return `本周已训练 ${weeklyTrainingDays.value} 天，再完成 ${weeklyGoalTarget.value - weeklyTrainingDays.value} 天达成本周目标。`
 })
 
 const insights = computed<Insight[]>(() => {
@@ -328,10 +357,10 @@ const insights = computed<Insight[]>(() => {
     })
   }
 
-  if (growth.value.weeklyTrainingDays < 3) {
+  if (weeklyTrainingDays.value < weeklyGoalTarget.value) {
     items.push({
-      title: `本周还差 ${3 - growth.value.weeklyTrainingDays} 天`,
-      body: '基础目标是一周 3 天。安排一次 20 分钟的训练，就能让习惯链条继续延伸。',
+      title: `本周还差 ${weeklyGoalTarget.value - weeklyTrainingDays.value} 天`,
+      body: `本周目标是训练 ${weeklyGoalTarget.value} 天。安排一次 20 分钟的训练，就能让习惯链条继续延伸。`,
       tone: 'neutral',
       icon: Calendar,
     })
@@ -346,9 +375,9 @@ const insights = computed<Insight[]>(() => {
     })
   }
 
-  if (growth.value.currentStreak >= 3) {
+  if (currentStreak.value >= 3) {
     items.push({
-      title: `连续 ${growth.value.currentStreak} 天`,
+      title: `连续 ${currentStreak.value} 天`,
       body: '连续性比单次强度更重要。今天保持轻量训练，也能守住这条连胜记录。',
       tone: 'positive',
       icon: Trophy,
@@ -436,9 +465,11 @@ const statCards = computed(() => [
   },
 ])
 
-const unlockedCount = computed(
-  () => growth.value.achievements.filter((item) => item.unlocked).length,
-)
+const unlockedCount = computed(() => {
+  const serverCount = Number(growthOverview.value?.achievements?.unlocked)
+  if (Number.isFinite(serverCount) && serverCount >= 0) return serverCount
+  return achievementItems.value.filter((item) => item.unlocked).length
+})
 
 function dateKey(date: Date) {
   const year = date.getFullYear()
@@ -509,36 +540,23 @@ function evaluateWeeklyProgress(items: any[]) {
   return { name: best.name, text: best.text, improved: true }
 }
 
-function updateAchievements(improved: boolean) {
-  const totalTrainings = Number(userStats.value?.total_trainings || 0)
-  growth.value.achievements = growth.value.achievements.map((item) => {
-    if (item.key === 'first_training') return { ...item, unlocked: totalTrainings >= 1 }
-    if (item.key === 'streak_3') return { ...item, unlocked: growth.value.currentStreak >= 3 }
-    if (item.key === 'week_3') {
-      return { ...item, unlocked: growth.value.weeklyTrainingDays >= 3 }
-    }
-    if (item.key === 'improve_action') return { ...item, unlocked: improved }
-    return item
-  })
-}
-
 async function fetchDashboard() {
   loading.value = true
   try {
-    const [profileRes, statsRes, statusRes, summaryRes, userStatsRes, progressRes] =
+    const [profileRes, statsRes, statusRes, summaryRes, growthRes, progressRes] =
       await Promise.allSettled([
         apiClient.get('/auth/profile/'),
         apiClient.get('/analytics/daily-stats/today/'),
         apiClient.get('/recommendations/list/user_status/'),
         apiClient.get('/analytics/daily-stats/summary/?days=30'),
-        apiClient.get('/auth/stats/'),
+        apiClient.get('/growth/overview/'),
         apiClient.get('/analytics/exercise-progress/'),
       ])
 
     if (profileRes.status === 'fulfilled') profile.value = profileRes.value.data || {}
     if (statsRes.status === 'fulfilled') stats.value = statsRes.value.data || {}
     if (statusRes.status === 'fulfilled') userStatus.value = statusRes.value.data || {}
-    if (userStatsRes.status === 'fulfilled') userStats.value = userStatsRes.value.data || {}
+    if (growthRes.status === 'fulfilled') growthOverview.value = growthRes.value.data || {}
 
     if (summaryRes.status === 'fulfilled') {
       dailyStats.value = summaryRes.value.data?.daily_breakdown || []
@@ -567,7 +585,6 @@ async function fetchDashboard() {
     growth.value.currentStreak = computeStreak(trainedDates)
     growth.value.bestExercise = progressSummary.name
     growth.value.bestExerciseText = progressSummary.text
-    updateAchievements(progressSummary.improved)
   } catch (error) {
     console.error('Failed to load dashboard:', error)
   } finally {
@@ -1059,6 +1076,12 @@ onMounted(fetchDashboard)
   font-style: normal;
   font-size: 10.5px;
   color: var(--fv-text-3);
+}
+
+.achievement-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .achievement-count {

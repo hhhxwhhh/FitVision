@@ -57,6 +57,12 @@ const router = createRouter({
           meta: { title: '数据中心' },
         },
         {
+          path: 'growth',
+          name: 'growth',
+          component: () => import('../views/GrowthView.vue'),
+          meta: { title: '成长中心' },
+        },
+        {
           path: 'exercises',
           name: 'exercises',
           component: () => import('../views/ExercisesView.vue'),

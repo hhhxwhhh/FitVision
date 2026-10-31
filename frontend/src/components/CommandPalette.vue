@@ -75,6 +75,7 @@ import {
   Setting,
   Sunny,
   TrendCharts,
+  Trophy,
   User,
   VideoCamera,
 } from '@element-plus/icons-vue'
@@ -168,6 +169,15 @@ const commands = computed<PaletteItem[]>(() => [
     icon: DataAnalysis,
     keywords: 'analytics data 数据',
     action: () => go('/analytics'),
+  },
+  {
+    id: 'growth',
+    label: '成长中心',
+    hint: '等级、每日任务、成就与周榜',
+    group: '页面与操作',
+    icon: Trophy,
+    keywords: 'growth level xp quest achievement leaderboard 成长 等级 任务 成就 排行',
+    action: () => go('/growth'),
   },
   {
     id: 'profile',

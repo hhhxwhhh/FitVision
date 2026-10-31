@@ -56,6 +56,15 @@ frontend/
     *   **作用**: 训练页面。
     *   **功能**: 用户跟随视频或 AI 指导进行锻炼，实时显示计数和消耗。
 
+*   **[GrowthView.vue](file:///d:/code/forvue/FitVision/frontend/src/views/GrowthView.vue)**
+    *   **作用**: 成长中心页面。
+    *   **功能**:
+        *   展示等级环、XP 进度、连续训练天数与累计训练次数。
+        *   每日任务列表，完成后领取经验。
+        *   成就墙，支持按分类筛选并展示进度。
+        *   本周目标编辑与领奖、个人纪录、本周经验榜。
+        *   周榜公开/隐身切换，昵称由后端脱敏返回。
+
 *   **[LoginView.vue](file:///d:/code/forvue/FitVision/frontend/src/views/LoginView.vue) / [RegisterView.vue](file:///d:/code/forvue/FitVision/frontend/src/views/RegisterView.vue)**
     *   **作用**: 用户登录和注册页面。
 

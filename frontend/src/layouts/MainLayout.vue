@@ -147,6 +147,7 @@ import {
   Search,
   SwitchButton,
   TrendCharts,
+  Trophy,
   User,
   UserFilled,
   VideoCamera,
@@ -173,6 +174,7 @@ const primaryNav = [
   { path: '/training', label: '训练', icon: VideoCamera, matches: ['/training', '/posture-diagnosis', '/ai-plan'] },
   { path: '/exercises', label: '动作库', icon: Reading, matches: ['/exercises'] },
   { path: '/analytics', label: '数据', icon: DataAnalysis, matches: ['/analytics'] },
+  { path: '/growth', label: '成长', icon: Trophy, matches: ['/growth'] },
 ]
 
 const mobileNav = [
@@ -191,6 +193,7 @@ const mobileNav = [
       { path: '/exercises', label: '动作百科', icon: Reading, matches: ['/exercises'] },
       { path: '/exercises/graph', label: '知识图谱', icon: TrendCharts, matches: ['/exercises/graph'] },
       { path: '/analytics', label: '数据中心', icon: DataAnalysis, matches: ['/analytics'] },
+      { path: '/growth', label: '成长中心', icon: Trophy, matches: ['/growth'] },
     ],
   },
 ]
