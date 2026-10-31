@@ -1,8 +1,14 @@
-import { ref, onUnmounted } from 'vue';
+import { ref, onUnmounted, watch } from 'vue';
 import { Pose, type Results, POSE_CONNECTIONS } from '@mediapipe/pose';
 import { Camera } from '@mediapipe/camera_utils';
 import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
-import { calculateAngle, OneEuroFilter, matchPoseSignature } from '../utils/poseMatching';
+import { OneEuroFilter } from '../utils/poseMatching';
+import {
+  createExerciseAnalyzer,
+  type AnalysisFrame,
+  type ExerciseMode,
+  type ViewOrientation,
+} from '../utils/poseRecognition';
 import apiClient from '../api';
 
 type VoiceCategory = 'count' | 'encourage' | 'corrective' | 'cadence';
@@ -66,6 +72,14 @@ const ERROR_TIP_MAP: Record<string, string> = {
   '下放不充分': '离心阶段再慢一点，降低到目标深度再推起。',
   '骨盆下沉': '骨盆微后倾并收紧核心，避免腰部塌陷。',
   '手臂抬起不足': '向上阶段把手臂抬过头顶，动作幅度做完整。',
+  '躯干过度前倾': '挺胸并收紧核心，让躯干在可控范围内保持直立。',
+  '左右不对称': '让身体两侧同步发力，必要时降低重量或放慢节奏。',
+  '臀部过高': '降低髋部，让肩、髋、踝重新回到一条直线上。',
+  '身体未成直线': '收紧腹部和臀部，避免塌腰或撅臀。',
+  '肘部未对齐': '让肘部位于肩部正下方，前臂保持稳定支撑。',
+  '身体晃动': '放慢呼吸、收紧核心，减少身体前后左右晃动。',
+  '双腿张开不足': '落地时双脚再打开一些，保持与肩同宽以上。',
+  '关键点不可见': '请让全身进入画面，保持光线充足并避免遮挡。',
   '暂无明显错误': '当前动作整体稳定，继续保持节奏和呼吸。',
 };
 
@@ -93,9 +107,12 @@ export function usePoseDetection() {
   
   const repCount = ref(0);
   const feedback = ref('请就位');
-  const repProgress = ref(0); 
-  const exerciseMode = ref<'squat' | 'pushup' | 'jumping_jack' | 'plank'>('squat');
+  const repProgress = ref(0);
+  const exerciseMode = ref<ExerciseMode>('squat');
   const lastScore = ref(0);
+  const poseConfidence = ref(0);
+  const viewOrientation = ref<ViewOrientation>('unknown');
+  const activeFaults = ref<string[]>([]);
   const qualityLabel = ref('待评估');
   const qualityPercent = ref(0);
   const qualityColor = ref('#64748b');
@@ -128,13 +145,13 @@ export function usePoseDetection() {
     y: new OneEuroFilter(1.0, 0.05),
     z: new OneEuroFilter(1.0, 0.05)
   }));
-  const angleFilter = new OneEuroFilter(1.5, 0.1);
-  const progressFilter = new OneEuroFilter(0.5, 0.0);
-
-  let state: 'UP' | 'DOWN' = 'UP';
+  let analyzer = createExerciseAnalyzer(exerciseMode.value);
+  let lastFaultKeys = new Set<string>();
+  let lastPhase: 'up' | 'down' | 'holding' = 'up';
   let lastStateChange = Date.now();
   let coachTimer: number | null = null;
   let plankStartTime: number | null = null;
+  let plankAccumulatedSeconds = 0;
   let pose: Pose | null = null;
   let camera: Camera | null = null;
   let varietyTimer: number | null = null;
@@ -151,11 +168,11 @@ export function usePoseDetection() {
     const stylePack = VOICE_STYLES[voiceStyle.value];
     if (category === 'cadence') {
       const phraseList = phase === 'down' ? stylePack.cadenceDown : stylePack.cadenceUp;
-      return phraseList[Math.floor(Math.random() * phraseList.length)];
+      return phraseList[Math.floor(Math.random() * phraseList.length)] ?? '';
     }
 
     const phraseList = category === 'encourage' ? stylePack.encouragement : stylePack.corrective;
-    return phraseList[Math.floor(Math.random() * phraseList.length)];
+    return phraseList[Math.floor(Math.random() * phraseList.length)] ?? '';
   };
 
   const shouldSkipSpeech = (text: string, now: number) => {
@@ -223,7 +240,9 @@ export function usePoseDetection() {
     const now = Date.now();
     const windowStart = now - VARIETY_WINDOW_MS;
 
-    while (spokenEvents.length > 0 && spokenEvents[0].ts < windowStart) {
+    while (spokenEvents.length > 0) {
+      const oldest = spokenEvents[0];
+      if (!oldest || oldest.ts >= windowStart) break;
       spokenEvents.shift();
     }
 
@@ -355,7 +374,7 @@ export function usePoseDetection() {
     coachTimer = window.setInterval(() => {
       const idleTime = Date.now() - lastStateChange;
       if (idleTime > 8000 && isUpdating.value) {
-        if (state === 'UP') {
+        if (exerciseMode.value === 'plank' || lastPhase === 'up') {
           speakEncouragement();
         } else {
           speakCadence('up');
@@ -442,6 +461,100 @@ export function usePoseDetection() {
     }
   };
 
+  const downCueForMode = (mode: ExerciseMode) => {
+    if (mode === 'squat') return '下沉到位！';
+    if (mode === 'pushup') return '准备撑起！';
+    return '向上打开！';
+  };
+
+  const recordFaults = (analysis: AnalysisFrame) => {
+    const keys = new Set(analysis.faults.map((fault) => fault.key));
+    for (const key of keys) {
+      if (!lastFaultKeys.has(key)) markError(key);
+    }
+    lastFaultKeys = keys;
+    activeFaults.value = [...keys];
+  };
+
+  const applyAnalysis = (analysis: AnalysisFrame, now: number) => {
+    lastPhase = analysis.phase;
+    poseConfidence.value = analysis.confidence;
+    viewOrientation.value = analysis.view;
+    repProgress.value =
+      exerciseMode.value === 'plank' && analysis.isHolding
+        ? 100
+        : Math.round(analysis.progress);
+    lastScore.value = Math.round(analysis.formScore);
+    updateQualityBadge(lastScore.value);
+    recordFaults(analysis);
+
+    if (exerciseMode.value === 'plank') {
+      if (analysis.isHolding) {
+        if (!plankStartTime) plankStartTime = now;
+        duration.value =
+          plankAccumulatedSeconds + Math.floor((now - plankStartTime) / 1000);
+        feedback.value = `坚持住！稳定性: ${lastScore.value}%`;
+        if (duration.value > lastPlankStreakSecond) {
+          lastPlankStreakSecond = duration.value;
+          standardStreak.value += 1;
+          if (standardStreak.value > bestStreak.value) {
+            bestStreak.value = standardStreak.value;
+          }
+        }
+      } else {
+        if (plankStartTime) {
+          plankAccumulatedSeconds += Math.floor((now - plankStartTime) / 1000);
+          plankStartTime = null;
+        }
+        standardStreak.value = 0;
+        lastPlankStreakSecond = 0;
+        feedback.value =
+          analysis.confidence < 0.45
+            ? '注意：请让全身进入画面'
+            : `注意：${analysis.faults[0]?.key || '请保持身体平直'}`;
+        speakCorrection();
+        if (analysis.confidence >= 0.45) {
+          tryTriggerVlmAnalysis(lastScore.value);
+        }
+      }
+      return;
+    }
+
+    if (analysis.enteredDown) {
+      lastStateChange = now;
+      const topFault = analysis.faults[0];
+      feedback.value = topFault
+        ? `注意：${topFault.key}`
+        : downCueForMode(exerciseMode.value);
+      speakCadence('down');
+      if (lastScore.value < 85) {
+        scheduleSpeak(() => speakCorrection(), 1700);
+      }
+      tryTriggerVlmAnalysis(lastScore.value);
+    }
+
+    if (analysis.repCompleted) {
+      repCount.value += 1;
+      markStandardOrBreakStreak(analysis.repScore);
+      speakCountdown(repCount.value);
+      if (repCount.value % 2 === 1) {
+        scheduleSpeak(() => speakCadence('up'), 1800);
+      }
+      if (repCount.value % 2 === 0 || analysis.repScore > 90) {
+        scheduleSpeak(() => speakEncouragement(), 3200);
+      }
+      feedback.value =
+        analysis.repScore > 90
+          ? '完美动作！'
+          : analysis.repScore > 75
+            ? '保持呼吸'
+            : '注意动作质量，下一次更标准';
+      lastStateChange = now;
+    } else if (!analysis.enteredDown && analysis.confidence < 0.45) {
+      feedback.value = '注意：请让全身进入画面';
+    }
+  };
+
   const onResults = (results: Results) => {
     if (!canvasElement.value || !videoElement.value) return;
     const canvasCtx = canvasElement.value.getContext('2d');
@@ -455,12 +568,13 @@ export function usePoseDetection() {
       const now = Date.now();
       
       const smoothedLandmarks = results.poseLandmarks.map((lm, i) => {
-        if (i >= 33) return lm;
+        const filter = landmarkFilters[i];
+        if (!filter) return lm;
         return {
           ...lm,
-          x: landmarkFilters[i].x.filter(lm.x, now),
-          y: landmarkFilters[i].y.filter(lm.y, now),
-          z: landmarkFilters[i].z.filter(lm.z, now),
+          x: filter.x.filter(lm.x, now),
+          y: filter.y.filter(lm.y, now),
+          z: filter.z.filter(lm.z, now),
         };
       });
       latestLandmarks.value = smoothedLandmarks;
@@ -473,165 +587,12 @@ export function usePoseDetection() {
         radius: (data: any) => (data.index > 10 ? 3 : 1) 
       });
 
-      if (exerciseMode.value === 'squat') {
-        const angle = calculateAngle(smoothedLandmarks[24], smoothedLandmarks[26], smoothedLandmarks[28]);
-        if (angle) {
-          const smoothedAngle = angleFilter.filter(angle, now);
-          const leftKneeInward = Math.abs(smoothedLandmarks[25].x - smoothedLandmarks[27].x) < 0.035;
-          const rightKneeInward = Math.abs(smoothedLandmarks[26].x - smoothedLandmarks[28].x) < 0.035;
-          repProgress.value = Math.floor(progressFilter.filter(Math.max(0, Math.min(100, (170 - smoothedAngle) / 80 * 100)), now));
-
-          if (smoothedAngle < 105 && state === 'UP') {
-            state = 'DOWN';
-            feedback.value = '下沉到位！';
-            speakCadence('down');
-            lastStateChange = now;
-            
-            const signatureScore = matchPoseSignature(smoothedLandmarks, 'squat_down');
-            lastScore.value = Math.round(signatureScore * 100);
-            updateQualityBadge(lastScore.value);
-
-            if (leftKneeInward || rightKneeInward) {
-              markError('膝盖内扣');
-            }
-            if (smoothedAngle > 120) {
-              markError('下蹲深度不足');
-            }
-
-            if (lastScore.value < 85) {
-              speakCorrection();
-            }
-
-            tryTriggerVlmAnalysis(lastScore.value);
-
-          } else if (smoothedAngle > 155 && state === 'DOWN') {
-            state = 'UP';
-            repCount.value++;
-            markStandardOrBreakStreak(lastScore.value);
-            speakCountdown(repCount.value);
-            if (repCount.value % 2 === 1) {
-              scheduleSpeak(() => speakCadence('up'), 1800);
-            }
-            if (repCount.value % 2 === 0 || lastScore.value > 90) {
-              scheduleSpeak(() => speakEncouragement(), 3200);
-            }
-            feedback.value = lastScore.value > 90 ? '完美动作！' : '保持呼吸';
-            lastStateChange = now;
-          }
-        }
-      } else if (exerciseMode.value === 'pushup') {
-          const angle = calculateAngle(smoothedLandmarks[12], smoothedLandmarks[14], smoothedLandmarks[16]);
-          if (angle) {
-            const smoothed = angleFilter.filter(angle, now);
-            const shoulderY = (smoothedLandmarks[11].y + smoothedLandmarks[12].y) / 2;
-            const hipY = (smoothedLandmarks[23].y + smoothedLandmarks[24].y) / 2;
-            repProgress.value = Math.floor(progressFilter.filter(Math.max(0, Math.min(100, (160 - smoothed) / 85 * 100)), now));
-            
-            if (smoothed < 95 && state === 'UP') {
-                state = 'DOWN';
-                feedback.value = '准备撑起！';
-                speakCadence('down');
-                lastStateChange = now;
-                const signatureScore = matchPoseSignature(smoothedLandmarks, 'pushup_down');
-                lastScore.value = Math.round(signatureScore * 100);
-                updateQualityBadge(lastScore.value);
-
-                if (hipY > shoulderY + 0.12) {
-                  markError('核心下塌');
-                }
-                if (smoothed > 125) {
-                  markError('下放不充分');
-                }
-
-                if (lastScore.value < 85) {
-                  speakCorrection();
-                }
-
-                tryTriggerVlmAnalysis(lastScore.value);
-
-            } else if (smoothed > 150 && state === 'DOWN') {
-                state = 'UP';
-                repCount.value++;
-              markStandardOrBreakStreak(lastScore.value);
-                speakCountdown(repCount.value);
-                if (repCount.value % 2 === 1) {
-                  scheduleSpeak(() => speakCadence('up'), 1800);
-                }
-                if (repCount.value % 2 === 0 || lastScore.value > 90) {
-                  scheduleSpeak(() => speakEncouragement(), 3200);
-                }
-                lastStateChange = now;
-            }
-          }
-      } else if (exerciseMode.value === 'plank') {
-          const signatureScore = matchPoseSignature(smoothedLandmarks, 'plank');
-          lastScore.value = Math.round(signatureScore * 100);
-          updateQualityBadge(lastScore.value);
-          const shoulderY = (smoothedLandmarks[11].y + smoothedLandmarks[12].y) / 2;
-          const hipY = (smoothedLandmarks[23].y + smoothedLandmarks[24].y) / 2;
-          
-          if (lastScore.value > 85) {
-              if (!plankStartTime) plankStartTime = now;
-              duration.value = Math.floor((now - plankStartTime) / 1000);
-              feedback.value = `坚持住！稳定性: ${lastScore.value}%`;
-              repProgress.value = 100;
-              if (duration.value > lastPlankStreakSecond) {
-                lastPlankStreakSecond = duration.value;
-                standardStreak.value += 1;
-                if (standardStreak.value > bestStreak.value) {
-                  bestStreak.value = standardStreak.value;
-                }
-              }
-          } else {
-              plankStartTime = null;
-              standardStreak.value = 0;
-              lastPlankStreakSecond = 0;
-              feedback.value = '注意：请保持身体平直';
-              if (hipY > shoulderY + 0.1) {
-                markError('骨盆下沉');
-              }
-              speakCorrection();
-              repProgress.value = lastScore.value;
-
-              tryTriggerVlmAnalysis(lastScore.value);
-          }
-      } else if (exerciseMode.value === 'jumping_jack') {
-          const score = matchPoseSignature(smoothedLandmarks, 'jumping_jack_up');
-          const avgHandY = (smoothedLandmarks[15].y + smoothedLandmarks[16].y) / 2;
-          const headY = smoothedLandmarks[0].y;
-          
-          if (avgHandY < headY && score > 0.7 && state === 'UP') {
-              state = 'DOWN';
-              speakCadence('down');
-              lastStateChange = now;
-              lastScore.value = Math.round(score * 100);
-              updateQualityBadge(lastScore.value);
-
-              if (avgHandY > headY + 0.08) {
-                markError('手臂抬起不足');
-              }
-
-              if (lastScore.value < 85) {
-                speakCorrection();
-              }
-
-              tryTriggerVlmAnalysis(lastScore.value);
-
-          } else if (avgHandY > headY + 0.2 && state === 'DOWN') {
-              state = 'UP';
-              repCount.value++;
-              markStandardOrBreakStreak(lastScore.value);
-              speakCountdown(repCount.value);
-              if (repCount.value % 2 === 1) {
-                scheduleSpeak(() => speakCadence('up'), 1800);
-              }
-              if (repCount.value % 2 === 0 || lastScore.value > 90) {
-                scheduleSpeak(() => speakEncouragement(), 3200);
-              }
-              feedback.value = lastScore.value > 85 ? '漂亮！' : '动作幅度再大点';
-              lastStateChange = now;
-          }
-      }
+      const aspect =
+        videoElement.value.videoWidth && videoElement.value.videoHeight
+          ? videoElement.value.videoWidth / videoElement.value.videoHeight
+          : 16 / 9;
+      const analysis = analyzer.update(smoothedLandmarks, now, aspect);
+      applyAnalysis(analysis, now);
     }
     canvasCtx.restore();
 
@@ -641,12 +602,42 @@ export function usePoseDetection() {
     }
   };
 
+  const resetFilters = () => {
+    for (const filter of landmarkFilters) {
+      filter.x.reset();
+      filter.y.reset();
+      filter.z.reset();
+    }
+  };
+
+  const resetTrackingState = () => {
+    analyzer = createExerciseAnalyzer(exerciseMode.value);
+    lastFaultKeys = new Set();
+    lastPhase = 'up';
+    poseConfidence.value = 0;
+    viewOrientation.value = 'unknown';
+    activeFaults.value = [];
+    repProgress.value = 0;
+    lastScore.value = 0;
+    qualityLabel.value = '待评估';
+    qualityPercent.value = 0;
+    qualityColor.value = '#64748b';
+    duration.value = 0;
+    plankStartTime = null;
+    plankAccumulatedSeconds = 0;
+    lastPlankStreakSecond = 0;
+    feedback.value = '请就位';
+    lastStateChange = Date.now();
+    resetFilters();
+  };
+
   const initPose = async (video: HTMLVideoElement, canvas: HTMLCanvasElement) => {
     videoElement.value = video;
     canvasElement.value = canvas;
     error.value = null;
     isLoaded.value = false;
-    
+    resetTrackingState();
+
     try {
       pose = new Pose({ locateFile: (file) => getMediaPipeAssetUrl(file) });
       pose.setOptions({
@@ -687,6 +678,10 @@ export function usePoseDetection() {
     stressStartAt = null;
   };
 
+  watch(exerciseMode, () => {
+    resetTrackingState();
+  });
+
   onUnmounted(stopPose);
 
   return {
@@ -698,6 +693,9 @@ export function usePoseDetection() {
     repProgress,
     exerciseMode,
     lastScore,
+    poseConfidence,
+    viewOrientation,
+    activeFaults,
     qualityLabel,
     qualityPercent,
     qualityColor,
@@ -728,14 +726,7 @@ export function usePoseDetection() {
       commonErrorLabel.value = '暂无明显错误';
       commonErrorTip.value = ERROR_TIP_MAP['暂无明显错误'];
       errorCounters.value = {};
-      qualityLabel.value = '待评估';
-      qualityPercent.value = 0;
-      qualityColor.value = '#64748b';
-      duration.value = 0;
-      plankStartTime = null;
-      lastPlankStreakSecond = 0;
-      state = 'UP';
-      feedback.value = '请就位';
+      resetTrackingState();
       vlmAdvice.value = '';
       resetVoiceStressStats();
       stressStartAt = stressModeEnabled.value ? Date.now() : null;

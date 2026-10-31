@@ -14,9 +14,11 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+    "build": "npm run type-check && vite build",
     "preview": "vite preview",
-    "type-check": "vue-tsc -b",
+    "type-check": "vue-tsc --noEmit -p tsconfig.app.json && vue-tsc --noEmit -p tsconfig.node.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,vue,css}\"",
@@ -49,6 +51,7 @@
     "prettier": "^3.6.2",
     "typescript": "~5.9.3",
     "vite": "^7.2.4",
+    "vitest": "^4.1.12",
     "vue-tsc": "^3.1.4"
   }
 }

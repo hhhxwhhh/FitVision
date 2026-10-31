@@ -39,6 +39,31 @@
           </div>
 
           <div class="stat-item" style="margin-top: 10px;">
+            <span class="label">识别状态</span>
+            <div class="signal-row">
+              <el-tag :type="confidenceType" size="small" effect="dark">
+                {{ confidenceLabel }}
+              </el-tag>
+              <el-tag size="small" type="info" effect="plain">{{ viewLabel }}</el-tag>
+            </div>
+          </div>
+
+          <div v-if="activeFaults.length" class="stat-item active-faults" style="margin-top: 10px;">
+            <span class="label">实时修正</span>
+            <div class="fault-chips">
+              <el-tag
+                v-for="fault in activeFaults"
+                :key="fault"
+                type="danger"
+                size="small"
+                effect="plain"
+              >
+                {{ fault }}
+              </el-tag>
+            </div>
+          </div>
+
+          <div class="stat-item" style="margin-top: 10px;">
             <span class="label">最常见错误</span>
             <el-popover
               placement="right"
@@ -187,7 +212,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { usePoseDetection } from '../../composables/usePoseDetection';
 import { VideoCamera, CaretRight, VideoPlay, Loading, MagicStick } from '@element-plus/icons-vue';
 
@@ -207,6 +232,9 @@ const {
   feedback,
   exerciseMode,
   lastScore,
+  poseConfidence,
+  viewOrientation,
+  activeFaults,
   qualityLabel,
   qualityPercent,
   qualityColor,
@@ -218,7 +246,6 @@ const {
   duration,
   isAnalyzingVlm,
   vlmAdvice,
-  diagnosisReport,
   voiceStyle,
   stressModeEnabled,
   stressElapsedSeconds,
@@ -230,7 +257,6 @@ const {
   voiceQuietPass,
   voiceStressPass,
   initPose,
-  analyzeWithVisionModel,
   stopPose,
   resetCount
 } = usePoseDetection();
@@ -241,6 +267,25 @@ const exerciseModeMap: Record<string, string> = {
   'jumping_jack': '开合跳',
   'plank': '平板支撑'
 }
+
+const viewLabel = computed(() => {
+  if (viewOrientation.value === 'front') return '正面视角';
+  if (viewOrientation.value === 'side') return '侧面视角';
+  return '视角未知';
+});
+
+const confidenceLabel = computed(() => {
+  const percent = Math.round(poseConfidence.value * 100);
+  if (percent >= 80) return `识别稳定 ${percent}%`;
+  if (percent >= 55) return `识别一般 ${percent}%`;
+  return `识别较弱 ${percent}%`;
+});
+
+const confidenceType = computed<'success' | 'warning' | 'danger'>(() => {
+  if (poseConfidence.value >= 0.8) return 'success';
+  if (poseConfidence.value >= 0.55) return 'warning';
+  return 'danger';
+});
 
 const mapExerciseToMode = (name: string): any => {
   if (!name) return 'squat'
@@ -278,16 +323,10 @@ const stopDetection = () => {
   stopPose();
 };
 
-const handleVlmAnalyze = async (mode: 'realtime' | 'diagnosis' = 'realtime') => {
-  await analyzeWithVisionModel(mode);
-};
-
 defineExpose({
   startDetection,
   stopDetection,
-  handleVlmAnalyze,
   resetCount,
-  diagnosisReport,
   isAnalyzingVlm
 });
 </script>
@@ -462,9 +501,21 @@ defineExpose({
 }
 
 .stat-item .value-sm {
-  font-size: 20px; 
-  font-weight: 700; 
+  font-size: 20px;
+  font-weight: 700;
   color: #60a5fa;
+}
+
+.signal-row,
+.fault-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 220px;
+}
+
+.active-faults .fault-chips {
+  margin-top: 2px;
 }
 
 .progress-text {

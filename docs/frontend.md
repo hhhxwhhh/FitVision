@@ -35,8 +35,9 @@ frontend/
     *   **作用**: 封装了 MediaPipe Pose 的核心逻辑。
     *   **功能**:
         *   初始化摄像头和 Pose 模型。
-        *   实时获取人体关键点 (Landmarks)。
-        *   实现动作计数 (Rep counting) 和状态判断 (UP/DOWN)。
+        *   使用 OneEuroFilter 平滑人体关键点，并交给 `poseRecognition` 引擎分析。
+        *   实现动作计数、阶段切换、动作质量评分与实时纠错提示。
+        *   输出识别置信度、视角（正面/侧面）与当前生效的错误标签。
         *   提供 AI 语音指导 (Text-to-Speech)。
         *   提供 `captureFrameBase64` 方法用于截图分析。
 
@@ -89,15 +90,37 @@ frontend/
 
 ### 5. 工具类 (Utils)
 
+*   **[poseRecognition.ts](file:///d:/code/forvue/FitVision/frontend/src/utils/poseRecognition.ts)**
+    *   **作用**: 动作识别引擎。
+    *   **功能**:
+        *   对关键点做横纵比校正与躯干尺度归一化，消除摄像头距离和画面比例的影响。
+        *   根据肩宽/髋宽与躯干长度的比值自动判断正面或侧面视角。
+        *   为深蹲、俯卧撑、开合跳提供各自的动作量测量与加权评分，并输出具体错误标签。
+        *   使用带迟滞（hysteresis）、最短停留时间和最小动作幅度的状态机计数，避免抖动误计数。
+        *   平板支撑单独使用稳定性历史、保持阈值与计时逻辑。
+        *   关键点可见度过低时直接拒绝该帧，不参与计数与评分。
+
 *   **[poseMatching.ts](file:///d:/code/forvue/FitVision/frontend/src/utils/poseMatching.ts)**
-    *   **作用**: 姿态匹配算法。
-    *   **功能**: 计算关节角度、使用 OneEuroFilter 进行平滑处理、计算动作相似度。
+    *   **作用**: 共享姿态工具。
+    *   **功能**: OneEuroFilter 平滑（含乱序/重复时间戳保护）与基于躯干长度的关键点归一化。
 
 ## UI 组件
 
 项目使用了 **Element Plus** 作为 UI 组件库，并在 `components/` 下封装了自定义组件，如：
-*   `PosePreview.vue`: 封装摄像头的视频流展示和骨架绘制。
+*   `PosePreview.vue`: 封装摄像头的视频流展示和骨架绘制，并展示识别置信度、视角、实时错误标签、计数与动作质量。
 *   `AIRecommendations.vue`: 展示 AI 推荐的训练计划。
+
+## 开发命令
+
+```bash
+npm run dev         # 启动开发服务器
+npm run type-check  # 检查 src 与 vite 配置的 TypeScript 类型
+npm run lint        # ESLint 检查
+npm run test        # 运行 Vitest 单元测试
+npm run build       # 类型检查 + 生产构建
+```
+
+动作识别引擎的纯函数测试位于 `src/utils/poseRecognition.test.ts`，覆盖视角判断、低可见度拒绝、深蹲深度、三种动作的计数以及平板支撑计时。
 
 ---
 *文档生成时间: 2026-03-07*
