@@ -418,7 +418,7 @@ const weekDays = computed<WeekDay[]>(() => {
     const minutes = Number(item?.total_duration_minutes || 0)
     return {
       key,
-      label: labels[date.getDay()],
+      label: labels[date.getDay()] ?? '',
       minutes,
       height: minutes > 0 ? Math.min(100, 24 + minutes * 1.6) : 7,
       isToday: key === dateKey(today),

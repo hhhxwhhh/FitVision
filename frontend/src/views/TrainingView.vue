@@ -319,59 +319,6 @@
                             </el-collapse-item>
                         </el-collapse>
 
-                        <!-- 新增：底部填充提示 card，用于填补空白区域 -->
-                        <!-- 专业诊断报告卡片 (当有数据时显示) -->
-                        <transition name="el-fade-in-linear">
-                            <el-card v-if="posePreviewRef?.diagnosisReport" class="diagnosis-report-card shadow-sm">
-                                <template #header>
-                                    <div class="report-header">
-                                        <el-icon :color="MILAN_COLORS.accentDeep">
-                                            <Medal />
-                                        </el-icon>
-                                        <span>AI 专业姿态诊断报告</span>
-                                        <el-tag size="small"
-                                            :type="posePreviewRef.diagnosisReport.risk_level === 'high' ? 'danger' : 'success'">
-                                            {{ posePreviewRef.diagnosisReport.risk_level === 'high' ? '高风险' : '状态健康' }}
-                                        </el-tag>
-                                    </div>
-                                </template>
-
-                                <div class="report-body">
-                                    <div class="summary-section">
-                                        <h4>核心结论: <span>{{ posePreviewRef.diagnosisReport.summary }}</span></h4>
-                                        <el-divider />
-                                    </div>
-
-                                    <div class="analysis-grid">
-                                        <div class="grid-item">
-                                            <div class="label">力线分析</div>
-                                            <p>{{ posePreviewRef.diagnosisReport.body_alignment }}</p>
-                                        </div>
-                                        <div class="grid-item">
-                                            <div class="label">未来改善路线</div>
-                                            <p>{{ posePreviewRef.diagnosisReport.improvement_plan }}</p>
-                                        </div>
-                                    </div>
-
-                                    <div class="recommendations-section"
-                                        v-if="posePreviewRef.diagnosisReport.system_recommendations">
-                                        <div class="label">针对性纠正训练推荐:</div>
-                                        <div class="rec-chips">
-                                            <el-tag v-for="ex in posePreviewRef.diagnosisReport.system_recommendations"
-                                                :key="ex.id" effect="plain" class="rec-chip">
-                                                {{ ex.name }} ({{ ex.muscle }})
-                                            </el-tag>
-                                        </div>
-                                    </div>
-
-                                    <div class="scenario-section">
-                                        <el-alert title="AI 应用场景建议" type="info" :closable="false" show-icon
-                                            :description="posePreviewRef.diagnosisReport.scenario_application" />
-                                    </div>
-                                </div>
-                            </el-card>
-                        </transition>
-
                         <div class="column-footer-tips">
                             <div class="tip-card">
                                 <el-icon>
@@ -435,7 +382,6 @@ import apiClient, { resolveMediaUrl } from '../api'
 import PosePreview from '../components/ai/PosePreview.vue'
 import NextExerciseRecommendation from '../components/NextExerciseRecommendation.vue'
 import { ArrowRight, View, Sort } from '@element-plus/icons-vue'
-import { Medal } from '@element-plus/icons-vue'
 
 import { useRouter } from 'vue-router'
 const router = useRouter()
@@ -750,7 +696,7 @@ const handleRecordExercise = async () => {
             form_score: recordForm.form_score
         }
 
-        const res = await apiClient.post('training/exercise-records/', payload)
+        await apiClient.post('training/exercise-records/', payload)
 
         ElMessage.success('记录提交成功！');
         sessionRecords.value.push(payload);
@@ -914,8 +860,9 @@ onMounted(async () => {
             '2': '俯卧撑',
             '3': '开合跳'
         }
-        if (idMap[String(exerciseId)]) {
-            selectedExerciseName.value = idMap[String(exerciseId)]
+        const mappedName = idMap[String(exerciseId)]
+        if (mappedName) {
+            selectedExerciseName.value = mappedName
         }
     }
 
@@ -992,87 +939,6 @@ export default {
     display: flex;
     align-items: center;
     gap: 12px;
-}
-
-.diagnosis-report-card {
-    margin-bottom: 25px;
-    border-radius: 16px;
-    border: 1px solid var(--fv-border);
-    overflow: hidden;
-    background: var(--fv-surface);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.diagnosis-report-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.1);
-}
-
-.report-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-weight: 700;
-    color: var(--fv-text);
-    font-size: 1.1rem;
-}
-
-.report-body h4 {
-    margin-top: 5px;
-    margin-bottom: 15px;
-    color: var(--fv-text-2);
-    font-size: 16px;
-}
-
-.report-body h4 span {
-    color: var(--fv-text);
-}
-
-.analysis-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    margin-bottom: 20px;
-}
-
-.grid-item .label {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--fv-text-3);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 8px;
-}
-
-.grid-item p {
-    font-size: 14px;
-    line-height: 1.6;
-    color: var(--fv-text-2);
-    margin: 0;
-}
-
-.recommendations-section {
-    background: var(--fv-surface-2);
-    padding: 15px;
-    border-radius: 12px;
-    margin-bottom: 20px;
-}
-
-.recommendations-section .label {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--fv-text-2);
-    margin-bottom: 10px;
-}
-
-.rec-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.scenario-section {
-    margin-top: 10px;
 }
 
 .ai-title {
@@ -1651,7 +1517,6 @@ export default {
 }
 
 @media (max-width: 768px) {
-    .analysis-grid { grid-template-columns: 1fr; }
     .form-grid { grid-template-columns: 1fr; }
     .camera-wrapper { min-height: 420px; }
 }

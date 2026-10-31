@@ -27,7 +27,7 @@
 
       <div class="cp-body">
         <template v-for="(item, index) in items" :key="item.id">
-          <div v-if="index === 0 || items[index - 1].group !== item.group" class="cp-group">
+          <div v-if="index === 0 || items[index - 1]?.group !== item.group" class="cp-group">
             {{ item.group }}
           </div>
           <button

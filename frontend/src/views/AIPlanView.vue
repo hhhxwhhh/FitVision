@@ -353,8 +353,8 @@ const formatText = (text: string) => {
 
 const isToday = (dayStr: string) => {
   const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-  const today = days[new Date().getDay()]
-  return dayStr.includes(today)
+  const today = days[new Date().getDay()] ?? ''
+  return today !== '' && dayStr.includes(today)
 }
 
 const getDayDate = (dayName: string) => {

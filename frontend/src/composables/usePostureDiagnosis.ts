@@ -91,22 +91,34 @@ export function usePostureDiagnosis() {
 
     if (results.poseLandmarks) {
       const now = Date.now();
-      const smoothed = results.poseLandmarks.map((lm, i) => ({
-        ...lm,
-        x: landmarkFilters[i].x.filter(lm.x, now),
-        y: landmarkFilters[i].y.filter(lm.y, now)
-      }));
+      const smoothed = results.poseLandmarks.map((lm, i) => {
+        const filter = landmarkFilters[i];
+        if (!filter) return { ...lm };
+        return {
+          ...lm,
+          x: filter.x.filter(lm.x, now),
+          y: filter.y.filter(lm.y, now)
+        };
+      });
 
       // 绘制诊断辅助线 (Frontal lines)
       if (currentMode.value === 'front') {
          ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
          ctx.lineWidth = 1;
          // 肩平线
-         const sY = (smoothed[11].y + smoothed[12].y) / 2 * canvasElement.value.height;
-         ctx.beginPath(); ctx.moveTo(0, sY); ctx.lineTo(canvasElement.value.width, sY); ctx.stroke();
+         const leftShoulder = smoothed[11];
+         const rightShoulder = smoothed[12];
+         const leftHip = smoothed[23];
+         const rightHip = smoothed[24];
+         if (leftShoulder && rightShoulder) {
+           const sY = ((leftShoulder.y + rightShoulder.y) / 2) * canvasElement.value.height;
+           ctx.beginPath(); ctx.moveTo(0, sY); ctx.lineTo(canvasElement.value.width, sY); ctx.stroke();
+         }
          // 髋平线
-         const hY = (smoothed[23].y + smoothed[24].y) / 2 * canvasElement.value.height;
-         ctx.beginPath(); ctx.moveTo(0, hY); ctx.lineTo(canvasElement.value.width, hY); ctx.stroke();
+         if (leftHip && rightHip) {
+           const hY = ((leftHip.y + rightHip.y) / 2) * canvasElement.value.height;
+           ctx.beginPath(); ctx.moveTo(0, hY); ctx.lineTo(canvasElement.value.width, hY); ctx.stroke();
+         }
       }
 
       drawConnectors(ctx, smoothed, POSE_CONNECTIONS, { color: '#10b981', lineWidth: 4 });
@@ -138,7 +150,7 @@ export function usePostureDiagnosis() {
     const localDetails: PostureReport['details'] = [];
     let baseScore = 100;
 
-    if (currentMode.value === 'front') {
+    if (currentMode.value === 'front' && landmarks[11] && landmarks[12]) {
         const shDiff = Math.abs(landmarks[11].y - landmarks[12].y);
         if (shDiff > 0.08) {
             baseScore -= 20;
