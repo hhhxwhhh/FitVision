@@ -62,8 +62,30 @@ npm run test:coverage   # 覆盖率报告
 
 测试文件约定：
 
-- 后端：各 app 下的 `tests.py`。
+- 后端：各 app 下的 `tests.py`。纯算法模块可脱离 Django 直接运行，例如：
+
+  ```bash
+  cd backend
+  python -m unittest recommendations.test_rerank   # MMR 重排
+  python -m unittest utils.test_demo_data         # 演示数据生成器
+  ```
+
 - 前端：与被测代码同目录的 `*.test.ts`（如 `src/utils/poseRecognition.test.ts`）。
+
+## 构建与体积预算
+
+```bash
+cd frontend
+npm run build   # 先执行 vue-tsc 类型检查，再打包
+npm run size    # 校验 dist 的 gzip 体积预算
+```
+
+- Element Plus 由 `unplugin-vue-components` 按模板实际用到的组件（含 `v-loading` 指令）按需引入，
+  不再整体注册；`src/components.d.ts` 是插件生成的产物，请勿手动编辑。
+- ECharts 同理：各视图只从 `echarts/core` 注册所需图表与组件。
+- 命令行调用的组件（`ElMessage` / `ElMessageBox`）无法被模板扫描到，其样式在 `src/main.ts` 显式引入。
+- `scripts/check-bundle-size.mjs` 的预算：入口 chunk 40KB、关键路径 CSS 80KB、任一 JS chunk 450KB（均按 gzip）。
+  超过预算时脚本与 CI 都会失败。
 
 ## 演示数据
 
@@ -81,8 +103,9 @@ python manage.py seed_demo_history --user demo --weeks 12 --force
 ## 代码质量
 
 - Python：Black（行宽 100）+ isort + flake8。
-- TypeScript / Vue：Prettier + ESLint。
+- TypeScript / Vue：Prettier + ESLint（`src/components.d.ts` 已忽略）。
 - 类型检查：`npm run type-check`（vue-tsc）。
+- 安全：模型返回的富文本一律先经 `src/utils/sanitizeHtml.ts` 消毒，禁止直接 `v-html` 原始字符串。
 - 新增接口请补充 OpenAPI 描述（drf-spectacular）与测试。
 
 ## 本地 Git 钩子
