@@ -77,6 +77,8 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
   clearLeader()
 })
+
+defineExpose({ open: () => (visible.value = true) })
 </script>
 
 <style scoped>

@@ -31,6 +31,12 @@
             <kbd>⌘K</kbd>
           </button>
 
+          <el-tooltip content="键盘快捷键" placement="bottom">
+            <button class="icon-btn shortcuts-trigger" type="button" aria-label="键盘快捷键" @click="openShortcuts">
+              <el-icon><QuestionFilled /></el-icon>
+            </button>
+          </el-tooltip>
+
           <el-tooltip v-if="canInstall" content="安装 FitVision 到桌面" placement="bottom">
             <button class="icon-btn" type="button" aria-label="安装应用" @click="handleInstall">
               <el-icon><Download /></el-icon>
@@ -131,7 +137,7 @@
     </el-drawer>
 
     <CommandPalette ref="paletteRef" />
-    <ShortcutsDialog />
+    <ShortcutsDialog ref="shortcutsRef" />
     <BackToTop />
   </div>
 </template>
@@ -149,6 +155,7 @@ import {
   HomeFilled,
   MagicStick,
   Menu,
+  QuestionFilled,
   Reading,
   Search,
   SwitchButton,
@@ -171,6 +178,7 @@ const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const paletteRef = ref<InstanceType<typeof CommandPalette> | null>(null)
+const shortcutsRef = ref<InstanceType<typeof ShortcutsDialog> | null>(null)
 const mobileOpen = ref(false)
 const year = new Date().getFullYear()
 
@@ -220,6 +228,7 @@ const isActive = (item: NavItem) => {
 }
 
 const openPalette = () => paletteRef.value?.open()
+const openShortcuts = () => shortcutsRef.value?.open()
 
 const navigate = (path: string) => {
   mobileOpen.value = false
@@ -624,6 +633,12 @@ onMounted(async () => {
   }
 
   .search-trigger kbd {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .shortcuts-trigger {
     display: none;
   }
 }
