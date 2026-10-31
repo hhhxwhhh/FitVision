@@ -256,10 +256,23 @@ class ReadinessReportTests(unittest.TestCase):
             "form_trend",
             "rest_days",
             "weekly_load",
+            "weekly_loads",
             "session_count",
             "reasons",
         ):
             self.assertIn(key, payload)
+
+    def test_weekly_loads_cover_the_last_four_weeks(self):
+        payload = readiness_report(steady(60), TODAY).as_dict()
+        self.assertEqual(len(payload["weekly_loads"]), 4)
+        self.assertTrue(all(value > 0 for value in payload["weekly_loads"]))
+        # 最后一周的周负荷应与 `weekly_load`（近 7 天）一致
+        self.assertAlmostEqual(payload["weekly_loads"][-1], payload["weekly_load"], places=6)
+
+    def test_weekly_loads_is_empty_without_history(self):
+        payload = readiness_report([], TODAY).as_dict()
+        self.assertEqual(payload["weekly_loads"], [])
+        self.assertEqual(payload["monotony"], 0.0)
 
     def test_volume_multiplier_sits_in_a_safe_range(self):
         for loads in (steady(60), steady(60, load=150), []):

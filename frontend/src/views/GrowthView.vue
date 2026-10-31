@@ -121,6 +121,19 @@
             <span>2.0</span>
           </div>
 
+          <div v-if="weeklyBars.length > 0" class="weekly-load">
+            <div class="weekly-load-head">
+              <small>近 {{ weeklyBars.length }} 周负荷</small>
+              <small>峰值 {{ numText(Math.max(...(loadModel?.weekly_loads ?? [0]))) }}</small>
+            </div>
+            <div class="weekly-bars">
+              <div v-for="(height, index) in weeklyBars" :key="index" class="weekly-bar">
+                <span class="weekly-bar-fill" :style="{ height: `${Math.max(height, 3)}%` }" />
+                <em>{{ weeklyLabels[index] }}</em>
+              </div>
+            </div>
+          </div>
+
           <ul v-if="loadReasons.length > 0" class="load-reasons">
             <li v-for="reason in loadReasons" :key="reason">{{ reason }}</li>
           </ul>
@@ -432,6 +445,15 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import apiClient from '../api'
+import {
+  acwrPercent as acwrPercentOf,
+  acwrText as acwrTextOf,
+  acwrTone as acwrToneOf,
+  parseLoadModel,
+  trendText as trendTextOf,
+  volumeText as volumeTextOf,
+  weeklyBars as weeklyBarsOf,
+} from '../utils/loadModel'
 
 interface ProgressInfo {
   level: number
@@ -561,64 +583,25 @@ const readiness = ref({
   advice: '完成一次训练后，这里会给出更准确的建议。',
 })
 
-/**
- * 服务端负荷模型（Banister 体能-疲劳冲激响应 + EWMA 版 ACWR + Foster 单调性）。
- * 老接口没有 `acwr` 字段时返回 null，UI 自动隐藏这一块。
- */
-const loadModel = computed(() => {
-  const raw = readiness.value as unknown as Record<string, unknown> | undefined
-  if (!raw || typeof raw !== 'object') return null
-  return Number.isFinite(Number(raw.acwr)) ? (raw as Record<string, unknown>) : null
-})
+/** 服务端负荷模型（Banister 体能-疲劳冲激响应 + EWMA 版 ACWR + Foster 单调性）。 */
+const loadModel = computed(() => parseLoadModel(readiness.value))
 
-const numText = (value: unknown, digits = 1) => {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed.toFixed(digits) : '—'
-}
+const numText = (value: number | undefined, digits = 1) =>
+  typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '—'
+const acwrText = computed(() => acwrTextOf(loadModel.value))
+const acwrTone = computed(() => acwrToneOf(loadModel.value))
+const acwrPercent = computed(() => acwrPercentOf(loadModel.value))
+const trendText = computed(() => trendTextOf(loadModel.value))
+const volumeText = computed(() => volumeTextOf(loadModel.value))
+const loadReasons = computed(() => loadModel.value?.reasons ?? [])
 
-const acwrValue = computed(() => {
-  const parsed = Number(loadModel.value?.acwr)
-  return Number.isFinite(parsed) ? parsed : null
-})
-
-const acwrText = computed(() => {
-  const value = acwrValue.value
-  return value === null ? '—' : value.toFixed(2)
-})
-
-const acwrTone = computed(() => {
-  const value = acwrValue.value
-  if (value === null) return 'ok'
-  if (value >= 1.5) return 'risk'
-  if (value > 1.3 || value < 0.8) return 'watch'
-  return 'ok'
-})
-
-/** 把 0.5–2.0 的负荷比映射到进度条上的百分比位置。 */
-const acwrPercent = computed(() => {
-  const value = acwrValue.value
-  if (value === null) return 0
-  return Math.max(0, Math.min(100, ((value - 0.5) / 1.5) * 100))
-})
-
-const trendText = computed(() => {
-  const parsed = Number(loadModel.value?.form_trend)
-  if (!Number.isFinite(parsed)) return '—'
-  if (parsed > 0.3) return `+${parsed.toFixed(1)} / 次`
-  if (parsed < -0.3) return `${parsed.toFixed(1)} / 次`
-  return '持平'
-})
-
-const volumeText = computed(() => {
-  const parsed = Number(loadModel.value?.volume_multiplier)
-  return Number.isFinite(parsed) ? `${Math.round(parsed * 100)}%` : '—'
-})
-
-const loadReasons = computed(() => {
-  const reasons = loadModel.value?.reasons
-  if (!Array.isArray(reasons)) return [] as string[]
-  return reasons.filter((item): item is string => typeof item === 'string')
-})
+/** 最近几周的负荷柱高（0-100），用纯 CSS 渲染，不引入图表库。 */
+const weeklyBars = computed(() => weeklyBarsOf(loadModel.value?.weekly_loads ?? []))
+const weeklyLabels = computed(() =>
+  loadModel.value?.weekly_loads.map((_, index, all) =>
+    index === all.length - 1 ? '本周' : `${all.length - 1 - index} 周前`,
+  ) ?? [],
+)
 
 const quests = ref<Quest[]>([])
 const challenges = ref<Challenge[]>([])
@@ -1188,6 +1171,61 @@ onMounted(loadAll)
   font-size: 11px;
   font-weight: 600;
   color: var(--fv-text-3);
+}
+
+.weekly-load {
+  margin-top: 18px;
+}
+
+.weekly-load-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--fv-text-3);
+}
+
+.weekly-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  height: 96px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-bottom: 1px solid var(--fv-border);
+}
+
+.weekly-bar {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.weekly-bar-fill {
+  width: 100%;
+  max-width: 46px;
+  border-radius: 4px 4px 0 0;
+  background: var(--fv-primary);
+  transition: height 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.weekly-bar:last-child .weekly-bar-fill {
+  background: var(--fv-accent);
+}
+
+.weekly-bar em {
+  position: absolute;
+  bottom: -20px;
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--fv-text-3);
+  white-space: nowrap;
 }
 
 .load-reasons {

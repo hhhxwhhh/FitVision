@@ -86,6 +86,7 @@ class ReadinessComponents:
     form_trend: float
     rest_days: int
     weekly_load: float
+    weekly_loads: list[float]
     session_count: int
 
     def as_dict(self) -> dict:
@@ -101,6 +102,7 @@ class ReadinessComponents:
             "form_trend": round(self.form_trend, 2),
             "rest_days": self.rest_days,
             "weekly_load": round(self.weekly_load, 2),
+            "weekly_loads": [round(value, 2) for value in self.weekly_loads],
             "session_count": self.session_count,
         }
 
@@ -298,8 +300,14 @@ def readiness_report(
 
     acute, chronic, acwr = acute_chronic_ratio(series)
     fitness, fatigue, tsb = banister_impulse(series)
-    monotony, strain = monotony_strain(series)
     trend = form_trend([item.form_score for item in items if item.form_score])
+    weekly = weekly_totals(series)
+
+    # 完全没有任何训练时，全零序列的"标准差为 0"会被误读成极端单调，这里直接短路。
+    if not items or sum(series) <= 0:
+        monotony, strain, weekly = 0.0, 0.0, []
+    else:
+        monotony, strain = monotony_strain(series)
 
     last_day = items[-1].day if items else None
     gap = rest_gap(last_day, today)
@@ -409,6 +417,7 @@ def readiness_report(
         form_trend=trend,
         rest_days=gap if gap != 999 else -1,
         weekly_load=sum(series[-7:]) if series else 0.0,
+        weekly_loads=weekly,
         session_count=len(items),
     )
 

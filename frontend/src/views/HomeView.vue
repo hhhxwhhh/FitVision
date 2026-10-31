@@ -227,6 +227,14 @@ import {
 } from '@element-plus/icons-vue'
 import apiClient from '../api'
 import AIRecommendations from '../components/AIRecommendations.vue'
+import {
+  acwrText as acwrTextOf,
+  acwrTone as acwrToneOf,
+  intensityText as intensityTextOf,
+  parseLoadModel,
+  restText as restTextOf,
+  tsbText as tsbTextOf,
+} from '../utils/loadModel'
 
 interface Insight {
   title: string
@@ -335,65 +343,15 @@ const readinessLabel = computed(() => {
   return labels[readinessTone.value]
 })
 
-/**
- * 服务端返回的负荷模型（Banister 体能-疲劳 + ACWR + Foster 单调性）。
- * 只有带 `acwr` 字段时才说明是新版本接口，老接口/离线状态直接降级为 null。
- */
-const loadModel = computed(() => {
-  const raw = growthOverview.value?.readiness
-  if (!raw || typeof raw !== 'object') return null
-  const acwr = Number((raw as Record<string, unknown>).acwr)
-  if (!Number.isFinite(acwr)) return null
-  return raw as Record<string, number | string | string[]>
-})
+/** 服务端负荷模型（Banister 体能-疲劳 + ACWR + Foster 单调性）。老接口 / 离线时为 null。 */
+const loadModel = computed(() => parseLoadModel(growthOverview.value?.readiness))
 
-const readinessReasons = computed(() => {
-  const reasons = loadModel.value?.reasons
-  if (!Array.isArray(reasons)) return [] as string[]
-  return reasons.filter((item): item is string => typeof item === 'string').slice(0, 3)
-})
-
-const acwrTone = computed(() => {
-  const ratio = Number(loadModel.value?.acwr)
-  if (!Number.isFinite(ratio)) return 'ok'
-  if (ratio >= 1.5) return 'risk'
-  if (ratio > 1.3 || ratio < 0.8) return 'watch'
-  return 'ok'
-})
-
-const acwrText = computed(() => {
-  const ratio = Number(loadModel.value?.acwr)
-  return Number.isFinite(ratio) ? ratio.toFixed(2) : '—'
-})
-
-const tsbText = computed(() => {
-  const tsb = Number(loadModel.value?.tsb)
-  if (!Number.isFinite(tsb)) return '—'
-  const rounded = Math.round(tsb)
-  if (rounded > 0) return `体能 +${rounded}`
-  if (rounded < 0) return `疲劳 ${rounded}`
-  return '平衡'
-})
-
-const restText = computed(() => {
-  const days = Number(loadModel.value?.rest_days)
-  if (!Number.isFinite(days)) return '—'
-  if (days < 0) return '暂无记录'
-  if (days === 0) return '今天已练'
-  return `${days} 天前`
-})
-
-const INTENSITY_LABELS: Record<string, string> = {
-  rest: '主动恢复',
-  light: '低强度',
-  moderate: '中等强度',
-  hard: '高强度',
-}
-
-const intensityText = computed(() => {
-  const key = String(loadModel.value?.intensity ?? '')
-  return INTENSITY_LABELS[key] ?? '按计划'
-})
+const readinessReasons = computed(() => loadModel.value?.reasons.slice(0, 3) ?? [])
+const acwrTone = computed(() => acwrToneOf(loadModel.value))
+const acwrText = computed(() => acwrTextOf(loadModel.value))
+const tsbText = computed(() => tsbTextOf(loadModel.value))
+const restText = computed(() => restTextOf(loadModel.value))
+const intensityText = computed(() => intensityTextOf(loadModel.value))
 
 const topVolume = computed(() => {
   const volumes = userStatus.value?.volume_stats
