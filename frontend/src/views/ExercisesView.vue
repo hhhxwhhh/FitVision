@@ -340,19 +340,6 @@ export default {
 
 <style scoped>
 .page-container {
-    --milan-bg-main: #F5F2ED; /* 页面主背景 / 卡片底色 */
-    --milan-bg-surface: #E5E0D8; /* 卡片边框 / 分隔线 */
-    --milan-bg-soft: #EFE8DD; /* 弱强调背景 / hover 底色 */
-    --milan-text-primary: #3C2F2F; /* 主标题 / 主正文 */
-    --milan-text-secondary: #7D756D; /* 辅助说明文字 */
-    --milan-accent: #BEA47E; /* 主按钮 / 强调交互 */
-    --milan-accent-soft: #D5C6B0; /* 次级强调态 */
-    --milan-accent-deep: #9F8462; /* 深层强调态 */
-    --milan-shadow-soft: rgba(60, 47, 47, 0.08); /* 常规阴影 */
-    --milan-shadow-medium: rgba(60, 47, 47, 0.14); /* 悬浮阴影 */
-    --milan-image-bg: #4C403A; /* 动作图卡深底背景 */
-    --milan-on-dark: #F5F2ED; /* 深背景上的主文字 */
-    --milan-on-dark-muted: #D5C6B0; /* 深背景上的辅助文字 */
 
     --text-main: var(--milan-text-primary);
     --text-secondary: var(--milan-text-secondary);
@@ -360,7 +347,7 @@ export default {
 
     max-width: 1200px;
     margin: 0 auto;
-    background: var(--milan-bg-main);
+    background: transparent;
     color: var(--milan-text-primary);
     padding-bottom: 60px;
 }
@@ -717,7 +704,7 @@ export default {
     --el-button-hover-border-color: var(--milan-accent-deep);
     --el-button-active-bg-color: var(--milan-accent-deep);
     --el-button-active-border-color: var(--milan-accent-deep);
-    --el-button-text-color: var(--milan-bg-main);
+    --el-button-text-color: var(--milan-on-accent);
 }
 
 .page-container :deep(.el-button.is-text) {
@@ -733,7 +720,7 @@ export default {
 
 .page-container :deep(.el-pagination.is-background .el-pager li.is-active) {
     background-color: var(--milan-accent);
-    color: var(--milan-bg-main);
+    color: var(--milan-on-accent);
 }
 
 .page-container :deep(.el-dialog) {

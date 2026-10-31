@@ -94,11 +94,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Cpu, ArrowLeft, Search, CircleCheck, Promotion, Lock, Link } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import apiClient from '../api'
+import { useTheme } from '../composables/useTheme'
 
 const router = useRouter()
 const chartRef = ref<HTMLElement | null>(null)
@@ -111,24 +112,33 @@ const stats = ref<any>(null)
 let myChart: any = null
 let graphRawData: any = null
 
-// 米兰色系（当前页面专用）
-const MILAN_COLORS = {
-  pageBase: '#F5F2ED', // 页面背景 / 主容器底色
-  surface: '#E5E0D8', // 分隔线 / 卡片边框
-  surfaceSoft: '#EFE8DD', // 悬浮底色 / 弱强调区
-  textPrimary: '#3C2F2F', // 主标题 / 主正文
-  textSecondary: '#7D756D', // 次级文字 / 注释
-  accent: '#BEA47E', // 交互强调色
-  accentSoft: '#D5C6B0', // 次级强调色
-  accentDeep: '#9F8462', // 深层强调色
+// 图谱配色跟随全局设计令牌，深浅色主题自动切换
+const { resolved } = useTheme()
+
+const cssVar = (name: string, fallback: string) => {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return value || fallback
 }
 
+const palette = () => ({
+  surface: cssVar('--fv-surface', '#ffffff'),
+  surfaceSoft: cssVar('--fv-surface-2', '#f1f3fa'),
+  border: cssVar('--fv-border', 'rgba(16,24,40,0.09)'),
+  textPrimary: cssVar('--fv-text', '#0f172a'),
+  textSecondary: cssVar('--fv-text-2', '#64748b'),
+  accent: cssVar('--fv-primary', '#6d5efc'),
+  accentSoft: cssVar('--fv-accent', '#06b6d4'),
+  accentDeep: cssVar('--fv-primary-strong', '#5546e8'),
+})
+
 const progressColor = computed(() => {
-  if (!stats.value) return MILAN_COLORS.accentSoft
+  void resolved.value
+  const colors = palette()
+  if (!stats.value) return colors.accentSoft
   const p = stats.value.percent
-  if (p < 30) return MILAN_COLORS.surface
-  if (p < 70) return MILAN_COLORS.accentSoft
-  return MILAN_COLORS.accent
+  if (p < 30) return colors.border
+  if (p < 70) return colors.accentSoft
+  return colors.accent
 })
 
 const handleSearch = () => {
@@ -205,7 +215,8 @@ const fetchGraphData = async () => {
 
 const initChart = (data: any) => {
   if (!chartRef.value) return
-  
+  const colors = palette()
+
   const categories = data.categories || []
   // 按用户要求：知识图谱中的部位标签色（如胸部/背部）保持原配色，不做米兰替换
   const categoryPalette = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16', '#f97316']
@@ -242,25 +253,25 @@ const initChart = (data: any) => {
 
   myChart = echarts.init(chartRef.value)
   const option = {
-    backgroundColor: MILAN_COLORS.pageBase,
+    backgroundColor: 'transparent',
     tooltip: {
       show: true,
       trigger: 'item',
-      backgroundColor: 'rgba(245, 242, 237, 0.96)',
-      borderColor: MILAN_COLORS.surface,
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
       borderWidth: 1,
       padding: [10, 15],
-      textStyle: { color: MILAN_COLORS.textSecondary, fontSize: 13 },
+      textStyle: { color: colors.textSecondary, fontSize: 13 },
       extraCssText: 'box-shadow: 0 4px 12px rgba(60,47,47,0.12); border-radius: 8px;',
       formatter: (params: any) => {
         if (params.dataType === 'node') {
           const statusMap: any = { mastered: '已掌握', ready: '可练习', locked: '未解锁' }
-          const statusColor: any = { mastered: MILAN_COLORS.accentDeep, ready: MILAN_COLORS.accent, locked: MILAN_COLORS.textSecondary }
+          const statusColor: any = { mastered: colors.accentDeep, ready: colors.accent, locked: colors.textSecondary }
           return `
             <div style="font-weight:bold;margin-bottom:4px;">${params.name}</div>
             <div style="font-size:12px;">部位: ${params.data.category_name || params.data.categoryName || params.data.category}</div>
             <div style="font-size:12px;">状态: <span style="color:${statusColor[params.data.status]}">${statusMap[params.data.status]}</span></div>
-            <div style="font-size:11px;color:${MILAN_COLORS.textSecondary};margin-top:4px;">${params.data.gnn_insight}</div>
+            <div style="font-size:11px;color:${colors.textSecondary};margin-top:4px;">${params.data.gnn_insight}</div>
           `
         } else if (params.dataType === 'edge') {
           return `
@@ -280,11 +291,11 @@ const initChart = (data: any) => {
       right: 30,
       top: 'center',
       padding: [15, 20],
-      backgroundColor: 'rgba(245, 242, 237, 0.85)',
-      borderColor: MILAN_COLORS.surface,
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
       borderWidth: 1,
       borderRadius: 10,
-      textStyle: { color: MILAN_COLORS.textSecondary, fontSize: 13, fontWeight: 500 },
+      textStyle: { color: colors.textSecondary, fontSize: 13, fontWeight: 500 },
       icon: 'circle',
       selectedMode: 'multiple' // 允许点击过滤分类，提升探索体验
     },
@@ -308,7 +319,7 @@ const initChart = (data: any) => {
           formatter: '{b}',
           fontSize: 11,
           fontWeight: 500,
-          color: MILAN_COLORS.textPrimary,
+          color: colors.textPrimary,
           distance: 10 // 增加文字与节点的距离
         },
         edgeSymbol: ['none', 'arrow'],
@@ -369,6 +380,13 @@ const handleResize = () => {
   myChart?.resize()
 }
 
+watch(resolved, () => {
+  if (!graphRawData || nodesCount.value === 0) return
+  myChart?.dispose()
+  myChart = null
+  nextTick(() => initChart(graphRawData))
+})
+
 onMounted(() => {
   fetchGraphData()
   window.addEventListener('resize', handleResize)
@@ -382,22 +400,13 @@ onUnmounted(() => {
 
 <style scoped>
 .graph-container {
-  --milan-bg-main: #F5F2ED; /* 页面主背景 */
-  --milan-bg-surface: #E5E0D8; /* 卡片边框 / 分隔线 */
-  --milan-bg-soft: #EFE8DD; /* 悬浮态 / 弱强调背景 */
-  --milan-text-primary: #3C2F2F; /* 主标题 / 正文 */
-  --milan-text-secondary: #7D756D; /* 辅助说明文字 */
-  --milan-accent: #BEA47E; /* 交互强调 */
-  --milan-accent-soft: #D5C6B0; /* 次级强调 */
-  --milan-accent-deep: #9F8462; /* 深层强调 */
-  --milan-shadow-soft: rgba(60, 47, 47, 0.08); /* 常规阴影 */
-  --milan-shadow-medium: rgba(60, 47, 47, 0.14); /* 悬浮阴影 */
 
   padding: 20px;
-  height: calc(100vh - 40px); /* 增加可用空间 */
+  height: calc(100vh - var(--header-height, 72px) - 90px);
+  min-height: 560px;
   display: flex;
   flex-direction: column;
-  background-color: var(--milan-bg-main);
+  background-color: transparent;
   color: var(--milan-text-primary);
 }
 

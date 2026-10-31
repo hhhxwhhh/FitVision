@@ -256,15 +256,16 @@ const editingItem = ref<ScheduleItem | null>(null)
 const editingIndex = ref(-1)
 
 // 米兰色系（当前页面专用）
+// 全部使用 CSS 变量，随深浅色主题自动变化
 const MILAN_COLORS = {
-  pageBase: '#F5F2ED', // 页面背景 / 主容器底色
-  surface: '#E5E0D8', // 卡片边框 / 弱对比分隔
-  surfaceMid: '#DCCFBE', // 中间态底色 / 轻强调块
-  textPrimary: '#3C2F2F', // 标题 / 主正文
-  textSecondary: '#7D756D', // 注释 / 辅助说明
-  accent: '#BEA47E', // 主按钮 / 选中态
-  accentSoft: '#D5C6B0', // 次级强调 / 中段进度
-  accentDeep: '#9F8462', // 深强调 / 渐变深色端
+  pageBase: 'var(--fv-bg-soft)',
+  surface: 'var(--fv-surface-3)',
+  surfaceMid: 'var(--fv-border-strong)',
+  textPrimary: 'var(--fv-text)',
+  textSecondary: 'var(--fv-text-2)',
+  accent: 'var(--fv-primary)',
+  accentSoft: 'var(--fv-accent)',
+  accentDeep: 'var(--fv-primary-strong)',
 }
 
 // 进度条颜色
@@ -378,23 +379,12 @@ const showExerciseDetail = (ex: Exercise) => {
 <style scoped>
 /* 页面容器 */
 .plan-page {
-  --milan-bg-main: #F5F2ED; /* 页面主背景 */
-  --milan-bg-surface: #E5E0D8; /* 边框/分隔浅底 */
-  --milan-bg-soft-contrast: #DCCFBE; /* 中间态块背景 */
-  --milan-text-primary: #3C2F2F; /* 主标题/正文 */
-  --milan-text-secondary: #7D756D; /* 辅助说明文字 */
-  --milan-accent: #BEA47E; /* 主操作/选中态 */
-  --milan-accent-soft: #D5C6B0; /* 次级强调 */
-  --milan-accent-deep: #9F8462; /* 深层强调 */
-  --milan-on-accent: #F5F2ED; /* 强调色上的文字 */
-  --milan-shadow-soft: rgba(60, 47, 47, 0.08); /* 常规浮层阴影 */
-  --milan-shadow-medium: rgba(60, 47, 47, 0.14); /* 悬浮态阴影 */
 
   --text-main: var(--milan-text-primary);
   --text-secondary: var(--milan-text-secondary);
 
   min-height: calc(100vh - var(--header-height));
-  background: var(--milan-bg-main);
+  background: transparent;
   color: var(--milan-text-primary);
   padding: 0;
   display: flex;

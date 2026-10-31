@@ -285,6 +285,7 @@ import {
 import type { FormInstance } from 'element-plus'
 import dayjs from 'dayjs'
 import apiClient from '@/api'
+import { useTheme } from '@/composables/useTheme'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -330,30 +331,43 @@ const stats = reactive({
   best_accuracy_score: 0,
 })
 
-// 米兰色系（当前页面专用）
-const MILAN_COLORS = {
-  pageBase: '#F5F2ED', // 页面背景 / 卡片底色
-  surface: '#E5E0D8', // 边框 / 分隔
-  surfaceSoft: '#EFE8DD', // 弱强调背景
-  textPrimary: '#3C2F2F', // 标题 / 主文本
-  textSecondary: '#7D756D', // 辅助文字
-  accent: '#BEA47E', // 主强调
-  accentSoft: '#D5C6B0', // 次强调
-  accentDeep: '#9F8462', // 深强调
+// 图表配色跟随全局设计令牌，深浅色主题切换时自动重算
+const { resolved } = useTheme()
+
+const cssVar = (name: string, fallback: string) => {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return value || fallback
 }
 
-const HEATMAP_COLORS = [
-  '#E5E0D8', // level 0
-  '#DCCFBE', // level 1
-  '#D5C6B0', // level 2
-  '#BEA47E', // level 3
-  '#9F8462', // level 4
-]
+const chartPalette = () => {
+  void resolved.value
+  return {
+    pageBase: cssVar('--fv-bg', '#f6f7fb'),
+    surface: cssVar('--fv-surface', '#ffffff'),
+    surfaceSoft: cssVar('--fv-surface-2', '#f1f3fa'),
+    border: cssVar('--fv-border', 'rgba(16, 24, 40, 0.09)'),
+    textPrimary: cssVar('--fv-text', '#0f172a'),
+    textSecondary: cssVar('--fv-text-2', '#64748b'),
+    accent: cssVar('--fv-primary', '#6d5efc'),
+    accentSoft: cssVar('--fv-accent', '#06b6d4'),
+    accentDeep: cssVar('--fv-primary-strong', '#5546e8'),
+    success: cssVar('--fv-success', '#10b981'),
+    warning: cssVar('--fv-warning', '#f59e0b'),
+    levels: [
+      cssVar('--fv-surface-2', '#f1f3fa'),
+      cssVar('--fv-border-strong', 'rgba(16, 24, 40, 0.16)'),
+      cssVar('--fv-primary-soft', 'rgba(109, 94, 252, 0.12)'),
+      cssVar('--fv-primary', '#6d5efc'),
+      cssVar('--fv-primary-strong', '#5546e8'),
+    ],
+  }
+}
 
 const heatmapData = ref<any[]>([])
 
 const heatmapOption = computed(() => {
   const currentYear = new Date().getFullYear()
+  const palette = chartPalette()
   return {
     tooltip: {
       position: 'top',
@@ -371,11 +385,11 @@ const heatmapOption = computed(() => {
       top: 0,
       show: false,
       pieces: [
-        { min: 0, max: 0, color: HEATMAP_COLORS[0] },
-        { min: 1, max: 150, color: HEATMAP_COLORS[1] },
-        { min: 151, max: 300, color: HEATMAP_COLORS[2] },
-        { min: 301, max: 450, color: HEATMAP_COLORS[3] },
-        { min: 451, color: HEATMAP_COLORS[4] }
+        { min: 0, max: 0, color: palette.levels[0] },
+        { min: 1, max: 150, color: palette.levels[1] },
+        { min: 151, max: 300, color: palette.levels[2] },
+        { min: 301, max: 450, color: palette.levels[3] },
+        { min: 451, color: palette.levels[4] }
       ]
     },
     calendar: {
@@ -386,11 +400,11 @@ const heatmapOption = computed(() => {
       range: currentYear,
       itemStyle: {
         borderWidth: 0.5,
-        borderColor: MILAN_COLORS.pageBase
+        borderColor: palette.pageBase
       },
       yearLabel: { show: false },
-      dayLabel: { firstDay: 1, nameMap: 'cn', color: MILAN_COLORS.textSecondary, fontSize: 10 },
-      monthLabel: { nameMap: 'cn', color: MILAN_COLORS.textSecondary, fontSize: 10 }
+      dayLabel: { firstDay: 1, nameMap: 'cn', color: palette.textSecondary, fontSize: 10 },
+      monthLabel: { nameMap: 'cn', color: palette.textSecondary, fontSize: 10 }
     },
     series: {
       type: 'heatmap',
@@ -401,6 +415,7 @@ const heatmapOption = computed(() => {
 })
 
 const radarOption = computed(() => {
+  const palette = chartPalette()
   return {
     radar: {
       indicator: [
@@ -413,12 +428,12 @@ const radarOption = computed(() => {
       shape: 'polygon',
       splitNumber: 5,
       axisName: {
-        color: MILAN_COLORS.textSecondary,
+        color: palette.textSecondary,
         fontSize: 10
       },
       splitLine: {
         lineStyle: {
-          color: 'rgba(125, 117, 109, 0.18)'
+          color: palette.border
         }
       },
       splitArea: {
@@ -426,7 +441,7 @@ const radarOption = computed(() => {
       },
       axisLine: {
         lineStyle: {
-          color: 'rgba(125, 117, 109, 0.18)'
+          color: palette.border
         }
       }
     },
@@ -446,14 +461,14 @@ const radarOption = computed(() => {
             name: '当前表现',
             symbol: 'none',
             itemStyle: {
-              color: MILAN_COLORS.accent
+              color: palette.accent
             },
             areaStyle: {
-              color: 'rgba(190, 164, 126, 0.28)'
+              color: palette.levels[2]
             },
             lineStyle: {
                 width: 2,
-                color: MILAN_COLORS.accentDeep
+                color: palette.accentDeep
             }
           }
         ]
@@ -527,10 +542,11 @@ const getBMIType = (bmi: number) => {
 }
 
 const getBMIColor = (bmi: number) => {
-  if (bmi < 18.5) return MILAN_COLORS.accent
-  if (bmi < 24) return MILAN_COLORS.accentDeep
-  if (bmi < 28) return MILAN_COLORS.accent
-  return MILAN_COLORS.textSecondary
+  const palette = chartPalette()
+  if (bmi < 18.5) return palette.warning
+  if (bmi < 24) return palette.success
+  if (bmi < 28) return palette.warning
+  return palette.accent
 }
 
 const getBMIText = (bmi: number) => {
@@ -674,20 +690,11 @@ const handleLogout = () => {
 
 <style scoped>
 .page-container {
-  --milan-bg-main: #F5F2ED; /* 页面主背景 / 卡片底色 */
-  --milan-bg-surface: #E5E0D8; /* 边框 / 分隔 */
-  --milan-bg-soft: #EFE8DD; /* 弱强调背景 */
-  --milan-text-primary: #3C2F2F; /* 主标题 / 主文本 */
-  --milan-text-secondary: #7D756D; /* 辅助说明文字 */
-  --milan-accent: #BEA47E; /* 主交互强调 */
-  --milan-accent-soft: #D5C6B0; /* 次级强调 */
-  --milan-accent-deep: #9F8462; /* 深层强调 */
-  --milan-shadow-soft: rgba(60, 47, 47, 0.08); /* 常规阴影 */
 
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px 20px 60px;
-  background: var(--milan-bg-main);
+  background: transparent;
   color: var(--milan-text-primary);
 }
 
@@ -729,7 +736,7 @@ const handleLogout = () => {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--milan-bg-main);
+    color: var(--milan-on-accent);
     font-size: 20px;
     opacity: 0;
     transition: opacity 0.3s;
@@ -1112,11 +1119,11 @@ const handleLogout = () => {
     border-radius: 2px;
 }
 
-.scale-item.level-0 { background: #E5E0D8; }
-.scale-item.level-1 { background: #DCCFBE; }
-.scale-item.level-2 { background: #D5C6B0; }
-.scale-item.level-3 { background: #BEA47E; }
-.scale-item.level-4 { background: #9F8462; }
+.scale-item.level-0 { background: var(--fv-surface-3); }
+.scale-item.level-1 { background: var(--fv-border-strong); }
+.scale-item.level-2 { background: var(--fv-primary-soft); }
+.scale-item.level-3 { background: var(--fv-primary); }
+.scale-item.level-4 { background: var(--fv-primary-strong); }
 
 .heatmap-container {
     height: 200px;
@@ -1170,7 +1177,7 @@ const handleLogout = () => {
 }
 
 .styled-textarea :deep(.el-textarea__inner:focus) {
-    background-color: var(--milan-bg-main);
+    background-color: var(--milan-on-accent);
 }
 
 .page-container :deep(.el-button--primary) {
@@ -1180,7 +1187,7 @@ const handleLogout = () => {
   --el-button-hover-border-color: var(--milan-accent-deep);
   --el-button-active-bg-color: var(--milan-accent-deep);
   --el-button-active-border-color: var(--milan-accent-deep);
-  --el-button-text-color: var(--milan-bg-main);
+  --el-button-text-color: var(--milan-on-accent);
 }
 
 .page-container :deep(.el-input__wrapper),
@@ -1205,7 +1212,7 @@ const handleLogout = () => {
 .page-container :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
   background: var(--milan-accent);
   border-color: var(--milan-accent);
-  color: var(--milan-bg-main);
+  color: var(--milan-on-accent);
   box-shadow: -1px 0 0 0 var(--milan-accent);
 }
 

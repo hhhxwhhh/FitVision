@@ -450,15 +450,16 @@ const loading = reactive({
     plans: false
 })
 
+// 全部使用 CSS 变量，随深浅色主题自动变化
 const MILAN_COLORS = {
-    pageBase: '#F5F2ED', // 页面主背景 / 表头背景
-    surface: '#E5E0D8', // 边框 / 分隔
-    surfaceSoft: '#EFE8DD', // 弱强调背景
-    textPrimary: '#3C2F2F', // 主文字
-    textSecondary: '#7D756D', // 辅助文字
-    accent: '#BEA47E', // 主强调
-    accentSoft: '#D5C6B0', // 次强调
-    accentDeep: '#9F8462', // 深强调
+    pageBase: 'var(--fv-surface-2)',
+    surface: 'var(--fv-border)',
+    surfaceSoft: 'var(--fv-surface-2)',
+    textPrimary: 'var(--fv-text)',
+    textSecondary: 'var(--fv-text-2)',
+    accent: 'var(--fv-primary)',
+    accentSoft: 'var(--fv-accent)',
+    accentDeep: 'var(--fv-primary-strong)',
 }
 
 const showRestOverlay = ref(false)
@@ -996,9 +997,9 @@ export default {
 .diagnosis-report-card {
     margin-bottom: 25px;
     border-radius: 16px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--fv-border);
     overflow: hidden;
-    background: #fff;
+    background: var(--fv-surface);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -1012,19 +1013,19 @@ export default {
     align-items: center;
     gap: 12px;
     font-weight: 700;
-    color: #1e293b;
+    color: var(--fv-text);
     font-size: 1.1rem;
 }
 
 .report-body h4 {
     margin-top: 5px;
     margin-bottom: 15px;
-    color: #475569;
+    color: var(--fv-text-2);
     font-size: 16px;
 }
 
 .report-body h4 span {
-    color: #0f172a;
+    color: var(--fv-text);
 }
 
 .analysis-grid {
@@ -1037,7 +1038,7 @@ export default {
 .grid-item .label {
     font-size: 12px;
     font-weight: 700;
-    color: #64748b;
+    color: var(--fv-text-3);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-bottom: 8px;
@@ -1046,12 +1047,12 @@ export default {
 .grid-item p {
     font-size: 14px;
     line-height: 1.6;
-    color: #334155;
+    color: var(--fv-text-2);
     margin: 0;
 }
 
 .recommendations-section {
-    background: #f8fafc;
+    background: var(--fv-surface-2);
     padding: 15px;
     border-radius: 12px;
     margin-bottom: 20px;
@@ -1060,7 +1061,7 @@ export default {
 .recommendations-section .label {
     font-size: 13px;
     font-weight: 600;
-    color: #475569;
+    color: var(--fv-text-2);
     margin-bottom: 10px;
 }
 
@@ -1170,13 +1171,13 @@ export default {
 }
 
 :deep(.el-table .active-row) {
-    background: #f0f9ff !important;
-    --el-table-row-hover-bg-color: #e0f2fe;
+    background: var(--fv-primary-soft) !important;
+    --el-table-row-hover-bg-color: var(--fv-surface-2);
 }
 
 :deep(.el-table .completed-row) {
     opacity: 0.6;
-    background: #f8fafc !important;
+    background: var(--fv-surface-2) !important;
 }
 
 
@@ -1189,7 +1190,7 @@ export default {
     border-radius: 16px;
     border: none;
     overflow: hidden;
-    background: white;
+    background: var(--fv-surface);
 }
 
 .styled-collapse {
@@ -1217,8 +1218,8 @@ export default {
     width: 28px;
     height: 28px;
     border-radius: 8px;
-    background: #f1f5f9;
-    color: #64748b;
+    background: var(--fv-surface-2);
+    color: var(--fv-text-2);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1254,9 +1255,9 @@ export default {
     border-radius: 16px;
     overflow: hidden;
     margin: 0 auto 20px;
-    border: 2px solid rgba(226, 232, 240, 0.5);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    background: #f8fafc;
+    border: 2px solid var(--fv-border);
+    box-shadow: var(--fv-shadow-sm);
+    background: var(--fv-surface-2);
 }
 
 .demo-gif {
@@ -1285,7 +1286,7 @@ export default {
 
 .exercise-badge {
     margin-top: 8px;
-    background: #eff6ff;
+    background: var(--fv-primary-soft);
     color: var(--el-color-primary);
     padding: 4px 10px;
     border-radius: 6px;
@@ -1306,8 +1307,8 @@ export default {
 }
 
 .active-state {
-    background: #f0fdf4;
-    border: 1px solid #bbf7d0;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.28);
     border-radius: 12px;
     padding: 16px;
     text-align: center;
@@ -1315,15 +1316,15 @@ export default {
 
 .column-footer-tips {
     padding: 20px 24px;
-    background: #f8fafc;
-    border-top: 1px dashed #e2e8f0;
+    background: var(--fv-surface-2);
+    border-top: 1px dashed var(--fv-border);
 }
 
 .tip-card {
     display: flex;
     align-items: center;
     gap: 10px;
-    color: #64748b;
+    color: var(--fv-text-2);
     font-size: 12px;
 }
 
@@ -1333,7 +1334,7 @@ export default {
 
 .session-timer {
     font-weight: 600;
-    color: #15803d;
+    color: var(--fv-success);
     margin-bottom: 4px;
 }
 
@@ -1470,16 +1471,16 @@ export default {
 .sub-text {
     margin-top: 6px;
     font-size: 13px;
-    color: #64748b;
+    color: var(--fv-text-2);
 }
 
 .feedback-card {
-    background: #1e293b;
+    background: var(--fv-surface-2);
     border-radius: 12px;
     padding: 16px;
     margin-bottom: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    color: white;
+    border: 1px solid var(--fv-border);
+    color: var(--fv-text);
 }
 
 .card-top {
@@ -1491,7 +1492,7 @@ export default {
 
 .card-label {
     font-size: 14px;
-    color: #cbd5e1;
+    color: var(--fv-text-2);
     font-weight: 600;
 }
 
@@ -1499,7 +1500,7 @@ export default {
 .rpe-value {
     font-size: 16px;
     font-weight: bold;
-    color: #3b82f6;
+    color: var(--fv-primary);
 }
 
 .slider-container {
@@ -1510,8 +1511,8 @@ export default {
 .rpe-desc-text {
     text-align: center;
     font-size: 13px;
-    color: #94a3b8;
-    background: rgba(0, 0, 0, 0.2);
+    color: var(--fv-text-2);
+    background: var(--fv-bg-soft);
     padding: 6px;
     border-radius: 8px;
 }
@@ -1527,9 +1528,9 @@ export default {
 .feedback-tag {
     cursor: pointer;
     transition: all 0.2s;
-    background-color: #0f172a;
-    border: 1px solid #334155;
-    color: #94a3b8;
+    background-color: var(--fv-surface);
+    border: 1px solid var(--fv-border);
+    color: var(--fv-text-2);
     padding: 6px 12px;
     border-radius: 20px;
     font-size: 12px;
@@ -1537,13 +1538,13 @@ export default {
 
 .feedback-tag:hover {
     border-color: #3b82f6;
-    color: #3b82f6;
+    color: var(--fv-primary);
 }
 
 /* 覆盖 Element CheckTag 选中态 */
 :deep(.el-check-tag.is-checked) {
-    background-color: #3b82f6 !important;
-    border-color: #3b82f6 !important;
+    background-color: var(--el-color-primary) !important;
+    border-color: var(--el-color-primary) !important;
     color: #fff !important;
     font-weight: 600;
 }
@@ -1566,7 +1567,7 @@ export default {
     font-size: 16px;
     font-weight: 600;
     border-radius: 12px;
-    background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+    background: var(--fv-gradient);
     border: none;
     transition: all 0.3s;
 }
@@ -1611,136 +1612,47 @@ export default {
 }
 
 /* =========================================
-   Milan Override Layer (单页配色收口)
+   页面主题收口：全部走全局设计令牌
    ========================================= */
 .page-container {
-    --milan-bg-main: #F5F2ED;
-    --milan-bg-surface: #E5E0D8;
-    --milan-bg-soft: #EFE8DD;
-    --milan-text-primary: #3C2F2F;
-    --milan-text-secondary: #7D756D;
-    --milan-accent: #BEA47E;
-    --milan-accent-soft: #D5C6B0;
-    --milan-accent-deep: #9F8462;
-    --milan-shadow-soft: rgba(60, 47, 47, 0.08);
-
-    background: var(--milan-bg-main);
-    color: var(--milan-text-primary);
+    background: transparent;
+    color: var(--fv-text);
 }
 
 .page-container :deep(.el-card) {
-    background: var(--milan-bg-main);
-    border: 1px solid var(--milan-bg-surface);
-    box-shadow: 0 8px 20px var(--milan-shadow-soft);
+    background: var(--fv-surface);
+    border: 1px solid var(--fv-border);
+    box-shadow: var(--fv-shadow-sm);
 }
 
 .page-container :deep(.el-button--primary) {
-    --el-button-bg-color: var(--milan-accent);
-    --el-button-border-color: var(--milan-accent);
-    --el-button-hover-bg-color: var(--milan-accent-deep);
-    --el-button-hover-border-color: var(--milan-accent-deep);
-    --el-button-active-bg-color: var(--milan-accent-deep);
-    --el-button-active-border-color: var(--milan-accent-deep);
-    --el-button-text-color: #F5F2ED;
-}
-
-.page-container :deep(.el-button--success),
-.generate-btn {
-    background: linear-gradient(90deg, #BEA47E 0%, #9F8462 100%) !important;
-    border: none !important;
-}
-
-.page-container :deep(.el-button--success:hover),
-.generate-btn:hover {
-    box-shadow: 0 4px 12px rgba(159, 132, 98, 0.35) !important;
-}
-
-.page-container :deep(.el-tag--success),
-.page-container :deep(.el-tag--success.is-light),
-.page-container :deep(.el-tag--success.is-dark) {
-    --el-tag-bg-color: var(--milan-accent-soft);
-    --el-tag-border-color: var(--milan-accent-soft);
-    --el-tag-text-color: var(--milan-accent-deep);
-}
-
-.page-container :deep(.el-tag--info),
-.page-container :deep(.el-tag--info.is-plain) {
-    --el-tag-bg-color: var(--milan-bg-main);
-    --el-tag-border-color: var(--milan-bg-surface);
-    --el-tag-text-color: var(--milan-text-secondary);
+    --el-button-text-color: #ffffff;
 }
 
 .page-container :deep(.el-table) {
-    --el-table-border-color: var(--milan-bg-surface);
-    --el-table-header-bg-color: var(--milan-bg-main);
-    --el-table-row-hover-bg-color: var(--milan-bg-soft);
-    --el-table-text-color: var(--milan-text-primary);
-    --el-table-header-text-color: var(--milan-text-secondary);
+    --el-table-border-color: var(--fv-border);
+    --el-table-header-bg-color: var(--fv-surface-2);
+    --el-table-row-hover-bg-color: var(--fv-surface-2);
+    --el-table-text-color: var(--fv-text);
+    --el-table-header-text-color: var(--fv-text-2);
 }
 
 .page-container :deep(.el-input__wrapper),
 .page-container :deep(.el-select__wrapper),
 .page-container :deep(.el-input-number__wrapper) {
-    background: var(--milan-bg-main);
-    box-shadow: 0 0 0 1px var(--milan-bg-surface) inset;
+    background: var(--fv-surface);
+    box-shadow: 0 0 0 1px var(--fv-border) inset;
 }
 
 .page-container :deep(.el-input__wrapper.is-focus),
 .page-container :deep(.el-select__wrapper.is-focused),
 .page-container :deep(.el-input-number__wrapper:focus-within) {
-    box-shadow: 0 0 0 1px var(--milan-accent-soft) inset;
+    box-shadow: 0 0 0 1px var(--fv-primary) inset;
 }
 
-.page-title,
-.section-title,
-.report-header span,
-.stat-info .val,
-.step-title span {
-    color: var(--milan-text-primary) !important;
-}
-
-.stat-info .label,
-.target-hint,
-.card-label,
-.rpe-desc-text,
-.ai-tip span,
-.sub-btn {
-    color: var(--milan-text-secondary) !important;
-}
-
-.ai-display-card,
-.plan-card,
-.control-card,
-.diagnosis-report-card,
-.column-footer-tips .tip-card {
-    background: var(--milan-bg-main) !important;
-    border-color: var(--milan-bg-surface) !important;
-}
-
-.finish-panel,
-.feedback-card,
-.camera-overlay,
-.rest-content {
-    background: var(--milan-bg-soft) !important;
-    color: var(--milan-text-primary) !important;
-}
-
-.pulse-indicator,
-.dot.accepted,
-.success-glow {
-    background: var(--milan-accent) !important;
-}
-
-.feedback-tag {
-    background-color: var(--milan-bg-main) !important;
-    border-color: var(--milan-bg-surface) !important;
-    color: var(--milan-text-secondary) !important;
-}
-
-.feedback-tag:hover,
-:deep(.el-check-tag.is-checked) {
-    background-color: var(--milan-accent) !important;
-    border-color: var(--milan-accent) !important;
-    color: #F5F2ED !important;
+@media (max-width: 768px) {
+    .analysis-grid { grid-template-columns: 1fr; }
+    .form-grid { grid-template-columns: 1fr; }
+    .camera-wrapper { min-height: 420px; }
 }
 </style>

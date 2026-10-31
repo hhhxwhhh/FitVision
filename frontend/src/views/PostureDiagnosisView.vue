@@ -278,20 +278,11 @@ onUnmounted(() => {
 .w-full { width: 100%; }
 
 .posture-diagnosis {
-    --milan-bg-main: #F5F2ED; /* 页面主背景 / 卡片底色 */
-    --milan-bg-surface: #E5E0D8; /* 边框 / 分隔 */
-    --milan-bg-soft: #EFE8DD; /* 弱强调背景 */
-    --milan-text-primary: #3C2F2F; /* 主标题 / 正文 */
-    --milan-text-secondary: #7D756D; /* 辅助文字 */
-    --milan-accent: #BEA47E; /* 交互强调 */
-    --milan-accent-soft: #D5C6B0; /* 次级强调 */
-    --milan-accent-deep: #9F8462; /* 深层强调 */
-    --milan-shadow-soft: rgba(60, 47, 47, 0.1); /* 卡片阴影 */
 
     padding: 24px;
     max-width: 1200px;
     margin: 0 auto;
-    background: var(--milan-bg-main);
+    background: transparent;
     color: var(--milan-text-primary);
 }
 
@@ -344,7 +335,7 @@ onUnmounted(() => {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    color: var(--milan-bg-main);
+    color: var(--milan-on-accent);
     background: rgba(60, 47, 47, 0.42);
     gap: 10px;
 }
@@ -457,7 +448,7 @@ onUnmounted(() => {
 .posture-diagnosis :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
     background: var(--milan-accent);
     border-color: var(--milan-accent);
-    color: var(--milan-bg-main);
+    color: var(--milan-on-accent);
     box-shadow: -1px 0 0 0 var(--milan-accent);
 }
 
@@ -466,11 +457,11 @@ onUnmounted(() => {
     --el-button-border-color: var(--milan-accent);
     --el-button-hover-bg-color: var(--milan-accent-deep);
     --el-button-hover-border-color: var(--milan-accent-deep);
-    --el-button-text-color: var(--milan-bg-main);
+    --el-button-text-color: var(--milan-on-accent);
 }
 
 .posture-diagnosis :deep(.el-button--success.is-plain) {
-    --el-button-bg-color: var(--milan-bg-main);
+    --el-button-bg-color: var(--milan-on-accent);
     --el-button-border-color: var(--milan-accent-soft);
     --el-button-text-color: var(--milan-accent-deep);
     --el-button-hover-bg-color: var(--milan-bg-soft);
@@ -478,7 +469,7 @@ onUnmounted(() => {
 
 .posture-diagnosis :deep(.el-table) {
     --el-table-border-color: var(--milan-bg-surface);
-    --el-table-header-bg-color: var(--milan-bg-main);
+    --el-table-header-bg-color: var(--milan-on-accent);
     --el-table-row-hover-bg-color: var(--milan-bg-soft);
     --el-table-text-color: var(--milan-text-primary);
     --el-table-header-text-color: var(--milan-text-secondary);
