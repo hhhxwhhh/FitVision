@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   aggregate,
+  currentStreak,
+  dayKey,
+  longestStreak,
   periodSummaries,
   periodWindows,
   sessionMinutes,
   sessionsWithin,
+  trainingDays,
   type SessionLike,
 } from './trainingStats'
 
@@ -108,5 +112,60 @@ describe('periodSummaries', () => {
 
     expect(week.count).toBe(1)
     expect(month.count).toBe(2)
+  })
+})
+
+const daySession = (day: string): SessionLike => ({
+  ...session(`${day}T09:00:00`, 30),
+  start_time: new Date(`${day}T09:00:00`).toISOString(),
+})
+
+describe('dayKey', () => {
+  it('formats a local calendar day', () => {
+    expect(dayKey(new Date(2026, 0, 5, 22, 30))).toBe('2026-01-05')
+    expect(dayKey('2026-03-09T10:00:00')).toBe('2026-03-09')
+  })
+})
+
+describe('trainingDays', () => {
+  it('collapses several sessions on the same day', () => {
+    const days = trainingDays([
+      daySession('2026-05-01'),
+      daySession('2026-05-01'),
+      daySession('2026-05-03'),
+    ])
+    expect(days).toEqual(['2026-05-01', '2026-05-03'])
+  })
+})
+
+describe('longestStreak', () => {
+  it('finds the longest run of consecutive days', () => {
+    const sessions = ['2026-05-01', '2026-05-02', '2026-05-03', '2026-05-06'].map(daySession)
+    expect(longestStreak(sessions)).toBe(3)
+  })
+
+  it('returns 1 for an isolated session and 0 with no data', () => {
+    expect(longestStreak([daySession('2026-05-01')])).toBe(1)
+    expect(longestStreak([])).toBe(0)
+  })
+})
+
+describe('currentStreak', () => {
+  it('counts back from today', () => {
+    const today = new Date(2026, 4, 10)
+    const sessions = ['2026-05-08', '2026-05-09', '2026-05-10'].map(daySession)
+    expect(currentStreak(sessions, today)).toBe(3)
+  })
+
+  it('still counts when today has not been logged yet', () => {
+    const today = new Date(2026, 4, 10)
+    const sessions = ['2026-05-09', '2026-05-10'].map(daySession)
+    expect(currentStreak(sessions, today)).toBe(2)
+  })
+
+  it('resets once a day is missed', () => {
+    const today = new Date(2026, 4, 10)
+    const sessions = ['2026-05-05', '2026-05-06'].map(daySession)
+    expect(currentStreak(sessions, today)).toBe(0)
   })
 })

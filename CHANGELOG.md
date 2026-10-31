@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Accessibility & UX: skip-to-content link, `aria-current` navigation, global keyboard shortcuts (`?` and `g` leader keys), a redesigned 404 page, and a scroll-progress back-to-top control.
 - Training history timeline (`/history`): month-grouped sessions with completion filter, pagination, an empty state,
   and a drill-down detail view (`/history/:id`) with a per-exercise breakdown.
-- Training data export: CSV download of the loaded sessions (RFC 4180 escaping, UTF-8 BOM) plus period stat cards for the last 7 days and the current month.
+- Training insights: CSV export, last-7-day and current-month stat cards, and current / longest consecutive-day streaks on the history page. of the loaded sessions (RFC 4180 escaping, UTF-8 BOM) plus period stat cards for the last 7 days and the current month.
 - Bundle budget guard: `npm run size` fails the build when gzip budgets for the entry chunk, critical CSS or any single JS chunk are exceeded.
 
 ### Fixed

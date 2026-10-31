@@ -127,7 +127,7 @@ import {
 import { ElMessage } from 'element-plus'
 import apiClient from '../api'
 import { datedFilename, downloadTextFile, toCsv } from '../utils/csv'
-import { periodSummaries } from '../utils/trainingStats'
+import { currentStreak, longestStreak, periodSummaries } from '../utils/trainingStats'
 
 interface TrainingSession {
   id: number
@@ -186,6 +186,11 @@ const completedCount = computed(() => sessions.value.filter((item) => item.is_co
 
 const summaries = computed(() => periodSummaries(sessions.value))
 
+const streaks = computed(() => ({
+  current: currentStreak(sessions.value),
+  longest: longestStreak(sessions.value),
+}))
+
 const statsCards = computed(() => [
   {
     label: '近 7 天',
@@ -210,6 +215,12 @@ const statsCards = computed(() => [
     value: summaries.value.month.avgScore || '—',
     unit: summaries.value.month.avgScore ? '分' : '',
     hint: '按已完成评分场次平均',
+  },
+  {
+    label: '连续训练',
+    value: streaks.value.current,
+    unit: '天',
+    hint: `最长连续 ${streaks.value.longest} 天`,
   },
 ])
 
@@ -296,7 +307,7 @@ const scoreLabel = (item: TrainingSession) =>
 
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
 }
 

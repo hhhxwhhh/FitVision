@@ -115,3 +115,62 @@ export const periodSummaries = (
     month: aggregate(sessionsWithin(sessions, windows.month)),
   }
 }
+
+/** Local calendar day key (YYYY-MM-DD) used for streak maths. */
+export const dayKey = (date: Date | string): string => {
+  const value = typeof date === 'string' ? new Date(date) : date
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`
+}
+
+/** Unique training days, earliest first. Exported for calendar views. */
+export const trainingDays = (sessions: readonly SessionLike[]): string[] =>
+  [...new Set(sessions.map((session) => dayKey(session.start_time)))].sort()
+
+const gapInDays = (later: string, earlier: string): number =>
+  Math.round(
+    (new Date(`${later}T00:00:00`).getTime() - new Date(`${earlier}T00:00:00`).getTime()) /
+      86400000,
+  )
+
+/** Longest run of consecutive training days. */
+export const longestStreak = (sessions: readonly SessionLike[]): number => {
+  const days = trainingDays(sessions)
+  if (days.length === 0) return 0
+
+  let best = 1
+  let run = 1
+  for (let i = 1; i < days.length; i += 1) {
+    if (gapInDays(days[i]!, days[i - 1]!) === 1) {
+      run += 1
+      best = Math.max(best, run)
+    } else {
+      run = 1
+    }
+  }
+  return best
+}
+
+/**
+ * Days in a row counting back from the latest session. The streak only holds
+ * when that session falls today or yesterday, so a missed day resets it.
+ */
+export const currentStreak = (
+  sessions: readonly SessionLike[],
+  today: Date = new Date(),
+): number => {
+  const days = trainingDays(sessions)
+  if (days.length === 0) return 0
+
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const latest = days[days.length - 1]!
+  if (latest !== dayKey(today) && latest !== dayKey(yesterday)) return 0
+
+  let streak = 1
+  for (let i = days.length - 1; i > 0; i -= 1) {
+    if (gapInDays(days[i]!, days[i - 1]!) === 1) streak += 1
+    else break
+  }
+  return streak
+}
