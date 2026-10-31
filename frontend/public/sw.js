@@ -3,11 +3,22 @@
  * - Serves navigations network-first with an offline shell fallback.
  * - Serves hashed static assets stale-while-revalidate.
  */
-const VERSION = 'fitvision-v1'
+const VERSION = 'fitvision-v2'
 const SHELL_CACHE = `${VERSION}-shell`
 const ASSET_CACHE = `${VERSION}-assets`
 
+/** Caps the runtime cache so a long-lived PWA cannot grow without bound. */
+const MAX_ASSET_ENTRIES = 150
+
 const SHELL_URLS = ['/', '/index.html', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png']
+
+/** Keeps the asset cache under the cap by dropping the oldest entries. */
+const trimAssetCache = (cache) =>
+  cache.keys().then((keys) => {
+    const excess = keys.length - MAX_ASSET_ENTRIES
+    if (excess <= 0) return undefined
+    return Promise.all(keys.slice(0, excess).map((request) => cache.delete(request)))
+  })
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -56,7 +67,9 @@ self.addEventListener('fetch', (event) => {
         .then((response) => {
           if (response.ok) {
             const copy = response.clone()
-            caches.open(ASSET_CACHE).then((cache) => cache.put(request, copy))
+            caches
+              .open(ASSET_CACHE)
+              .then((cache) => cache.put(request, copy).then(() => trimAssetCache(cache)))
           }
           return response
         })
