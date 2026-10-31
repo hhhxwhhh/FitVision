@@ -278,7 +278,9 @@ const exerciseModeMap: Record<string, string> = {
   'squat': '深蹲',
   'pushup': '俯卧撑',
   'jumping_jack': '开合跳',
-  'plank': '平板支撑'
+  'plank': '平板支撑',
+  'lunge': '弓步蹲',
+  'crunch': '卷腹'
 }
 
 const viewLabel = computed(() => {
@@ -325,6 +327,8 @@ const mapExerciseToMode = (name: string): any => {
   if (name.includes('俯卧撑')) return 'pushup'
   if (name.includes('开合跳')) return 'jumping_jack'
   if (name.includes('平板支撑') || name.includes('Plank')) return 'plank'
+  if (name.includes('弓步') || name.includes('箭步') || name.includes('Lunge')) return 'lunge'
+  if (name.includes('卷腹') || name.includes('仰卧起坐') || name.includes('Crunch')) return 'crunch'
   return 'squat'
 }
 

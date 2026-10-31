@@ -468,6 +468,8 @@ export function usePoseDetection() {
   const downCueForMode = (mode: ExerciseMode) => {
     if (mode === 'squat') return '下沉到位！';
     if (mode === 'pushup') return '准备撑起！';
+    if (mode === 'lunge') return '前腿发力撑起！';
+    if (mode === 'crunch') return '顶峰收紧，慢慢落下！';
     return '向上打开！';
   };
 

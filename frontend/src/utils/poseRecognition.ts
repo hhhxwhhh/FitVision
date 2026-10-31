@@ -18,7 +18,7 @@ export interface Landmark {
   visibility?: number;
 }
 
-export type ExerciseMode = 'squat' | 'pushup' | 'jumping_jack' | 'plank';
+export type ExerciseMode = 'squat' | 'pushup' | 'jumping_jack' | 'plank' | 'lunge' | 'crunch';
 export type PosePhase = 'up' | 'down' | 'holding';
 export type ViewOrientation = 'front' | 'side' | 'unknown';
 /** Coaching tempo bucket for a completed repetition (velocity-based training). */
@@ -174,6 +174,7 @@ interface BodyFrame {
   at: (index: number) => Landmark;
   midShoulder: Landmark;
   midHip: Landmark;
+  midKnee: Landmark;
   midAnkle: Landmark;
   torso: number;
   shoulderWidth: number;
@@ -200,6 +201,7 @@ const buildBody = (raw: Landmark[], aspectRatio = DEFAULT_ASPECT_RATIO): BodyFra
 
   const midShoulder = midpoint(at(LEFT_SHOULDER), at(RIGHT_SHOULDER));
   const midHip = midpoint(at(LEFT_HIP), at(RIGHT_HIP));
+  const midKnee = midpoint(at(LEFT_KNEE), at(RIGHT_KNEE));
   const midAnkle = midpoint(at(LEFT_ANKLE), at(RIGHT_ANKLE));
   const shoulderWidth = distance(at(LEFT_SHOULDER), at(RIGHT_SHOULDER));
   const hipWidth = distance(at(LEFT_HIP), at(RIGHT_HIP));
@@ -215,6 +217,7 @@ const buildBody = (raw: Landmark[], aspectRatio = DEFAULT_ASPECT_RATIO): BodyFra
     at,
     midShoulder,
     midHip,
+    midKnee,
     midAnkle,
     torso,
     shoulderWidth,
@@ -609,6 +612,7 @@ const measurePlank = (body: BodyFrame, stabilityScore: number): MeasureResult =>
   );
 };
 
+
 interface RepConfig {
   downEnter: number;
   upEnter: number;
@@ -617,6 +621,223 @@ interface RepConfig {
   minLoadRange: number;
   minConfidence: number;
 }
+
+const LUNGE_CONFIG: RepConfig = {
+  downEnter: 68,
+  upEnter: 25,
+  minDwellMs: 140,
+  minRepMs: 550,
+  minLoadRange: 48,
+  minConfidence: 0.45,
+};
+
+const CRUNCH_CONFIG: RepConfig = {
+  downEnter: 62,
+  upEnter: 22,
+  minDwellMs: 110,
+  minRepMs: 400,
+  minLoadRange: 45,
+  minConfidence: 0.42,
+};
+
+/**
+ * 弓步 / 箭步蹲。
+ *
+ * 与深蹲的区别是两侧膝关节同时屈曲但幅度不同：前腿是主要发力腿。
+ * 因此取"更屈曲的一侧"作为主信号，另一腿只用于对称性与步幅判断。
+ */
+const measureLunge = (body: BodyFrame): MeasureResult => {
+  const at = body.at;
+  const left = angleDeg(at(LEFT_HIP), at(LEFT_KNEE), at(LEFT_ANKLE));
+  const right = angleDeg(at(RIGHT_HIP), at(RIGHT_KNEE), at(RIGHT_ANKLE));
+  const indices = [
+    LEFT_SHOULDER,
+    RIGHT_SHOULDER,
+    LEFT_HIP,
+    RIGHT_HIP,
+    LEFT_KNEE,
+    RIGHT_KNEE,
+    LEFT_ANKLE,
+    RIGHT_ANKLE,
+  ];
+
+  if (left == null && right == null) {
+    return createMeasureResult(
+      body,
+      {
+        load: 0,
+        score: 0,
+        faults: [{ key: '关键点不可见', severity: 1 }],
+        primaryAngle: null,
+        metrics: {},
+      },
+      indices,
+    );
+  }
+
+  // The leading leg bends more, so the smaller angle drives rep depth.
+  const frontKnee = Math.min(left ?? 180, right ?? 180);
+  const backKnee = Math.max(left ?? 180, right ?? 180);
+  const diff = left != null && right != null ? Math.abs(left - right) : 0;
+
+  const load = mapRange(frontKnee, 165, 95);
+  const depthScore = mapRange(frontKnee, 140, 100);
+
+  const torsoVector = {
+    x: body.midShoulder.x - body.midHip.x,
+    y: body.midShoulder.y - body.midHip.y,
+  };
+  const torsoLean = angleBetweenVectors(torsoVector, { x: 0, y: -1 });
+  const torsoScore = mapRange(torsoLean, 55, 15);
+
+  // Stride: too narrow collapses the working leg, too wide strains the hip.
+  const stride = Math.abs(at(LEFT_ANKLE).x - at(RIGHT_ANKLE).x) / body.torso;
+  const strideScore =
+    stride < 0.75 ? mapRange(stride, 0.3, 0.75) : mapRange(1.6 - stride, 0.55, 0.85);
+
+  // Level knees mean the load is shared; a big gap means one side dominates.
+  const kneeHeightGap = Math.abs(at(LEFT_KNEE).y - at(RIGHT_KNEE).y) / body.torso;
+  const symmetryScore = weightedScore([
+    [mapRange(diff, 45, 12), 0.6],
+    [mapRange(kneeHeightGap, 0.25, 0.05), 0.4],
+  ]);
+
+  const faults: FormFault[] = [];
+  if (load > 25) {
+    if (frontKnee > 125) {
+      faults.push({ key: '下蹲深度不足', severity: clamp((frontKnee - 125) / 30, 0, 1) });
+    }
+    if (torsoLean > 40) {
+      faults.push({ key: '躯干过度前倾', severity: clamp((torsoLean - 40) / 25, 0, 1) });
+    }
+    if (stride < 0.55) {
+      faults.push({ key: '弓步步幅过小', severity: clamp((0.55 - stride) / 0.3, 0, 1) });
+    } else if (stride > 1.45) {
+      faults.push({ key: '弓步步幅过大', severity: clamp((stride - 1.45) / 0.45, 0, 1) });
+    }
+    if (kneeHeightGap > 0.3) {
+      faults.push({ key: '重心偏向一侧', severity: clamp((kneeHeightGap - 0.3) / 0.3, 0, 1) });
+    }
+  }
+
+  const score = weightedScore([
+    [depthScore, 0.4],
+    [torsoScore, 0.25],
+    [strideScore, 0.2],
+    [symmetryScore, 0.15],
+  ]);
+
+  return createMeasureResult(
+    body,
+    {
+      load,
+      score,
+      faults,
+      primaryAngle: frontKnee,
+      metrics: {
+        left_knee: left,
+        right_knee: right,
+        front_knee: frontKnee,
+        back_knee: backKnee,
+        torso_lean: torsoLean,
+        stride,
+      },
+    },
+    indices,
+  );
+};
+
+/**
+ * 卷腹。仰卧位，靠脊柱屈曲把肩胛带离地面。
+ *
+ * 主信号是肩-髋-踝的夹角（平躺接近 175°，卷起到位约 115°），
+ * 同时要求膝关节保持接近 90° 的稳定屈曲，避免用腿部代偿。
+ */
+const measureCrunch = (body: BodyFrame): MeasureResult => {
+  const at = body.at;
+  const leftKneeAngle = angleDeg(at(LEFT_HIP), at(LEFT_KNEE), at(LEFT_ANKLE));
+  const rightKneeAngle = angleDeg(at(RIGHT_HIP), at(RIGHT_KNEE), at(RIGHT_ANKLE));
+  const { value: kneeAngle } = combineSideAngles(leftKneeAngle, rightKneeAngle);
+  const indices = [
+    LEFT_SHOULDER,
+    RIGHT_SHOULDER,
+    LEFT_HIP,
+    RIGHT_HIP,
+    LEFT_KNEE,
+    RIGHT_KNEE,
+    LEFT_ANKLE,
+    RIGHT_ANKLE,
+  ];
+
+  // Hip flexion (shoulder-hip-knee): open when lying flat, closing as the
+  // shoulders curl toward the knees.
+  const curlAngle = angleDeg(body.midShoulder, body.midHip, body.midKnee);
+  if (curlAngle == null) {
+    return createMeasureResult(
+      body,
+      {
+        load: 0,
+        score: 0,
+        faults: [{ key: '关键点不可见', severity: 1 }],
+        primaryAngle: null,
+        metrics: {},
+      },
+      indices,
+    );
+  }
+
+  // Measured range: lying back opens to ~150deg, a full curl closes to ~75deg.
+  const load = mapRange(curlAngle, 145, 75);
+  const curlScore = mapRange(curlAngle, 130, 78);
+
+  // Thighs should stay roughly perpendicular to the floor.
+  const kneeScore =
+    kneeAngle == null
+      ? 60
+      : kneeAngle < 70
+        ? mapRange(kneeAngle, 35, 70)
+        : mapRange(135 - kneeAngle, 40, 65);
+
+  // A planted hip keeps the abdominals doing the work.
+  const hipTravel = verticalOffsetFromLine(body.midHip, body.midShoulder, body.midAnkle);
+  const hipTravelRatio = Math.abs(hipTravel) / body.torso;
+  const hipScore = mapRange(hipTravelRatio, 0.3, 0.08);
+
+  const faults: FormFault[] = [];
+  if (load > 25) {
+    if (curlAngle > 125) {
+      faults.push({ key: '上卷幅度不足', severity: clamp((curlAngle - 125) / 30, 0, 1) });
+    }
+    if (hipTravelRatio > 0.22) {
+      faults.push({ key: '髋部起伏过大', severity: clamp((hipTravelRatio - 0.22) / 0.2, 0, 1) });
+    }
+    if (kneeAngle != null && (kneeAngle < 45 || kneeAngle > 130)) {
+      faults.push({ key: '腿部角度不稳', severity: 0.5 });
+    }
+  }
+
+  const score = weightedScore([
+    [curlScore, 0.5],
+    [kneeScore, 0.25],
+    [hipScore, 0.25],
+  ]);
+
+  return createMeasureResult(
+    body,
+    {
+      load,
+      score,
+      faults,
+      primaryAngle: curlAngle,
+      metrics: {
+        curl_angle: curlAngle,
+        knee_angle: kneeAngle,
+        hip_travel: hipTravelRatio,
+      },
+    },
+    indices,
+  );
+};
 
 const SQUAT_CONFIG: RepConfig = {
   downEnter: 70,
@@ -890,6 +1111,10 @@ export function createExerciseAnalyzer(mode: ExerciseMode): ExerciseAnalyzer {
       return new RepAnalyzer(JUMPING_JACK_CONFIG, measureJumpingJack);
     case 'plank':
       return new PlankAnalyzer();
+    case 'lunge':
+      return new RepAnalyzer(LUNGE_CONFIG, measureLunge);
+    case 'crunch':
+      return new RepAnalyzer(CRUNCH_CONFIG, measureCrunch);
     case 'squat':
     default:
       return new RepAnalyzer(SQUAT_CONFIG, measureSquat);

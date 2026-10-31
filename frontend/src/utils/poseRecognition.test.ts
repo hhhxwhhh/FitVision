@@ -356,6 +356,109 @@ describe('plank analysis', () => {
   });
 });
 
+// 弓步：站立时双腿伸直，下蹲时前腿屈曲到约 95°。
+const lungeStanding = () =>
+  pose({
+    0: { x: 0.5, y: 0.2 },
+    11: { x: 0.44, y: 0.3 },
+    12: { x: 0.56, y: 0.3 },
+    23: { x: 0.46, y: 0.55 },
+    24: { x: 0.54, y: 0.55 },
+    25: { x: 0.46, y: 0.75 },
+    26: { x: 0.54, y: 0.75 },
+    27: { x: 0.46, y: 0.95 },
+    28: { x: 0.54, y: 0.95 },
+  });
+
+// 前脚向前（x 增大），前膝下沉（y 增大）形成约 90° 屈曲。
+const lungeDown = () =>
+  pose({
+    0: { x: 0.5, y: 0.24 },
+    11: { x: 0.44, y: 0.34 },
+    12: { x: 0.56, y: 0.34 },
+    23: { x: 0.46, y: 0.6 },
+    24: { x: 0.54, y: 0.6 },
+    25: { x: 0.62, y: 0.8 },
+    26: { x: 0.5, y: 0.82 },
+    27: { x: 0.6, y: 0.95 },
+    28: { x: 0.42, y: 0.95 },
+  });
+
+// 卷腹：仰卧躺平（侧面视角），躯干与大腿几乎一条直线，髋屈曲角最大。
+const crunchLie = () =>
+  pose({
+    0: { x: 0.12, y: 0.72 },
+    11: { x: 0.18, y: 0.7 },
+    12: { x: 0.21, y: 0.72 },
+    23: { x: 0.44, y: 0.74 },
+    24: { x: 0.47, y: 0.76 },
+    25: { x: 0.58, y: 0.62 },
+    26: { x: 0.61, y: 0.64 },
+    27: { x: 0.44, y: 0.9 },
+    28: { x: 0.47, y: 0.92 },
+  });
+
+// 卷腹顶峰：肩向髋膝方向卷起，髋屈曲角明显变小。
+const crunchUp = () =>
+  pose({
+    0: { x: 0.52, y: 0.45 },
+    11: { x: 0.45, y: 0.5 },
+    12: { x: 0.48, y: 0.5 },
+    23: { x: 0.44, y: 0.74 },
+    24: { x: 0.47, y: 0.76 },
+    25: { x: 0.58, y: 0.62 },
+    26: { x: 0.61, y: 0.64 },
+    27: { x: 0.44, y: 0.9 },
+    28: { x: 0.47, y: 0.92 },
+  });
+
+describe('lunge mode', () => {
+  it('uses the more flexed knee as the primary angle', () => {
+    const standing = createExerciseAnalyzer('lunge').update(lungeStanding(), 0, ASPECT);
+    expect(standing.primaryAngle).toBeGreaterThan(140);
+
+    const down = createExerciseAnalyzer('lunge').update(lungeDown(), 0, ASPECT);
+    expect(down.primaryAngle).toBeLessThan(standing.primaryAngle!);
+    expect(down.progress).toBeGreaterThan(50);
+  });
+
+  it('completes a rep on an up-down-up lunge cycle', () => {
+    const frames = analyze('lunge', [
+      [lungeStanding(), 0],
+      [lungeDown(), 500],
+      [lungeDown(), 1000],
+      [lungeStanding(), 1500],
+      [lungeStanding(), 2000],
+      [lungeStanding(), 2500],
+    ]);
+    expect(frames.some((frame) => frame.repCompleted)).toBe(true);
+    expect(frames[frames.length - 1]!.formScore).toBeGreaterThan(40);
+  });
+});
+
+describe('crunch mode', () => {
+  it('scores the curl from spine flexion', () => {
+    const lying = createExerciseAnalyzer('crunch').update(crunchLie(), 0, ASPECT);
+    expect(lying.progress).toBeLessThan(40);
+
+    const flexed = createExerciseAnalyzer('crunch').update(crunchUp(), 0, ASPECT);
+    expect(flexed.progress).toBeGreaterThan(40);
+    expect(flexed.primaryAngle).toBeLessThan(lying.primaryAngle!);
+  });
+
+  it('completes a rep on a lie-curl-lie crunch cycle', () => {
+    const frames = analyze('crunch', [
+      [crunchLie(), 0],
+      [crunchUp(), 400],
+      [crunchUp(), 800],
+      [crunchLie(), 1250],
+      [crunchLie(), 1700],
+      [crunchLie(), 2150],
+    ]);
+    expect(frames.some((frame) => frame.repCompleted)).toBe(true);
+  });
+});
+
 describe('rep tempo and velocity (VBT)', () => {
   it('reports duration, velocity and a tempo bucket on rep completion', () => {
     const closed = frontStanding();
