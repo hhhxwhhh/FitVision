@@ -3,7 +3,9 @@
 **AI 驱动的个人健身教练：姿态识别 · 动作纠错 · 个性化推荐 · 训练数据分析**
 
 [![CI](https://github.com/hhhxwhhh/FitVision/actions/workflows/ci.yml/badge.svg)](https://github.com/hhhxwhhh/FitVision/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/hhhxwhhh/FitVision/actions/workflows/codeql.yml/badge.svg)](https://github.com/hhhxwhhh/FitVision/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Vue 3](https://img.shields.io/badge/Vue-3-42b883.svg)](https://vuejs.org/)
 [![Django](https://img.shields.io/badge/Django-5.2-092e20.svg)](https://www.djangoproject.com/)
 [![Python](https://img.shields.io/badge/Python-3.12-3776ab.svg)](https://www.python.org/)
@@ -27,6 +29,8 @@
 - [项目结构](#项目结构)
 - [设计要点](#设计要点)
 - [路线图](#路线图)
+- [文档](#文档)
+- [社区](#社区)
 - [贡献](#贡献)
 
 ---
@@ -254,15 +258,20 @@ npm run dev
 cd backend
 DB_ENGINE=sqlite CACHE_BACKEND=locmem python manage.py check
 DB_ENGINE=sqlite CACHE_BACKEND=locmem python manage.py test
+DB_ENGINE=sqlite CACHE_BACKEND=locmem coverage run manage.py test && coverage report -m
 
 # 前端
 cd frontend
 npm run lint
 npm run type-check
 npm run build
+npm run test            # Vitest 单元测试
+npm run test:coverage   # 覆盖率报告
 ```
 
-CI 会在每次 Push / PR 时执行以上检查，并验证 Docker Compose 配置。
+CI 会在每次 Push / PR 时执行以上检查（含前后端测试覆盖率），并验证 Docker
+Compose 镜像构建。另有 CodeQL 安全扫描与依赖自动更新（Dependabot）。本地可用
+`pre-commit` 钩子在提交前自动格式化与校验，详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ---
 
@@ -295,10 +304,15 @@ FitVision/
 │   ├── public/             # PWA manifest、Service Worker、图标
 │   ├── Dockerfile
 │   └── nginx.conf
-├── docs/                   # 架构与开发文档
-├── scripts/                # 资源生成脚本
+├── docs/                   # 架构 / 开发 / 部署文档（见 docs/README.md）
+├── scripts/                # 资源生成与 pre-commit 包装脚本
+├── .github/                # CI、CodeQL、发布、labeler、stale、ISSUE/PR 模板
 ├── docker-compose.yml
+├── .pre-commit-config.yaml # 本地 Git 钩子（格式化 + commitlint）
+├── CHANGELOG.md            # 版本变更记录
 ├── CONTRIBUTING.md
+├── GOVERNANCE.md
+├── SUPPORT.md
 ├── SECURITY.md
 └── LICENSE
 ```
@@ -326,10 +340,24 @@ FitVision/
 
 ---
 
+## 文档
+
+完整文档索引见 [`docs/README.md`](docs/README.md)：
+
+- [架构说明](docs/ARCHITECTURE.md) · [数据流](docs/data_flow.md)
+- [开发指南](docs/DEVELOPMENT.md) · [部署指南](docs/DEPLOYMENT.md)
+- [本地运行](docs/run_guide.md) · [使用说明](docs/使用说明.md)
+
+## 社区
+
+- [贡献指南](CONTRIBUTING.md) · [行为准则](CODE_OF_CONDUCT.md) · [治理](GOVERNANCE.md)
+- [获取帮助](SUPPORT.md) · [变更记录](CHANGELOG.md) · [安全策略](SECURITY.md)
+
 ## 贡献
 
 欢迎提交 Issue 与 PR！请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 与
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。安全问题请按 [SECURITY.md](SECURITY.md) 私密报告。
+建议安装 pre-commit 钩子（见贡献指南），提交信息遵循 Conventional Commits。
 
 ## License
 
