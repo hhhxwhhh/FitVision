@@ -6,7 +6,14 @@ Runs without Django: ``python -m unittest utils.test_demo_data``.
 import unittest
 from datetime import date
 
-from .demo_data import longest_streak, generate_training_history, summarize_history
+from .demo_data import (
+    build_persona,
+    generate_population,
+    generate_training_history,
+    longest_streak,
+    summarize_history,
+    summarize_population,
+)
 
 
 def _catalog():
@@ -114,6 +121,46 @@ class LongestStreakTests(unittest.TestCase):
     def test_handles_empty_and_duplicates(self):
         self.assertEqual(longest_streak([]), 0)
         self.assertEqual(longest_streak([date(2026, 10, 1), date(2026, 10, 1)]), 1)
+
+
+class PopulationTests(unittest.TestCase):
+    def test_build_persona_is_deterministic_and_balanced(self):
+        first = build_persona(0)
+        self.assertEqual(build_persona(0), first)
+        self.assertEqual(first["username"], "trainee01")
+
+        levels = {build_persona(i)["level"] for i in range(3)}
+        self.assertEqual(len(levels), 3)
+
+    def test_persona_level_drives_training_frequency(self):
+        beginner = build_persona(0)
+        advanced = build_persona(2)
+        self.assertEqual(beginner["level"], "beginner")
+        self.assertEqual(advanced["level"], "advanced")
+        self.assertLess(beginner["days_per_week"], advanced["days_per_week"])
+        self.assertLess(beginner["adherence"], advanced["adherence"])
+
+    def test_generate_population_is_reproducible(self):
+        catalog = _catalog()
+        end = date(2026, 10, 31)
+        first = generate_population(catalog, users=6, weeks=4, end_date=end)
+        second = generate_population(catalog, users=6, weeks=4, end_date=end)
+        self.assertEqual(first, second)
+
+    def test_population_summaries_aggregate_every_user(self):
+        population = generate_population(_catalog(), users=6, weeks=4, end_date=date(2026, 10, 31))
+        stats = summarize_population(population)
+
+        self.assertEqual(stats["users"], 6)
+        self.assertEqual(stats["sessions"], sum(len(p["sessions"]) for p in population))
+        self.assertGreater(stats["sessions"], 0)
+        self.assertGreater(stats["minutes"], 0)
+        self.assertGreater(stats["average_form"], 0)
+
+    def test_empty_inputs_are_handled(self):
+        self.assertEqual(generate_population([], users=3), [])
+        self.assertEqual(generate_population(_catalog(), users=0), [])
+        self.assertEqual(summarize_population([])["users"], 0)
 
 
 if __name__ == "__main__":

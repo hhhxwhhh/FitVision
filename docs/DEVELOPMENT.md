@@ -100,6 +100,18 @@ python manage.py seed_demo_history --user demo --weeks 12 --force
 - 生成内容：训练会话、每个动作的记录、交互日志以及 `UserStats` 汇总，用于首页/统计/成长展示。
 - `UserExerciseRecord.created_at` / `UserInteraction.timestamp` 是 `auto_now_add`，命令通过 `update()` 回填真实历史时间。
 
+### 多用户数据集（推荐算法用）
+
+```bash
+cd backend
+python manage.py seed_population --users 12 --weeks 6 --seed 7   # 或 make seed-population
+```
+
+- 由 `utils/demo_data.py` 的 `generate_population` 生成：用户按初级 / 中级 / 高级轮转，目标在减脂 / 增肌 / 耐力 / 柔韧之间均衡分布。
+- 每个 persona 有自己的训练频次、坚持度、起始动作评分与每周进步幅度，因此数据集中各水平的评分确实不同（实测约 64 / 74 / 82）。
+- 每位用户还会写入档案、激活目标、`UserStats` 汇总与交互日志；`--force` 会先清空这些用户的历史。
+- 统一密码 `fitvision123`，仅用于本地演示数据。
+
 ## 代码质量
 
 - Python：Black（行宽 100）+ isort + flake8。

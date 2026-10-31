@@ -5,8 +5,8 @@ PYTHON ?= python
 NPM ?= npm
 BACKEND_ENV = DB_ENGINE=sqlite CACHE_BACKEND=locmem
 
-.PHONY: help install install-backend install-frontend migrate seed seed-history backend frontend \
-        test test-backend check lint format docker-up docker-down
+.PHONY: help install install-backend install-frontend migrate seed seed-history seed-population \
+        backend frontend test test-backend check lint format docker-up docker-down
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -27,6 +27,9 @@ seed: ## Import demo exercises and training plan when the database is empty
 
 seed-history: ## Generate reproducible synthetic training history for the demo user
 	cd backend && $(PYTHON) manage.py seed_demo_history --create-user
+
+seed-population: ## Generate a balanced multi-user dataset for the recommender
+	cd backend && $(PYTHON) manage.py seed_population --users 12 --weeks 6
 
 backend: ## Import demo data, then run the Django development server
 	cd backend && $(PYTHON) manage.py seed_demo

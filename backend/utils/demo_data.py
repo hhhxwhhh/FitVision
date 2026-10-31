@@ -57,6 +57,8 @@ def _build_session(
     focus: str,
     min_exercises: int,
     max_exercises: int,
+    base_form: float = 70.0,
+    form_growth: float = 14.0,
 ) -> dict | None:
     pool = [item for item in catalog if item.get("target_muscle") == focus]
     if len(pool) < min_exercises:
@@ -69,7 +71,7 @@ def _build_session(
 
     # Form scores improve from the first week to the last.
     week_ratio = (weeks - 1 - week) / max(weeks - 1, 1)
-    base_form = 70.0 + 14.0 * week_ratio
+    base_form = base_form + form_growth * week_ratio
 
     start = datetime.combine(
         day,
@@ -150,6 +152,8 @@ def generate_training_history(
     adherence: float = 0.82,
     min_exercises: int = 3,
     max_exercises: int = 6,
+    base_form: float = 70.0,
+    form_growth: float = 14.0,
 ) -> list[dict]:
     """Generate reproducible workout sessions ending at ``end_date``.
 
@@ -177,7 +181,16 @@ def generate_training_history(
 
             focus = DEFAULT_FOCUS_ROTATION[session_index % len(DEFAULT_FOCUS_ROTATION)]
             session = _build_session(
-                rng, catalog, day, week, weeks, focus, min_exercises, max_exercises
+                rng,
+                catalog,
+                day,
+                week,
+                weeks,
+                focus,
+                min_exercises,
+                max_exercises,
+                base_form,
+                form_growth,
             )
             if session:
                 sessions.append(session)
@@ -237,4 +250,120 @@ def summarize_history(sessions: list[dict], today: date | None = None) -> dict:
         "longest_streak": longest_streak(days),
         "weekly_sessions": weekly,
         "monthly_sessions": monthly,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Population generation: many users with different profiles, used to give the
+# recommender enough signal to train and evaluate on.
+# ---------------------------------------------------------------------------
+
+FITNESS_LEVELS = ("beginner", "intermediate", "advanced")
+
+LEVEL_PROFILE = {
+    # level: (days per week, adherence, base form score, form growth per week)
+    "beginner": (2, 0.72, 62.0, 1.6),
+    "intermediate": (3, 0.84, 72.0, 1.1),
+    "advanced": (4, 0.92, 82.0, 0.7),
+}
+
+GOAL_FOCUS_BIAS = {
+    "weight_loss": ("full_body", "abs", "legs"),
+    "muscle_gain": ("chest", "back", "arms"),
+    "endurance": ("full_body", "legs", "glutes"),
+    "flexibility": ("abs", "back", "shoulders"),
+}
+
+DEFAULT_GOALS = tuple(GOAL_FOCUS_BIAS)
+
+
+def build_persona(index: int, goals: tuple[str, ...] = DEFAULT_GOALS) -> dict:
+    """Deterministic persona for the nth synthetic user.
+
+    Spreading levels and goals evenly keeps the dataset balanced instead of
+    clustering everyone around one profile.
+    """
+    level = FITNESS_LEVELS[index % len(FITNESS_LEVELS)]
+    goal = goals[index % len(goals)] if goals else DEFAULT_GOALS[0]
+    days, adherence, base_form, growth = LEVEL_PROFILE[level]
+    return {
+        "username": f"trainee{index + 1:02d}",
+        "level": level,
+        "goal": goal,
+        "days_per_week": days,
+        "adherence": adherence,
+        "base_form": base_form,
+        "form_growth": growth,
+        "preferred_focus": GOAL_FOCUS_BIAS.get(goal, DEFAULT_FOCUS_ROTATION[:3]),
+    }
+
+
+def generate_population(
+    catalog: list[dict],
+    users: int = 12,
+    seed: int = 7,
+    weeks: int = 6,
+    end_date: date | None = None,
+) -> list[dict]:
+    """Generate a balanced multi-user dataset for training and evaluation.
+
+    Each entry carries the persona plus its own session list, so callers can
+    seed users, histories and interactions consistently.
+    """
+    if not catalog or users <= 0 or weeks <= 0:
+        return []
+
+    end = end_date or date.today()
+    population: list[dict] = []
+
+    for index in range(users):
+        persona = build_persona(index)
+        sessions = generate_training_history(
+            catalog,
+            seed=seed + index * 101,
+            weeks=weeks,
+            days_per_week=persona["days_per_week"],
+            end_date=end,
+            adherence=persona["adherence"],
+            base_form=persona["base_form"],
+            form_growth=persona["form_growth"] * weeks,
+        )
+        population.append(
+            {
+                **persona,
+                "sessions": sessions,
+                "summary": summarize_history(sessions, today=end),
+            }
+        )
+
+    return population
+
+
+def summarize_population(population: list[dict]) -> dict:
+    """Headline counters for a generated population."""
+    if not population:
+        return {"users": 0, "sessions": 0, "minutes": 0, "calories": 0.0, "average_form": 0.0}
+
+    sessions = sum(len(person["sessions"]) for person in population)
+    minutes = sum(person["summary"].get("total_minutes", 0) or 0 for person in population)
+    calories = sum(person["summary"].get("total_calories", 0.0) or 0.0 for person in population)
+    forms = [
+        person["summary"].get("average_form", 0.0) or 0.0
+        for person in population
+        if person["summary"].get("sessions")
+    ]
+    return {
+        "users": len(population),
+        "sessions": sessions,
+        "minutes": minutes,
+        "calories": round(calories, 1),
+        "average_form": round(sum(forms) / len(forms), 1) if forms else 0.0,
+        "levels": {
+            level: sum(1 for person in population if person["level"] == level)
+            for level in FITNESS_LEVELS
+        },
+        "goals": {
+            goal: sum(1 for person in population if person["goal"] == goal)
+            for goal in {person["goal"] for person in population}
+        },
     }
