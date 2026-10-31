@@ -1,6 +1,5 @@
 import numpy as np
 import random
-from collections import defaultdict
 from datetime import timedelta
 from django.utils import timezone
 from django.db.models import Count, Avg, F
@@ -10,6 +9,7 @@ from users.models import UserGoal
 from .models import UserInteraction, RecommendedExercise, UserState
 from utils.vector_db import VectorDB
 from exercises.models import UserExerciseRecord
+from .rerank import mmr_rerank
 
 # Heavy ML dependencies (torch / scikit-learn) and the model classes that need
 # them are imported lazily inside the engines below. This keeps Django startup
@@ -479,33 +479,12 @@ class HybridRecommender:
 
     @staticmethod
     def _rerank_with_diversity(candidates, limit):
-        """Greedily pick candidates while penalising repeated muscle groups."""
-        if not candidates:
-            return []
+        """Re-rank with Maximal Marginal Relevance (relevance vs. redundancy).
 
-        pending = list(candidates)
-        selected = []
-        muscle_counter = defaultdict(int)
-
-        while pending and len(selected) < limit:
-            best_idx = 0
-            best_adjusted = -1.0
-
-            # Limit the scan window to keep this O(n) in practice.
-            for idx, item in enumerate(pending[:40]):
-                muscle = getattr(item["ex"], "target_muscle", "unknown") or "unknown"
-                adjusted = item["score"] - 0.12 * muscle_counter[muscle]
-                if adjusted > best_adjusted:
-                    best_adjusted = adjusted
-                    best_idx = idx
-
-            chosen = pending.pop(best_idx)
-            chosen["score"] = max(0.0, best_adjusted)
-            selected.append(chosen)
-            muscle = getattr(chosen["ex"], "target_muscle", "unknown") or "unknown"
-            muscle_counter[muscle] += 1
-
-        return selected
+        Replaces the previous fixed per-muscle penalty with a principled MMR
+        trade-off; see recommendations/rerank.py for the tested implementation.
+        """
+        return mmr_rerank(candidates, limit)
 
     @staticmethod
     def _compute_exploration_ratio(positive_count, negative_count, default=0.18):
