@@ -1,5 +1,7 @@
 from django.test import TestCase
 from django.contrib.auth.models import User
+from django.utils import timezone
+from analytics.models import UserDailyStats
 import random
 from rest_framework.test import APIClient
 from unittest.mock import patch
@@ -190,6 +192,34 @@ class RecommendationViewSetActionTests(TestCase):
         self.assertFalse(self.rec.is_seen)
         self.assertEqual(UserInteraction.objects.filter(user=self.user).count(), 0)
         mocked_cache.delete.assert_not_called()
+
+
+class FatigueSignalTests(TestCase):
+    """每日统计落库时，UserState.fatigue_level 应与负荷模型保持一致。"""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="signal", password="StrongPass123")
+
+    def test_syncs_from_the_load_model(self):
+        with patch(
+            "growth.services.readiness_snapshot",
+            return_value={"fatigue_level": 0.6, "session_count": 9},
+        ):
+            UserDailyStats.objects.create(user=self.user, date=timezone.localdate())
+        self.assertAlmostEqual(
+            UserState.objects.get(user=self.user).fatigue_level, 0.6, places=3
+        )
+
+    def test_keeps_the_previous_value_when_the_model_has_no_history(self):
+        UserState.objects.create(user=self.user, fatigue_level=0.21)
+        with patch(
+            "growth.services.readiness_snapshot",
+            return_value={"fatigue_level": 0.33, "session_count": 0},
+        ):
+            UserDailyStats.objects.create(user=self.user, date=timezone.localdate())
+        self.assertAlmostEqual(
+            UserState.objects.get(user=self.user).fatigue_level, 0.21, places=3
+        )
 
 
 class FatigueResolutionTests(TestCase):

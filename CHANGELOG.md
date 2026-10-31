@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Recommendation diversity re-ranking now uses **Maximal Marginal Relevance (MMR)** instead of a fixed per-muscle penalty, balancing relevance against redundancy with a tested pure-Python implementation.
 - The recommendation engines no longer read the crude `UserState.fatigue_level` accumulator directly; fatigue now comes from the load model via a single resolver with graceful fallback.
+- The `UserDailyStats` post-save signal no longer nudges fatigue by ±0.2/0.1 based on form score; it re-syncs `UserState.fatigue_level` from the load model (idempotent, keeps the old value when the model has no history).
 - Visual language refreshed to a warm-neutral, sporty theme: burnt-orange accent, flat surfaces, crisp borders and tighter radii; removed aurora gradients, glass blur, coloured glows and gradient text.
 - De-AI-ification pass 2: the last hardcoded blue/slate tones (AI 智能接力 card, algorithm badges, pose stats panel, timer ring, rest overlay, graph palette) now use the warm design tokens, and status halos follow `--fv-success` / `--fv-warning`.
 - Navigation copy now uses coach-style wording (训练计划 / 动作纠错 / 训练数据 / 成长) with a "训练助手" product title.
