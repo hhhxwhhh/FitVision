@@ -63,6 +63,7 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     ShortcutsDialog: typeof import('./components/ShortcutsDialog.vue')['default']
     ThemeToggle: typeof import('./components/ThemeToggle.vue')['default']
+    TrainingCalendar: typeof import('./components/TrainingCalendar.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']

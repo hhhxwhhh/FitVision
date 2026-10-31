@@ -22,6 +22,8 @@
       </article>
     </section>
 
+    <TrainingCalendar v-if="!loading && sessions.length" :active-days="trainingDayKeys" />
+
     <div class="toolbar">
       <el-radio-group v-model="filter" size="default">
         <el-radio-button value="all">全部</el-radio-button>
@@ -126,8 +128,9 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import apiClient from '../api'
+import TrainingCalendar from '../components/TrainingCalendar.vue'
 import { datedFilename, downloadTextFile, toCsv } from '../utils/csv'
-import { currentStreak, longestStreak, periodSummaries } from '../utils/trainingStats'
+import { currentStreak, longestStreak, periodSummaries, trainingDays } from '../utils/trainingStats'
 
 interface TrainingSession {
   id: number
@@ -185,6 +188,8 @@ onMounted(() => fetchPage(1))
 const completedCount = computed(() => sessions.value.filter((item) => item.is_completed).length)
 
 const summaries = computed(() => periodSummaries(sessions.value))
+
+const trainingDayKeys = computed(() => trainingDays(sessions.value))
 
 const streaks = computed(() => ({
   current: currentStreak(sessions.value),

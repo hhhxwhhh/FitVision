@@ -238,6 +238,13 @@ python manage.py seed_demo --with-history
 > 历史数据由 `backend/utils/demo_data.py` 的确定性生成器产生，
 > 测试可用 `python -m unittest utils.test_demo_data`。
 
+需要给推荐算法更多样本时，可再生成一套**多用户合成数据集**（用户按初级 / 中级 / 高级
+轮转，目标覆盖减脂 / 增肌 / 耐力 / 柔韧，各水平的动作评分确有差异）：
+
+```bash
+python manage.py seed_population --users 12 --weeks 6    # 或 make seed-population
+```
+
 ---
 
 ## 环境变量
