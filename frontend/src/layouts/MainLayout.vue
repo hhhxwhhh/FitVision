@@ -1,395 +1,661 @@
 <template>
-    <div class="main-layout">
-        <el-container class="layout-container">
-            <!--
-              顶部导航栏：
-              1) 左侧品牌 Logo（点击回首页）
-              2) 中间主导航菜单（由路由路径驱动激活态）
-              3) 右侧用户下拉菜单（个人中心 / 退出登录）
-            -->
-            <el-header class="header">
-                <div class="header-inner container">
-                    <!-- 品牌区：固定回首页入口，保证用户随时可回到主面板 -->
-                    <div class="logo-section" @click="router.push('/')">
-                        <div class="logo-icon">⚡</div>
-                        <h1 class="logo-text">FitVision</h1>
-                    </div>
+  <div class="main-layout">
+    <header class="app-header">
+      <div class="header-inner container">
+        <router-link to="/" class="brand">
+          <span class="brand-mark">FV</span>
+          <span class="brand-name">FitVision</span>
+        </router-link>
 
-                    <!--
-                      主导航区：
-                      使用与“用户区”一致的 el-dropdown 形式做导航分组。
-                      目标：减少顶栏入口数量，同时保留功能可达性。
-                    -->
-                    <div class="nav-section">
-                        <div class="nav-links">
-                            <button class="nav-link" :class="{ active: activeMenu === 'home' }" @click="router.push('/')">
-                                首页
-                            </button>
+        <nav class="desktop-nav" aria-label="主导航">
+          <button
+            v-for="item in primaryNav"
+            :key="item.path"
+            type="button"
+            class="nav-link"
+            :class="{ active: isActive(item) }"
+            @click="router.push(item.path)"
+          >
+            <el-icon><component :is="item.icon" /></el-icon>
+            {{ item.label }}
+          </button>
+        </nav>
 
-                            <el-dropdown @command="handleTrainingCommand" trigger="click">
-                                <button class="nav-link nav-dropdown-trigger"
-                                    :class="{ active: activeMenu === 'training-group' }">
-                                    训练中心
-                                    <el-icon class="el-icon--right"><arrow-down /></el-icon>
-                                </button>
-                                <template #dropdown>
-                                    <el-dropdown-menu>
-                                        <el-dropdown-item command="training">智能训练</el-dropdown-item>
-                                        <el-dropdown-item command="posture-diagnosis">姿态诊断</el-dropdown-item>
-                                        <el-dropdown-item command="ai-plan">AI 计划</el-dropdown-item>
-                                    </el-dropdown-menu>
-                                </template>
-                            </el-dropdown>
+        <div class="header-actions">
+          <button class="search-trigger" type="button" @click="openPalette">
+            <el-icon><Search /></el-icon>
+            <span class="search-label">搜索动作或页面</span>
+            <kbd>⌘K</kbd>
+          </button>
 
-                            <el-dropdown @command="handleKnowledgeCommand" trigger="click">
-                                <button class="nav-link nav-dropdown-trigger"
-                                    :class="{ active: activeMenu === 'knowledge-group' }">
-                                    动作学习
-                                    <el-icon class="el-icon--right"><arrow-down /></el-icon>
-                                </button>
-                                <template #dropdown>
-                                    <el-dropdown-menu>
-                                        <el-dropdown-item command="exercises">动作百科</el-dropdown-item>
-                                        <el-dropdown-item command="exercise-graph">知识图谱</el-dropdown-item>
-                                    </el-dropdown-menu>
-                                </template>
-                            </el-dropdown>
+          <el-tooltip v-if="canInstall" content="安装 FitVision 到桌面" placement="bottom">
+            <button class="icon-btn" type="button" aria-label="安装应用" @click="handleInstall">
+              <el-icon><Download /></el-icon>
+            </button>
+          </el-tooltip>
 
-                            <button class="nav-link" :class="{ active: activeMenu === 'analytics' }"
-                                @click="router.push('/analytics')">
-                                数据中心
-                            </button>
-                        </div>
-                    </div>
+          <ThemeToggle />
 
-                    <!-- 用户区：展示头像和昵称，承载账户相关操作 -->
-                    <div class="user-section">
-                        <el-dropdown @command="handleUserCommand" trigger="click">
-                            <div class="user-profile-badge">
-                                <el-avatar :size="32" :src="userStore.userAvatar" :icon="UserFilled"
-                                    class="user-avatar" />
-                                <span class="username">{{ userStore.userName }}</span>
-                                <el-icon class="el-icon--right">
-                                    <arrow-down />
-                                </el-icon>
-                            </div>
-                            <template #dropdown>
-                                <el-dropdown-menu class="user-dropdown">
-                                    <el-dropdown-item command="profile">
-                                        <el-icon>
-                                            <User />
-                                        </el-icon>
-                                        个人中心
-                                    </el-dropdown-item>
-                                    <el-dropdown-item command="logout" divided>
-                                        <el-icon>
-                                            <SwitchButton />
-                                        </el-icon>
-                                        退出登录
-                                    </el-dropdown-item>
-                                </el-dropdown-menu>
-                            </template>
-                        </el-dropdown>
-                    </div>
-                </div>
-            </el-header>
+          <el-dropdown trigger="click" @command="handleUserCommand">
+            <button class="user-badge" type="button">
+              <el-avatar :size="30" :src="userStore.userAvatar" :icon="UserFilled" />
+              <span class="username">{{ userStore.userName || '我的账户' }}</span>
+              <el-icon class="chevron"><ArrowDown /></el-icon>
+            </button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="profile">
+                  <el-icon><User /></el-icon>个人中心
+                </el-dropdown-item>
+                <el-dropdown-item command="logout" divided>
+                  <el-icon><SwitchButton /></el-icon>退出登录
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
 
-                        <!--
-                            内容区域：
-                            - 通过 router-view 动态渲染当前路由对应页面
-                            - 使用 route.path 作为 key，确保同路径切换时组件状态可预期
-                        -->
-            <el-main class="main-content">
-                <div class="content-wrapper container">
-                    <!-- Router View with Component Caching Strategy -->
-                    <router-view v-slot="{ Component, route }">
-                        <Transition name="fade-slide" mode="out-in">
-                            <component :is="Component" :key="route.path" />
-                        </Transition>
-                    </router-view>
-                </div>
-            </el-main>
-            
-            <!-- 页脚：统一版权信息 -->
-            <el-footer class="footer">
-                <div class="footer-inner container">
-                     <p>© 2024 FitVision inc. All rights reserved.</p>
-                </div>
-            </el-footer>
+          <button class="icon-btn mobile-only" type="button" aria-label="打开菜单" @click="mobileOpen = true">
+            <el-icon><Menu /></el-icon>
+          </button>
+        </div>
+      </div>
+    </header>
 
-        </el-container>
+    <div v-if="!online" class="offline-bar">
+      <el-icon><Warning /></el-icon>
+      当前处于离线状态，部分功能暂不可用
     </div>
+
+    <main class="app-main">
+      <div class="container app-content">
+        <router-view v-slot="{ Component, route: currentRoute }">
+          <Transition name="fade-slide" mode="out-in">
+            <component :is="Component" :key="currentRoute.path" />
+          </Transition>
+        </router-view>
+      </div>
+    </main>
+
+    <footer class="app-footer">
+      <div class="container footer-inner">
+        <div class="footer-brand">
+          <span class="brand-mark small">FV</span>
+          <span>FitVision · Move better, every rep.</span>
+        </div>
+        <div class="footer-meta">
+          <span class="status-dot" :class="{ offline: !online }"></span>
+          {{ online ? '服务在线' : '离线模式' }}
+          <span class="divider">·</span>
+          © {{ year }}
+        </div>
+      </div>
+    </footer>
+
+    <el-drawer v-model="mobileOpen" direction="rtl" size="290px" :with-header="false" class="mobile-drawer">
+      <div class="drawer-content">
+        <div class="drawer-header">
+          <span class="brand-mark">FV</span>
+          <div>
+            <strong>FitVision</strong>
+            <small>AI 健身教练</small>
+          </div>
+        </div>
+
+        <nav class="drawer-nav" aria-label="移动端导航">
+          <template v-for="group in mobileNav" :key="group.label">
+            <div class="drawer-group">{{ group.label }}</div>
+            <button
+              v-for="item in group.items"
+              :key="item.path"
+              type="button"
+              class="drawer-link"
+              :class="{ active: isActive(item) }"
+              @click="navigate(item.path)"
+            >
+              <el-icon><component :is="item.icon" /></el-icon>
+              {{ item.label }}
+              <el-icon class="drawer-arrow"><ArrowRight /></el-icon>
+            </button>
+          </template>
+        </nav>
+
+        <div class="drawer-footer">
+          <ThemeToggle />
+          <span>{{ userStore.userName || '健身者' }}</span>
+        </div>
+      </div>
+    </el-drawer>
+
+    <CommandPalette ref="paletteRef" />
+  </div>
 </template>
 
 <script setup lang="ts">
-// Vue 组合式 API：
-// ref/watch/onMounted 用于状态与生命周期控制
-import { ref, watch, onMounted } from 'vue'
-// 路由实例：用于页面跳转和读取当前路径
-import { useRouter, useRoute } from 'vue-router'
-// 头像与下拉菜单图标
-import { UserFilled, User, SwitchButton, ArrowDown } from '@element-plus/icons-vue'
-// 全局消息与确认弹窗
-import { ElMessageBox, ElMessage } from 'element-plus'
-// Pinia 用户状态仓库
+import { onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  Aim,
+  ArrowDown,
+  ArrowRight,
+  DataAnalysis,
+  Download,
+  HomeFilled,
+  MagicStick,
+  Menu,
+  Reading,
+  Search,
+  SwitchButton,
+  TrendCharts,
+  User,
+  UserFilled,
+  VideoCamera,
+  Warning,
+} from '@element-plus/icons-vue'
 import { useUserStore } from '../stores/userStore'
+import { useOnlineStatus } from '../composables/useOnlineStatus'
+import { usePwaInstall } from '../composables/usePwaInstall'
+import ThemeToggle from '../components/ThemeToggle.vue'
+import CommandPalette from '../components/CommandPalette.vue'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const paletteRef = ref<InstanceType<typeof CommandPalette> | null>(null)
+const mobileOpen = ref(false)
+const year = new Date().getFullYear()
 
-// 当前激活菜单项（对应 el-menu 的 index）
-const activeMenu = ref('home')
+const { online } = useOnlineStatus()
+const { canInstall, install } = usePwaInstall()
 
-onMounted(async () => {
-    // 首次加载或刷新时，若 Store 没有用户信息则主动拉取。
-    // 目的：避免刷新后导航栏昵称和头像丢失。
-    if (!userStore.user) {
-        await userStore.fetchUser()
-    }
-})
+const primaryNav = [
+  { path: '/', label: '首页', icon: HomeFilled, exact: true },
+  { path: '/training', label: '训练', icon: VideoCamera, matches: ['/training', '/posture-diagnosis', '/ai-plan'] },
+  { path: '/exercises', label: '动作库', icon: Reading, matches: ['/exercises'] },
+  { path: '/analytics', label: '数据', icon: DataAnalysis, matches: ['/analytics'] },
+]
 
-watch(() => route.path, (path) => {
-    // 将“路由路径”映射为“菜单索引”，控制顶部导航高亮。
-    // 这里使用 startsWith 兼容子路由，例如 /training/report 仍高亮训练菜单。
-    if (path === '/') activeMenu.value = 'home'
-    else if (path.startsWith('/training') || path.startsWith('/ai-plan') || path === '/posture-diagnosis') activeMenu.value = 'training-group'
-    else if (path === '/exercises/graph' || path.startsWith('/exercises')) activeMenu.value = 'knowledge-group'
-    else if (path.startsWith('/analytics')) activeMenu.value = 'analytics'
-    else if (path.startsWith('/profile')) activeMenu.value = 'profile'
-}, { immediate: true })
+const mobileNav = [
+  {
+    label: '开始',
+    items: [
+      { path: '/', label: '首页', icon: HomeFilled, exact: true },
+      { path: '/training', label: '智能训练', icon: VideoCamera, matches: ['/training'] },
+      { path: '/ai-plan', label: 'AI 训练计划', icon: MagicStick, matches: ['/ai-plan'] },
+      { path: '/posture-diagnosis', label: '姿态诊断', icon: Aim, matches: ['/posture-diagnosis'] },
+    ],
+  },
+  {
+    label: '探索',
+    items: [
+      { path: '/exercises', label: '动作百科', icon: Reading, matches: ['/exercises'] },
+      { path: '/exercises/graph', label: '知识图谱', icon: TrendCharts, matches: ['/exercises/graph'] },
+      { path: '/analytics', label: '数据中心', icon: DataAnalysis, matches: ['/analytics'] },
+    ],
+  },
+]
 
-const handleTrainingCommand = (command: string) => {
-    switch (command) {
-        case 'training':
-            router.push('/training')
-            break
-        case 'posture-diagnosis':
-            router.push('/posture-diagnosis')
-            break
-        case 'ai-plan':
-            router.push('/ai-plan')
-            break
-    }
+interface NavItem {
+  path: string
+  exact?: boolean
+  matches?: string[]
 }
 
-const handleKnowledgeCommand = (command: string) => {
-    switch (command) {
-        case 'exercises':
-            router.push('/exercises')
-            break
-        case 'exercise-graph':
-            router.push('/exercises/graph')
-            break
-    }
+const isActive = (item: NavItem) => {
+  const path = route.path
+  if (item.exact) return path === item.path
+  if (item.matches) return item.matches.some((prefix) => path.startsWith(prefix))
+  return path === item.path || path.startsWith(`${item.path}/`)
+}
+
+const openPalette = () => paletteRef.value?.open()
+
+const navigate = (path: string) => {
+  mobileOpen.value = false
+  router.push(path)
+}
+
+const handleInstall = async () => {
+  const accepted = await install()
+  if (accepted) ElMessage.success('FitVision 已开始安装')
 }
 
 const handleUserCommand = (command: string) => {
-    // 用户下拉菜单命令处理：
-    // - logout：二次确认后清理登录状态并跳转登录页
-    // - profile：进入个人中心
-    if (command === 'logout') {
-        ElMessageBox.confirm('确定要退出登录吗？', '确认', {
-            confirmButtonText: '退出',
-            cancelButtonText: '取消',
-            type: 'warning'
-        }).then(() => {
-            userStore.logout()
-            router.push('/login')
-            ElMessage.success('已安全退出')
-        })
-    } else if (command === 'profile') {
-        router.push('/profile')
-    }
+  if (command === 'profile') {
+    router.push('/profile')
+    return
+  }
+
+  if (command === 'logout') {
+    ElMessageBox.confirm('确定要退出登录吗？', '退出登录', {
+      confirmButtonText: '退出',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }).then(() => {
+      userStore.logout()
+      router.push('/login')
+      ElMessage.success('已安全退出')
+    })
+  }
 }
+
+watch(
+  () => route.fullPath,
+  () => {
+    mobileOpen.value = false
+    window.scrollTo({ top: 0 })
+  },
+)
+
+onMounted(async () => {
+  if (!userStore.user) await userStore.fetchUser()
+})
 </script>
 
 <style scoped>
-/* 页面级容器：撑满视口，保证页脚在底部 */
-.layout-container {
-    min-height: 100vh;
-    --milan-page-bg: #EEE6DB;
-    --milan-page-bg-soft: #E4D8C8;
-    --milan-surface: #FBF8F3;
-    --milan-surface-2: #F5F0E8;
-    --milan-border: #E5E0D8;
-    --milan-text-primary: #3C2F2F;
-    --milan-text-secondary: #7D756D;
-    --milan-accent: #BEA47E;
-    --milan-accent-deep: #9F8462;
-
-    background:
-        radial-gradient(900px 280px at 8% -10%, rgba(245, 242, 237, 0.68), transparent 60%),
-        radial-gradient(980px 320px at 100% 0%, rgba(213, 198, 176, 0.28), transparent 62%),
-        linear-gradient(180deg, var(--milan-page-bg) 0%, var(--milan-page-bg-soft) 100%);
+.main-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-/* 顶栏：吸顶 + 轻阴影，保持导航可见性 */
-.header {
-    height: var(--header-height) !important;
-    background: linear-gradient(180deg, #FEFCF8 0%, #FBF7F1 100%);
-    border-bottom: 1px solid #ECE4D8;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    padding: 0;
-    box-shadow: 0 4px 14px rgba(60, 47, 47, 0.05);
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 90;
+  height: var(--header-height);
+  border-bottom: 1px solid var(--fv-border);
+  background: color-mix(in srgb, var(--fv-bg) 78%, transparent);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
 }
 
-/* 顶栏内部三段布局：左 Logo / 中菜单 / 右用户区 */
 .header-inner {
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 18px;
 }
 
-/* Logo 样式：图标与标题作为品牌识别点 */
-.logo-section {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    user-select: none;
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--fv-text);
+  text-decoration: none;
+  flex: none;
 }
 
-.logo-icon {
-    font-size: 24px;
-    background: linear-gradient(135deg, #BEA47E 0%, #9F8462 100%);
-    background-clip: text;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    /* Emoji fallback */
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    background: #EFE8DD;
-    color: #9F8462;
-    -webkit-text-fill-color: initial;
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--fv-gradient);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  box-shadow: var(--fv-shadow-glow);
 }
 
-.logo-text {
-    font-size: 20px;
-    font-weight: 800;
-    color: var(--milan-text-primary);
-    margin: 0;
-    letter-spacing: -0.5px;
+.brand-mark.small {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  font-size: 10px;
+  box-shadow: none;
 }
 
-/* 导航区域：居中显示收敛后的主入口 */
-.nav-section {
-    flex: 1;
-    display: flex;
-    justify-content: center;
+.brand-name {
+  font-size: 18px;
+  font-weight: 850;
+  letter-spacing: -0.035em;
 }
 
-.nav-links {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+.desktop-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  justify-content: center;
 }
 
 .nav-link {
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    padding: 10px 12px;
-    border-radius: 10px;
-    font-size: 15px;
-    font-weight: 500;
-    color: var(--milan-text-secondary);
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    transition: all 0.2s ease;
-}
-
-.nav-link.active {
-    color: var(--milan-accent-deep);
-    font-weight: 600;
-    background: #EFE8DD;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border: none;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--fv-text-2);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease;
 }
 
 .nav-link:hover {
-    color: var(--milan-text-primary);
-    background: var(--milan-surface-2);
+  color: var(--fv-text);
+  background: var(--fv-surface-2);
 }
 
-.nav-dropdown-trigger :deep(.el-icon) {
-    font-size: 14px;
+.nav-link.active {
+  color: var(--fv-primary);
+  background: var(--fv-primary-soft);
 }
 
-/* 用户资料入口：小胶囊形态，符合账户操作区特征 */
-.user-profile-badge {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 12px;
-    border-radius: 20px;
-    cursor: pointer;
-    transition: background 0.2s;
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
 }
 
-.user-profile-badge:hover {
-    background-color: var(--milan-surface-2);
+.search-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--fv-border);
+  border-radius: 11px;
+  background: var(--fv-surface);
+  color: var(--fv-text-2);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.search-trigger:hover {
+  border-color: var(--fv-primary);
+  color: var(--fv-primary);
+}
+
+.search-trigger kbd {
+  padding: 2px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--fv-border);
+  background: var(--fv-surface-2);
+  color: var(--fv-text-3);
+  font-family: inherit;
+  font-size: 10.5px;
+}
+
+.icon-btn {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--fv-border);
+  border-radius: 12px;
+  background: var(--fv-surface);
+  color: var(--fv-text-2);
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease;
+}
+
+.icon-btn:hover {
+  color: var(--fv-primary);
+  background: var(--fv-primary-soft);
+}
+
+.user-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 8px 0 4px;
+  border: 1px solid var(--fv-border);
+  border-radius: 999px;
+  background: var(--fv-surface);
+  color: var(--fv-text);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.user-badge:hover {
+  background: var(--fv-surface-2);
 }
 
 .username {
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--milan-text-primary);
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 600;
 }
 
-.user-avatar {
-    background: var(--milan-accent);
-    color: #F5F2ED;
+.chevron {
+  color: var(--fv-text-3);
+  font-size: 12px;
+  margin-right: 4px;
 }
 
-/* 主内容区：横向不溢出，避免图表类组件撑破布局 */
-.main-content {
-    padding: 0;
-    flex: 1;
-    overflow-x: hidden;
+.mobile-only {
+  display: none;
 }
 
-/* 内容上下留白：给页面卡片和标题提供呼吸感 */
-.content-wrapper {
-    padding-top: 32px;
-    padding-bottom: 48px;
+.offline-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #92400e;
+  background: #fef3c7;
+  border-bottom: 1px solid #fde68a;
 }
 
-/* 页脚：弱化视觉权重，作为收尾信息区 */
-.footer {
-    background: color-mix(in srgb, var(--milan-surface) 90%, white 10%);
-    border-top: 1px solid var(--milan-border);
-    padding: 0;
-    height: auto;
+:global(html.dark) .offline-bar {
+  color: #fcd34d;
+  background: rgba(120, 53, 15, 0.35);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.app-content {
+  padding-top: 28px;
+  padding-bottom: 56px;
+}
+
+.app-footer {
+  border-top: 1px solid var(--fv-border);
+  background: var(--fv-surface-translucent);
+  backdrop-filter: blur(10px);
 }
 
 .footer-inner {
-    height: 60px;
-    display: flex;
-    align-items: center;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--fv-text-2);
+}
+
+.footer-brand,
+.footer-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.footer-meta {
+  gap: 6px;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--fv-success);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.status-dot.offline {
+  background: var(--fv-warning);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+}
+
+.divider {
+  color: var(--fv-text-3);
+  margin: 0 2px;
+}
+
+.mobile-drawer :deep(.el-drawer__body) {
+  padding: 0;
+  background: var(--fv-bg);
+}
+
+.drawer-content {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 18px;
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 6px 22px;
+  border-bottom: 1px solid var(--fv-border);
+}
+
+.drawer-header strong {
+  display: block;
+  font-size: 16px;
+  color: var(--fv-text);
+}
+
+.drawer-header small {
+  font-size: 11.5px;
+  color: var(--fv-text-2);
+}
+
+.drawer-nav {
+  flex: 1;
+  padding-top: 14px;
+}
+
+.drawer-group {
+  padding: 14px 10px 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fv-text-3);
+}
+
+.drawer-link {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 12px;
+  border: none;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--fv-text-2);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.drawer-link.active,
+.drawer-link:hover {
+  color: var(--fv-primary);
+  background: var(--fv-primary-soft);
+}
+
+.drawer-arrow {
+  margin-left: auto;
+  font-size: 12px;
+  opacity: 0.5;
+}
+
+.drawer-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 18px;
+  border-top: 1px solid var(--fv-border);
+  font-size: 13px;
+  color: var(--fv-text-2);
+}
+
+@media (max-width: 1080px) {
+  .search-label {
+    display: none;
+  }
+
+  .search-trigger kbd {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .desktop-nav {
+    display: none;
+  }
+
+  .mobile-only {
+    display: inline-flex;
+  }
+
+  .header-inner {
+    justify-content: space-between;
+  }
+
+  .username,
+  .chevron {
+    display: none;
+  }
+
+  .user-badge {
+    padding: 0 4px;
+    border: none;
+    background: transparent;
+  }
+}
+
+@media (max-width: 620px) {
+  .app-content {
+    padding-top: 18px;
+  }
+
+  .brand-name {
+    display: none;
+  }
+
+  .footer-inner {
+    flex-direction: column;
     justify-content: center;
-    color: var(--milan-text-secondary);
-    font-size: 13px;
-}
-
-.main-layout :deep(.el-dropdown-menu) {
-    background: var(--milan-surface);
-    border: 1px solid var(--milan-border);
-    box-shadow: 0 8px 18px rgba(60, 47, 47, 0.1);
-}
-
-.main-layout :deep(.el-dropdown-menu__item) {
-    color: var(--milan-text-primary);
-}
-
-.main-layout :deep(.el-dropdown-menu__item:not(.is-disabled):hover) {
-    background: var(--milan-surface-2);
-    color: var(--milan-accent-deep);
+    gap: 6px;
+    padding: 14px 0;
+  }
 }
 </style>
