@@ -71,7 +71,10 @@
 6.  **成就判定**: 汇总训练次数、连续天数、总容量、动作种类等指标，解锁新成就并发放 XP。
 7.  **任务与周目标**: 读取 `GET /api/growth/overview/` 时实时计算今日任务与本周目标进度；
     用户在成长中心手动领取任务/周目标奖励。
-8.  **周榜**: `GET /api/growth/leaderboard/` 聚合本周 `XPEvent`，按经验排序并脱敏展示昵称。
+8.  **限时挑战**: 用户通过 `POST /api/growth/challenges/<id>/join/` 参加当前周期挑战；
+    读取时按周/月窗口从训练会话与动作记录实时计算进度，完成后
+    `POST /api/growth/challenges/<id>/claim/` 领取经验，`XPEvent` 保证同一参赛记录只结算一次。
+9.  **周榜**: `GET /api/growth/leaderboard/` 聚合本周 `XPEvent`，按经验排序并脱敏展示昵称。
 
 ## 个性化推荐流程 (Recommendation Flow)
 

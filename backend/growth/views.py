@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from .models import Achievement, PersonalRecord, UserAchievement, UserProgress
 from .serializers import (
     AchievementSerializer,
+    ChallengeSerializer,
     DailyQuestSerializer,
     PersonalRecordSerializer,
     UserAchievementSerializer,
@@ -13,9 +14,12 @@ from .serializers import (
 )
 from .services import (
     build_metrics,
+    challenge_states,
+    claim_challenge,
     claim_daily_quest,
     claim_weekly_goal,
     evaluate_achievements,
+    join_challenge,
     level_progress,
     readiness_snapshot,
     refresh_daily_quests,
@@ -41,6 +45,16 @@ def _progress_payload(progress: UserProgress) -> dict:
         }
     )
     return payload
+
+
+def _challenge_context(states: list[dict]) -> dict:
+    return {"states": {state["challenge"].id: state for state in states}}
+
+
+def _challenge_payload(challenge, states: list[dict]) -> dict:
+    return ChallengeSerializer(
+        challenge, context=_challenge_context(states)
+    ).data
 
 
 @api_view(["GET"])
@@ -72,6 +86,8 @@ def overview(request):
         .select_related("exercise")
         .order_by("-achieved_at")[:5]
     )
+    challenges = challenge_states(user)
+    challenge_context = _challenge_context(challenges)
 
     return Response(
         {
@@ -93,6 +109,17 @@ def overview(request):
                 ).data,
             },
             "personal_records": PersonalRecordSerializer(records, many=True).data,
+            "challenges": {
+                "total": len(challenges),
+                "joined": sum(1 for item in challenges if item["is_joined"]),
+                "completed": sum(1 for item in challenges if item["is_claimed"]),
+                "claimable": sum(1 for item in challenges if item["can_claim"]),
+                "preview": ChallengeSerializer(
+                    [item["challenge"] for item in challenges[:3]],
+                    many=True,
+                    context=challenge_context,
+                ).data,
+            },
             "metrics": {
                 key: round(float(value), 1) if isinstance(value, float) else value
                 for key, value in metrics.items()
@@ -200,6 +227,71 @@ def personal_records(request):
     if record_type:
         records = records.filter(record_type=record_type)
     return Response(PersonalRecordSerializer(records, many=True).data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def challenges_list(request):
+    """当前周期的全部挑战与用户进度。"""
+    states = challenge_states(request.user)
+    serializer = ChallengeSerializer(
+        [state["challenge"] for state in states],
+        many=True,
+        context=_challenge_context(states),
+    )
+    return Response(
+        {
+            "results": serializer.data,
+            "joined": sum(1 for state in states if state["is_joined"]),
+            "completed": sum(1 for state in states if state["is_claimed"]),
+            "claimable": sum(1 for state in states if state["can_claim"]),
+        }
+    )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def join_challenge_view(request, challenge_id):
+    try:
+        challenge, _, created = join_challenge(request.user, challenge_id)
+    except ValueError as exc:
+        return _client_error(str(exc))
+
+    states = challenge_states(request.user)
+    return Response(
+        {
+            "challenge": _challenge_payload(challenge, states),
+            "created": created,
+        },
+        status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+    )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def claim_challenge_reward(request, challenge_id):
+    try:
+        challenge, _, state, achievements, awarded = claim_challenge(
+            request.user, challenge_id
+        )
+    except ValueError as exc:
+        return _client_error(str(exc))
+
+    states = challenge_states(request.user)
+    if state is not None:
+        states = [
+            state if item["challenge"].id == challenge.id else item
+            for item in states
+        ]
+    return Response(
+        {
+            "challenge": _challenge_payload(challenge, states),
+            "awarded_xp": challenge.xp_reward if awarded else 0,
+            "achievements": UserAchievementSerializer(
+                achievements, many=True
+            ).data,
+        }
+    )
 
 
 @api_view(["GET"])

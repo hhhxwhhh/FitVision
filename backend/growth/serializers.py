@@ -1,6 +1,13 @@
 from rest_framework import serializers
 
-from .models import Achievement, PersonalRecord, UserAchievement, UserDailyQuest, WeeklyGoal
+from .models import (
+    Achievement,
+    Challenge,
+    PersonalRecord,
+    UserAchievement,
+    UserDailyQuest,
+    WeeklyGoal,
+)
 
 
 class AchievementSerializer(serializers.ModelSerializer):
@@ -150,6 +157,81 @@ class PersonalRecordSerializer(serializers.ModelSerializer):
             "achieved_at",
             "session",
         )
+
+
+class ChallengeSerializer(serializers.ModelSerializer):
+    period_label = serializers.CharField(source="get_period_display", read_only=True)
+    metric_label = serializers.CharField(source="get_metric_display", read_only=True)
+    period_start = serializers.SerializerMethodField()
+    period_end = serializers.SerializerMethodField()
+    progress = serializers.SerializerMethodField()
+    progress_percent = serializers.SerializerMethodField()
+    is_joined = serializers.SerializerMethodField()
+    is_completed = serializers.SerializerMethodField()
+    is_claimed = serializers.SerializerMethodField()
+    can_claim = serializers.SerializerMethodField()
+    joined_at = serializers.SerializerMethodField()
+    claimed_at = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Challenge
+        fields = (
+            "id",
+            "code",
+            "title",
+            "description",
+            "period",
+            "period_label",
+            "metric",
+            "metric_label",
+            "target",
+            "xp_reward",
+            "icon",
+            "sort_order",
+            "period_start",
+            "period_end",
+            "progress",
+            "progress_percent",
+            "is_joined",
+            "is_completed",
+            "is_claimed",
+            "can_claim",
+            "joined_at",
+            "claimed_at",
+        )
+
+    def _state(self, obj):
+        return self.context.get("states", {}).get(obj.id, {})
+
+    def get_period_start(self, obj):
+        return self._state(obj).get("period_start")
+
+    def get_period_end(self, obj):
+        return self._state(obj).get("period_end")
+
+    def get_progress(self, obj):
+        return self._state(obj).get("progress", 0)
+
+    def get_progress_percent(self, obj):
+        return self._state(obj).get("progress_percent", 0)
+
+    def get_is_joined(self, obj):
+        return self._state(obj).get("is_joined", False)
+
+    def get_is_completed(self, obj):
+        return self._state(obj).get("is_completed", False)
+
+    def get_is_claimed(self, obj):
+        return self._state(obj).get("is_claimed", False)
+
+    def get_can_claim(self, obj):
+        return self._state(obj).get("can_claim", False)
+
+    def get_joined_at(self, obj):
+        return self._state(obj).get("joined_at")
+
+    def get_claimed_at(self, obj):
+        return self._state(obj).get("claimed_at")
 
 
 class AchievementSummarySerializer(serializers.ModelSerializer):

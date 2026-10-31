@@ -120,6 +120,82 @@
           </div>
         </section>
 
+        <section class="panel challenge-panel">
+          <div class="panel-head">
+            <div>
+              <h2>限时挑战</h2>
+              <p>周挑战每周一刷新，月挑战每月 1 日刷新</p>
+            </div>
+            <span class="panel-badge">{{ challengeSummary }}</span>
+          </div>
+
+          <div class="challenge-grid">
+            <article
+              v-for="challenge in challenges"
+              :key="challenge.id"
+              class="challenge-card"
+              :class="{ joined: challenge.is_joined, done: challenge.is_claimed }"
+            >
+              <div class="challenge-head">
+                <span class="challenge-icon">
+                  <el-icon><component :is="iconFor(challenge.icon)" /></el-icon>
+                </span>
+                <div class="challenge-title">
+                  <strong>{{ challenge.title }}</strong>
+                  <small>{{ challenge.period_label }} · 截止 {{ dateLabel(challenge.period_end) }}</small>
+                </div>
+                <span class="challenge-xp">+{{ challenge.xp_reward }} XP</span>
+              </div>
+
+              <p class="challenge-desc">{{ challenge.description }}</p>
+
+              <div class="challenge-progress">
+                <div class="bar"><span :style="{ width: `${challenge.progress_percent}%` }"></span></div>
+                <small>
+                  {{ formatNumber(challenge.progress) }} / {{ formatNumber(challenge.target) }}
+                  {{ challenge.metric_label }}
+                </small>
+              </div>
+
+              <div class="challenge-actions">
+                <el-tag v-if="challenge.is_claimed" type="success" effect="plain" size="small">
+                  已完成
+                </el-tag>
+                <el-button
+                  v-else-if="!challenge.is_joined"
+                  size="small"
+                  :loading="joiningChallenge === challenge.id"
+                  @click="joinChallenge(challenge.id)"
+                >
+                  参加挑战
+                </el-button>
+                <el-button
+                  v-else
+                  size="small"
+                  :type="challenge.can_claim ? 'primary' : 'default'"
+                  :disabled="!challenge.can_claim"
+                  :loading="claimingChallenge === challenge.id"
+                  @click="claimChallenge(challenge.id)"
+                >
+                  {{
+                    challenge.can_claim
+                      ? `领取 ${challenge.xp_reward} XP`
+                      : challenge.is_completed
+                        ? '领取'
+                        : '进行中'
+                  }}
+                </el-button>
+              </div>
+            </article>
+          </div>
+
+          <el-empty
+            v-if="challenges.length === 0"
+            description="暂时没有开放的挑战"
+            :image-size="90"
+          />
+        </section>
+
         <section class="panel achievements-panel">
           <div class="panel-head">
             <div>
@@ -333,6 +409,27 @@ interface Quest {
   progress_percent: number
 }
 
+interface Challenge {
+  id: number
+  code: string
+  title: string
+  description: string
+  period: string
+  period_label: string
+  metric_label: string
+  target: number
+  xp_reward: number
+  icon: string
+  period_start: string
+  period_end: string
+  progress: number
+  progress_percent: number
+  is_joined: boolean
+  is_completed: boolean
+  is_claimed: boolean
+  can_claim: boolean
+}
+
 interface WeeklyGoal {
   target_sessions: number
   target_minutes: number
@@ -384,6 +481,8 @@ interface Leaderboard {
 
 const loading = ref(false)
 const claimingQuest = ref<number | null>(null)
+const claimingChallenge = ref<number | null>(null)
+const joiningChallenge = ref<number | null>(null)
 const claimingGoal = ref(false)
 const savingGoal = ref(false)
 const editingGoal = ref(false)
@@ -412,6 +511,7 @@ const readiness = ref({
 })
 
 const quests = ref<Quest[]>([])
+const challenges = ref<Challenge[]>([])
 const achievements = ref<AchievementItem[]>([])
 const records = ref<PersonalRecord[]>([])
 const weeklyGoal = ref<WeeklyGoal>({
@@ -462,6 +562,12 @@ const levelHint = computed(() => {
 })
 
 const claimedCount = computed(() => quests.value.filter((quest) => quest.is_claimed).length)
+const challengeSummary = computed(() => {
+  const claimable = challenges.value.filter((item) => item.can_claim).length
+  if (claimable > 0) return `${claimable} 项可领取`
+  const joined = challenges.value.filter((item) => item.is_joined).length
+  return `${joined}/${challenges.value.length} 已参加`
+})
 const unlockedAchievements = computed(
   () => achievements.value.filter((item) => item.unlocked).length,
 )
@@ -482,6 +588,11 @@ const weekRange = computed(() => {
 
 function monthDay(date: Date) {
   return `${date.getMonth() + 1}月${date.getDate()}日`
+}
+
+function dateLabel(iso: string) {
+  if (!iso) return ''
+  return monthDay(new Date(`${iso}T00:00:00`))
 }
 
 function formatNumber(value: number) {
@@ -512,6 +623,11 @@ async function fetchOverview() {
   goalForm.target_minutes = data.weekly_goal.target_minutes
 }
 
+async function fetchChallenges() {
+  const response = await apiClient.get('/growth/challenges/')
+  challenges.value = response.data.results
+}
+
 async function fetchAchievements() {
   const response = await apiClient.get('/growth/achievements/')
   achievements.value = response.data.results
@@ -525,7 +641,12 @@ async function fetchLeaderboard() {
 async function loadAll() {
   loading.value = true
   try {
-    await Promise.allSettled([fetchOverview(), fetchAchievements(), fetchLeaderboard()])
+    await Promise.allSettled([
+      fetchOverview(),
+      fetchChallenges(),
+      fetchAchievements(),
+      fetchLeaderboard(),
+    ])
   } finally {
     loading.value = false
   }
@@ -541,6 +662,37 @@ async function claimQuest(id: number) {
     ElMessage.error(errorMessage(error, '领取失败，请稍后再试'))
   } finally {
     claimingQuest.value = null
+  }
+}
+
+async function joinChallenge(id: number) {
+  joiningChallenge.value = id
+  try {
+    await apiClient.post(`/growth/challenges/${id}/join/`)
+    ElMessage.success('已参加挑战，完成目标后记得领取奖励')
+    await fetchChallenges()
+  } catch (error: any) {
+    ElMessage.error(errorMessage(error, '参加挑战失败，请稍后再试'))
+  } finally {
+    joiningChallenge.value = null
+  }
+}
+
+async function claimChallenge(id: number) {
+  claimingChallenge.value = id
+  try {
+    const response = await apiClient.post(`/growth/challenges/${id}/claim/`)
+    ElMessage.success(`挑战完成，获得 ${response.data.awarded_xp} XP`)
+    await Promise.allSettled([
+      fetchChallenges(),
+      fetchOverview(),
+      fetchAchievements(),
+      fetchLeaderboard(),
+    ])
+  } catch (error: any) {
+    ElMessage.error(errorMessage(error, '领取失败，请先完成挑战'))
+  } finally {
+    claimingChallenge.value = null
   }
 }
 
@@ -1068,6 +1220,112 @@ onMounted(loadAll)
   color: var(--fv-success);
 }
 
+.challenge-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.challenge-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--fv-border);
+  background: var(--fv-surface-2);
+}
+
+.challenge-card.joined {
+  border-color: rgba(109, 94, 252, 0.28);
+}
+
+.challenge-card.done {
+  opacity: 0.68;
+}
+
+.challenge-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.challenge-icon {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--fv-surface);
+  color: var(--fv-primary);
+}
+
+.challenge-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.challenge-title strong {
+  display: block;
+  font-size: 13.5px;
+  color: var(--fv-text);
+}
+
+.challenge-title small {
+  display: block;
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--fv-text-3);
+}
+
+.challenge-xp {
+  flex: none;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--fv-primary);
+}
+
+.challenge-desc {
+  margin: 0;
+  min-height: 34px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--fv-text-2);
+}
+
+.challenge-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.challenge-progress .bar {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--fv-surface-3);
+  overflow: hidden;
+}
+
+.challenge-progress .bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--fv-accent), var(--fv-primary));
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.challenge-progress small {
+  font-size: 10.5px;
+  color: var(--fv-text-3);
+}
+
+.challenge-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .goal-editor {
   display: flex;
   flex-direction: column;
@@ -1241,7 +1499,8 @@ onMounted(loadAll)
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .achievement-grid {
+  .achievement-grid,
+  .challenge-grid {
     grid-template-columns: 1fr;
   }
 

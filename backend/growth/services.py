@@ -20,8 +20,10 @@ from users.models import UserStats
 
 from .models import (
     Achievement,
+    Challenge,
     PersonalRecord,
     UserAchievement,
+    UserChallenge,
     UserDailyQuest,
     UserProgress,
     WeeklyGoal,
@@ -251,6 +253,9 @@ def build_metrics(user) -> dict:
 
     early_sessions = sessions.filter(start_time__hour__lt=7).count()
     night_sessions = sessions.filter(start_time__hour__gte=22).count()
+    challenges_claimed = UserChallenge.objects.filter(
+        user=user, claimed_at__isnull=False
+    ).count()
     progress, _ = UserProgress.objects.get_or_create(user=user)
 
     return {
@@ -267,6 +272,7 @@ def build_metrics(user) -> dict:
         "weekly_days": len(weekly_dates),
         "early_sessions": early_sessions,
         "night_sessions": night_sessions,
+        "challenges_claimed": challenges_claimed,
         "level": progress.level,
     }
 
@@ -630,6 +636,174 @@ def claim_weekly_goal(user) -> tuple[WeeklyGoal, int]:
         note=f"完成每周目标（{goal.week_start}）",
     )
     return goal, WEEKLY_GOAL_XP
+
+
+# ---------------------------------------------------------------------------
+# 限时挑战
+# ---------------------------------------------------------------------------
+def challenge_window(challenge: Challenge, day: date | None = None) -> tuple[date, date]:
+    """返回挑战当前周期的 [开始, 结束) 日期。"""
+    day = day or timezone.localdate()
+    if challenge.period == "monthly":
+        start = day.replace(day=1)
+        if start.month == 12:
+            end = start.replace(year=start.year + 1, month=1)
+        else:
+            end = start.replace(month=start.month + 1)
+        return start, end
+
+    start = week_start_for(day)
+    return start, start + timedelta(days=7)
+
+
+def _challenge_metrics(user, start: date, end: date) -> dict:
+    """统计用户在 [start, end) 内的训练指标，供所有同周期挑战复用。"""
+    sessions = _completed_sessions(user).filter(
+        start_time__date__gte=start,
+        start_time__date__lt=end,
+    )
+    training_days = len(set(sessions.values_list("start_time__date", flat=True)))
+
+    total_minutes = 0.0
+    for start_time, end_time in sessions.values_list("start_time", "end_time"):
+        if start_time and end_time:
+            total_minutes += max(0.0, (end_time - start_time).total_seconds() / 60)
+
+    calories = float(sessions.aggregate(value=Sum("calories_burned"))["value"] or 0)
+    records = UserTrainingExerciseRecord.objects.filter(
+        session__user=user,
+        session__is_completed=True,
+        session__start_time__date__gte=start,
+        session__start_time__date__lt=end,
+    )
+    best_form = float(records.aggregate(value=Max("form_score"))["value"] or 0)
+    distinct_exercises = records.values("exercise_id").distinct().count()
+    volume = sum(
+        _record_volume(record)
+        for record in records.only("weights_used", "reps_completed")
+    )
+
+    return {
+        "sessions": sessions.count(),
+        "training_days": training_days,
+        "minutes": round(total_minutes, 1),
+        "calories": round(calories, 1),
+        "volume": round(volume, 1),
+        "distinct_exercises": distinct_exercises,
+        "best_form_score": best_form,
+    }
+
+
+def challenge_states(user, day: date | None = None) -> list[dict]:
+    """返回全部启用挑战在当前周期的进度与领取状态。"""
+    challenges = list(Challenge.objects.filter(is_active=True))
+    entries = {
+        (entry.challenge_id, entry.period_start): entry
+        for entry in UserChallenge.objects.filter(user=user)
+    }
+    metrics_cache: dict[tuple[date, date], dict] = {}
+    states: list[dict] = []
+
+    for challenge in challenges:
+        start, end = challenge_window(challenge, day)
+        key = (start, end)
+        if key not in metrics_cache:
+            metrics_cache[key] = _challenge_metrics(user, start, end)
+        metrics = metrics_cache[key]
+
+        progress = float(metrics.get(challenge.metric, 0) or 0)
+        target = float(challenge.target or 0)
+        entry = entries.get((challenge.id, start))
+        is_completed = progress >= target
+        claimed_at = entry.claimed_at if entry else None
+
+        states.append(
+            {
+                "challenge": challenge,
+                "period_start": start,
+                "period_end": end - timedelta(days=1),
+                "metrics": metrics,
+                "progress": round(progress, 1),
+                "progress_percent": (
+                    100.0
+                    if target <= 0
+                    else round(min(100.0, progress / target * 100), 1)
+                ),
+                "is_joined": entry is not None,
+                "is_completed": is_completed,
+                "is_claimed": claimed_at is not None,
+                "can_claim": entry is not None and is_completed and claimed_at is None,
+                "joined_at": entry.joined_at if entry else None,
+                "claimed_at": claimed_at,
+            }
+        )
+
+    return states
+
+
+def join_challenge(user, challenge_id: int) -> tuple[Challenge, UserChallenge, bool]:
+    """参加当前周期的挑战；重复参加返回已有记录。"""
+    challenge = Challenge.objects.filter(id=challenge_id, is_active=True).first()
+    if not challenge:
+        raise ValueError("挑战不存在或已下线")
+
+    start, _ = challenge_window(challenge)
+    entry, created = UserChallenge.objects.get_or_create(
+        user=user,
+        challenge=challenge,
+        period_start=start,
+    )
+    return challenge, entry, created
+
+
+def claim_challenge(
+    user, challenge_id: int
+) -> tuple[Challenge, UserChallenge, dict | None, list, bool]:
+    """领取挑战奖励，返回 (挑战, 参与记录, 最新状态, 新解锁成就, 是否发放经验)。"""
+    with transaction.atomic():
+        challenge = Challenge.objects.filter(id=challenge_id, is_active=True).first()
+        if not challenge:
+            raise ValueError("挑战不存在或已下线")
+
+        start, end = challenge_window(challenge)
+        entry = (
+            UserChallenge.objects.select_for_update()
+            .filter(user=user, challenge=challenge, period_start=start)
+            .first()
+        )
+        if not entry:
+            raise ValueError("请先参加这个挑战")
+        if entry.claimed_at:
+            raise ValueError("奖励已经领取过了")
+
+        metrics = _challenge_metrics(user, start, end)
+        progress = float(metrics.get(challenge.metric, 0) or 0)
+        if progress < float(challenge.target or 0):
+            raise ValueError("挑战尚未完成")
+
+        now = timezone.now()
+        entry.completed_at = entry.completed_at or now
+        entry.claimed_at = now
+        entry.save(update_fields=["completed_at", "claimed_at"])
+        _, awarded = award_xp(
+            user,
+            "challenge",
+            entry.id,
+            challenge.xp_reward,
+            note=f"完成挑战：{challenge.title}（{start}）",
+        )
+        achievements = evaluate_achievements(user)
+
+    state = next(
+        (
+            item
+            for item in challenge_states(user)
+            if item["challenge"].id == challenge.id
+            and item["period_start"] == start
+        ),
+        None,
+    )
+    return challenge, entry, state, achievements, awarded
 
 
 # ---------------------------------------------------------------------------

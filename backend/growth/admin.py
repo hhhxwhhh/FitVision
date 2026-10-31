@@ -2,8 +2,10 @@ from django.contrib import admin
 
 from .models import (
     Achievement,
+    Challenge,
     PersonalRecord,
     UserAchievement,
+    UserChallenge,
     UserDailyQuest,
     UserProgress,
     WeeklyGoal,
@@ -57,6 +59,38 @@ class PersonalRecordAdmin(admin.ModelAdmin):
     list_filter = ("record_type",)
     search_fields = ("user__username", "exercise__name")
     autocomplete_fields = ("user", "exercise", "session")
+
+
+@admin.register(Challenge)
+class ChallengeAdmin(admin.ModelAdmin):
+    list_display = (
+        "title",
+        "code",
+        "period",
+        "metric",
+        "target",
+        "xp_reward",
+        "is_active",
+        "sort_order",
+    )
+    list_filter = ("period", "metric", "is_active")
+    search_fields = ("title", "code", "description")
+    ordering = ("sort_order", "id")
+
+
+@admin.register(UserChallenge)
+class UserChallengeAdmin(admin.ModelAdmin):
+    list_display = (
+        "user",
+        "challenge",
+        "period_start",
+        "joined_at",
+        "completed_at",
+        "claimed_at",
+    )
+    list_filter = ("challenge__period", "challenge__metric", "period_start")
+    search_fields = ("user__username", "challenge__title")
+    autocomplete_fields = ("user", "challenge")
 
 
 @admin.register(XPEvent)

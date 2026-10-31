@@ -58,6 +58,7 @@ class Achievement(models.Model):
         ("weekly_days", "本周训练天数"),
         ("early_sessions", "清晨训练次数"),
         ("night_sessions", "深夜训练次数"),
+        ("challenges_claimed", "完成挑战次数"),
         ("level", "当前等级"),
     ]
 
@@ -215,6 +216,82 @@ class PersonalRecord(models.Model):
         return f"{self.user.username} - {self.exercise.name} - {self.get_record_type_display()}"
 
 
+class Challenge(models.Model):
+    """限时挑战定义。
+
+    挑战按周或按月循环，进度直接从周期内的训练数据计算，不保存易漂移的缓存值。
+    用户必须先参加挑战，完成目标后才能领取经验。
+    """
+
+    PERIOD_CHOICES = [
+        ("weekly", "每周"),
+        ("monthly", "每月"),
+    ]
+
+    METRIC_CHOICES = [
+        ("sessions", "完成训练次数"),
+        ("training_days", "训练天数"),
+        ("minutes", "训练分钟"),
+        ("calories", "消耗热量"),
+        ("volume", "训练容量"),
+        ("distinct_exercises", "动作种类"),
+        ("best_form_score", "最佳动作评分"),
+    ]
+
+    code = models.CharField("唯一标识", max_length=64, unique=True)
+    title = models.CharField("挑战名称", max_length=64)
+    description = models.CharField("挑战描述", max_length=200)
+    period = models.CharField(
+        "周期", max_length=16, choices=PERIOD_CHOICES, default="weekly"
+    )
+    metric = models.CharField("判定指标", max_length=32, choices=METRIC_CHOICES)
+    target = models.FloatField("目标值")
+    xp_reward = models.PositiveIntegerField("经验奖励", default=60)
+    icon = models.CharField("图标标识", max_length=32, blank=True)
+    sort_order = models.IntegerField("排序", default=0)
+    is_active = models.BooleanField("是否启用", default=True)
+
+    class Meta:
+        verbose_name = "限时挑战"
+        verbose_name_plural = "限时挑战"
+        ordering = ["sort_order", "id"]
+
+    def __str__(self):
+        return f"{self.title}（{self.get_period_display()}）"
+
+
+class UserChallenge(models.Model):
+    """用户参加某个周期挑战的记录，按周期隔离。"""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="challenge_entries",
+        verbose_name="用户",
+    )
+    challenge = models.ForeignKey(
+        Challenge, on_delete=models.CASCADE, related_name="entries", verbose_name="挑战"
+    )
+    period_start = models.DateField("周期开始日期")
+    joined_at = models.DateTimeField("参加时间", auto_now_add=True)
+    completed_at = models.DateTimeField("完成时间", null=True, blank=True)
+    claimed_at = models.DateTimeField("领取时间", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "用户挑战"
+        verbose_name_plural = "用户挑战"
+        unique_together = ("user", "challenge", "period_start")
+        ordering = ["-period_start", "id"]
+        indexes = [models.Index(fields=["user", "period_start"])]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.challenge.title} ({self.period_start})"
+
+    @property
+    def is_claimed(self):
+        return self.claimed_at is not None
+
+
 class XPEvent(models.Model):
     """经验流水，用唯一约束保证同一来源只结算一次。"""
 
@@ -223,6 +300,7 @@ class XPEvent(models.Model):
         ("quest", "每日任务"),
         ("achievement", "解锁成就"),
         ("weekly_goal", "每周目标"),
+        ("challenge", "限时挑战"),
     ]
 
     user = models.ForeignKey(

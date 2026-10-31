@@ -98,9 +98,9 @@ backend/
 │   ├── __init__.py
 │   ├── admin.py
 │   ├── apps.py
-│   ├── models.py        # UserProgress / Achievement / UserDailyQuest / WeeklyGoal / PersonalRecord / XPEvent
+│   ├── models.py        # UserProgress / Achievement / UserDailyQuest / Challenge / WeeklyGoal / PersonalRecord / XPEvent
 │   ├── serializers.py
-│   ├── services.py      # XP、等级、连续天数、任务进度与成就判定
+│   ├── services.py      # XP、等级、连续天数、任务/挑战进度与成就判定
 │   ├── signals.py       # 训练完成后统一结算
 │   ├── tests.py
 │   ├── urls.py
@@ -197,6 +197,7 @@ backend/
     *   `UserProgress`: XP、等级、连续/最长训练天数、本周榜公开开关。
     *   `Achievement` / `UserAchievement`: 成就定义与解锁记录，由数据迁移写入 16 项默认成就。
     *   `UserDailyQuest`: 每个用户每天确定性生成 3 个任务。
+    *   `Challenge` / `UserChallenge`: 周/月限时挑战与用户参赛记录，进度按周期实时计算。
     *   `WeeklyGoal`: 每周训练天数与分钟目标。
     *   `PersonalRecord`: 每个动作的最大重量、最高次数、单次容量与最佳评分。
     *   `XPEvent`: 经验流水，作为幂等发奖凭据。
@@ -209,6 +210,7 @@ backend/
     *   `GET /api/growth/overview/`: 成长总览（等级、就绪度、任务、周目标、成就与纪录）。
     *   `GET /api/growth/achievements/`: 成就列表与进度。
     *   `GET /api/growth/quests/`、`POST /api/growth/quests/<id>/claim/`: 每日任务与领奖。
+    *   `GET /api/growth/challenges/`、`POST /api/growth/challenges/<id>/join/`、`POST /api/growth/challenges/<id>/claim/`: 限时挑战、参加与领奖。
     *   `GET/PUT /api/growth/weekly-goal/`、`POST /api/growth/weekly-goal/claim/`: 周目标与领奖。
     *   `GET /api/growth/records/`: 个人纪录。
     *   `GET /api/growth/leaderboard/`、`GET/PUT /api/growth/settings/`: 周榜与公开设置。

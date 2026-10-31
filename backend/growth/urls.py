@@ -14,6 +14,17 @@ urlpatterns = [
         name="growth-claim-weekly-goal",
     ),
     path("records/", views.personal_records, name="growth-personal-records"),
+    path("challenges/", views.challenges_list, name="growth-challenges"),
+    path(
+        "challenges/<int:challenge_id>/join/",
+        views.join_challenge_view,
+        name="growth-join-challenge",
+    ),
+    path(
+        "challenges/<int:challenge_id>/claim/",
+        views.claim_challenge_reward,
+        name="growth-claim-challenge",
+    ),
     path("leaderboard/", views.leaderboard, name="growth-leaderboard"),
     path("settings/", views.growth_settings, name="growth-settings"),
 ]

@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.contrib.auth.models import User
 from django.test import TestCase
@@ -8,10 +8,21 @@ from rest_framework.test import APIClient
 from exercises.models import Exercise
 from training.models import UserTrainingExerciseRecord, UserTrainingSession
 
-from .models import PersonalRecord, UserAchievement, UserProgress, XPEvent
+from .models import (
+    Challenge,
+    PersonalRecord,
+    UserAchievement,
+    UserChallenge,
+    UserProgress,
+    XPEvent,
+)
 from .services import (
+    challenge_states,
+    challenge_window,
+    claim_challenge,
     claim_daily_quest,
     ensure_daily_quests,
+    join_challenge,
     level_from_xp,
     readiness_snapshot,
     refresh_daily_quests,
@@ -166,6 +177,75 @@ class GrowthServiceTests(TestCase):
         self.assertTrue(claimed.reward_claimed)
         self.assertEqual(awarded, 80)
 
+    def test_challenge_window_uses_week_or_month(self):
+        weekly = Challenge(
+            code="window-weekly",
+            title="周挑战",
+            description="测试",
+            period="weekly",
+            metric="sessions",
+            target=1,
+        )
+        monthly = Challenge(
+            code="window-monthly",
+            title="月挑战",
+            description="测试",
+            period="monthly",
+            metric="sessions",
+            target=1,
+        )
+        day = date(2026, 10, 31)
+        self.assertEqual(challenge_window(weekly, day), (date(2026, 10, 26), date(2026, 11, 2)))
+        self.assertEqual(challenge_window(monthly, day), (date(2026, 10, 1), date(2026, 11, 1)))
+
+    def test_join_and_claim_challenge_is_idempotent(self):
+        challenge = Challenge.objects.get(code="weekly_sessions")
+        for _ in range(3):
+            self._session()
+
+        _, entry, created = join_challenge(self.user, challenge.id)
+        self.assertTrue(created)
+        self.assertEqual(entry.challenge_id, challenge.id)
+
+        states = {state["challenge"].id: state for state in challenge_states(self.user)}
+        state = states[challenge.id]
+        self.assertTrue(state["is_joined"])
+        self.assertTrue(state["is_completed"])
+        self.assertTrue(state["can_claim"])
+        self.assertGreaterEqual(state["progress"], challenge.target)
+
+        _, claimed, state, achievements, awarded = claim_challenge(
+            self.user, challenge.id
+        )
+        self.assertTrue(awarded)
+        self.assertIsNotNone(claimed.claimed_at)
+        self.assertTrue(state["is_claimed"])
+        self.assertFalse(state["can_claim"])
+        self.assertEqual(
+            XPEvent.objects.filter(
+                user=self.user, source="challenge", reference_id=claimed.id
+            ).count(),
+            1,
+        )
+        self.assertIsInstance(achievements, list)
+
+        with self.assertRaises(ValueError):
+            claim_challenge(self.user, challenge.id)
+
+    def test_challenge_requires_join_and_completion(self):
+        challenge = Challenge.objects.get(code="weekly_sessions")
+        with self.assertRaises(ValueError):
+            claim_challenge(self.user, challenge.id)
+
+        join_challenge(self.user, challenge.id)
+        with self.assertRaises(ValueError):
+            claim_challenge(self.user, challenge.id)
+
+        self._session()
+        _, entry, created = join_challenge(self.user, challenge.id)
+        self.assertFalse(created)
+        self.assertFalse(entry.is_claimed)
+
     def test_private_users_are_hidden_from_leaderboard(self):
         other = User.objects.create_user(username="hidden", password="StrongPass123")
         other_progress, _ = UserProgress.objects.get_or_create(user=other)
@@ -224,6 +304,52 @@ class GrowthApiTests(TestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_challenges_endpoint_and_join(self):
+        response = self.client.get("/api/growth/challenges/")
+        self.assertEqual(response.status_code, 200)
+        self.assertGreaterEqual(len(response.data["results"]), 5)
+
+        challenge = Challenge.objects.get(code="weekly_sessions")
+        joined = self.client.post(f"/api/growth/challenges/{challenge.id}/join/")
+        self.assertIn(joined.status_code, (200, 201))
+        self.assertTrue(joined.data["challenge"]["is_joined"])
+
+        again = self.client.post(f"/api/growth/challenges/{challenge.id}/join/")
+        self.assertEqual(again.status_code, 200)
+        self.assertFalse(again.data["created"])
+
+    def test_claim_challenge_api_after_completion(self):
+        challenge = Challenge.objects.get(code="weekly_sessions")
+        for _ in range(3):
+            UserTrainingSession.objects.create(
+                user=self.user,
+                start_time=timezone.now() - timedelta(minutes=20),
+                end_time=timezone.now(),
+                is_completed=True,
+                total_exercises=1,
+                completed_exercises=1,
+                calories_burned=120,
+                performance_score=4.0,
+            )
+        self.client.post(f"/api/growth/challenges/{challenge.id}/join/")
+        response = self.client.post(f"/api/growth/challenges/{challenge.id}/claim/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["awarded_xp"], challenge.xp_reward)
+        self.assertTrue(response.data["challenge"]["is_claimed"])
+        self.assertFalse(response.data["challenge"]["can_claim"])
+
+    def test_claim_challenge_before_completion_returns_400(self):
+        challenge = Challenge.objects.get(code="weekly_sessions")
+        self.client.post(f"/api/growth/challenges/{challenge.id}/join/")
+        response = self.client.post(f"/api/growth/challenges/{challenge.id}/claim/")
+        self.assertEqual(response.status_code, 400)
+
+    def test_overview_includes_challenge_summary(self):
+        response = self.client.get("/api/growth/overview/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("challenges", response.data)
+        self.assertGreaterEqual(response.data["challenges"]["total"], 5)
 
     def test_achievement_list(self):
         response = self.client.get("/api/growth/achievements/")
