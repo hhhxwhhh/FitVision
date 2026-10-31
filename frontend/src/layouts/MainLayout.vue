@@ -131,6 +131,7 @@
     </el-drawer>
 
     <CommandPalette ref="paletteRef" />
+    <ShortcutsDialog />
   </div>
 </template>
 
@@ -162,6 +163,7 @@ import { useOnlineStatus } from '../composables/useOnlineStatus'
 import { usePwaInstall } from '../composables/usePwaInstall'
 import ThemeToggle from '../components/ThemeToggle.vue'
 import CommandPalette from '../components/CommandPalette.vue'
+import ShortcutsDialog from '../components/ShortcutsDialog.vue'
 
 const router = useRouter()
 const route = useRoute()
