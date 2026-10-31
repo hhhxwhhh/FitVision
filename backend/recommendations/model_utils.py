@@ -35,11 +35,11 @@ class DLModelManager:
         if os.path.exists(model_path):
             try:
                 self._model.load_state_dict(torch.load(model_path, map_location=self._device))
-                print(f"✅ 深度学习推荐模型权重加载成功 (设备: {self._device})")
+                print(f"深度学习推荐模型权重加载成功 (设备: {self._device})")
             except Exception as e:
-                print(f"⚠️ 模型权重加载失败: {e}")
+                print(f"模型权重加载失败: {e}")
         else:
-            print(f"ℹ️ 未找到预训练权重，使用随机初始化模型 (设备: {self._device})")
+            print(f"未找到预训练权重，使用随机初始化模型 (设备: {self._device})")
         
         self._model.eval()
 

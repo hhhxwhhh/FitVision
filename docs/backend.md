@@ -1,11 +1,11 @@
 # 后端项目文档 (Backend Documentation)
 该基于**Django** + **Django Rest Framework(DRF)**构建，并集成了AI服务。
 
-## 📁 目录结构概览
+## 目录结构概览
 
 ```
 backend/
-├── ai_models/           # 🤖 AI 模型与 VLM 集成
+├── ai_models/           # AI 模型与 VLM 集成
 │   ├── __init__.py
 │   ├── admin.py
 │   ├── apps.py
@@ -19,7 +19,7 @@ backend/
 │       ├── __init__.py
 │       ├── 0001_initial.py
 │       └── 0002_posturediagnosis.py
-├── analytics/           # 📊 数据分析模块
+├── analytics/           # 数据分析模块
 │   ├── __init__.py
 │   ├── admin.py
 │   ├── apps.py
@@ -32,7 +32,7 @@ backend/
 │   └── migrations/
 │       ├── __init__.py
 │       └── 0001_initial.py
-├── exercises/           # 🏋️ 动作库管理
+├── exercises/           # 动作库管理
 │   ├── __init__.py
 │   ├── admin.py
 │   ├── apps.py
@@ -58,14 +58,14 @@ backend/
 │       ├── 0004_exercisecategory_level_and_more.py
 │       ├── 0005_remove_exercisecategory_level_and_more.py
 │       └── 0006_exercise_tags.py
-├── fitvision/           # ⚙️ 核心配置
+├── fitvision/           # 核心配置
 │   ├── __init__.py
 │   ├── asgi.py
 │   ├── celery.py
 │   ├── settings.py      # 项目设置 (DB, Installed Apps)
 │   ├── urls.py          # 全局路由分发
 │   └── wsgi.py
-├── recommendations/     # 🎯 个性化推荐系统
+├── recommendations/     # 个性化推荐系统
 │   ├── __init__.py
 │   ├── admin.py
 │   ├── apps.py
@@ -94,7 +94,7 @@ backend/
 │       ├── 0002_alter_recommendedexercise_algorithm.py
 │       ├── 0003_userstate_target_intensity.py
 │       └── 0004_alter_recommendedexercise_algorithm.py
-├── training/            # 📝 训练记录与计划
+├── training/            # 训练记录与计划
 │   ├── __init__.py
 │   ├── admin.py
 │   ├── apps.py
@@ -110,7 +110,7 @@ backend/
 │       ├── __init__.py
 │       ├── 0001_initial.py
 │       └── 0002_usertrainingsession_ai_analysis_and_more.py
-├── users/               # 👤 用户认证与管理
+├── users/               # 用户认证与管理
 │   ├── __init__.py
 │   ├── admin.py
 │   ├── apps.py
@@ -124,7 +124,7 @@ backend/
 │       ├── 0001_initial.py
 │       ├── 0002_userprofile_activity_level_userprofile_bmi_and_more.py
 │       └── 0003_userprofile_avatar.py
-├── utils/               # 🛠️ 通用工具 (向量数据库等)
+├── utils/               # 通用工具 (向量数据库等)
 │   ├── __init__.py
 │   └── vector_db.py
 ├── generate_test_data.py    # 生成测试数据的脚本
@@ -133,7 +133,7 @@ backend/
 
 ```
 
-## 🧩 核心模块详解
+## 核心模块详解
 
 ### 1. AI 视觉分析 (`ai_models`)
 
@@ -182,7 +182,7 @@ backend/
         *   `/api/training/` -> `training`
         *   `/api/recommendations/` -> `recommendations`
 
-## 🛠️ 技术栈
+## 技术栈
 
 *   **框架**: Django 4.x + Django Rest Framework
 *   **数据库**: PostgreSQL (推荐) 或 SQLite (开发)

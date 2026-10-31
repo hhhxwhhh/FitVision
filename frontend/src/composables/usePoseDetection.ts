@@ -412,11 +412,11 @@ export function usePoseDetection() {
 
       const advice = response.data?.advice || '已完成分析，请继续保持训练节奏';
       vlmAdvice.value = advice;
-      feedback.value = `🤖 ${advice}`;
+      feedback.value = `AI 建议：${advice}`;
       speak(advice, 'corrective');
     } catch (err: any) {
       const message = err?.response?.data?.detail || '视觉大模型分析失败，请稍后重试';
-      feedback.value = `⚠️ ${message}`;
+      feedback.value = `注意：${message}`;
     } finally {
       isAnalyzingVlm.value = false;
     }
@@ -436,7 +436,7 @@ export function usePoseDetection() {
       lastVlmTriggerTime = now;
       hasCheckedFirstRep = true;
       
-      console.log(`📸 触发智能抽帧! 原因: ${isFirstRep ? '首个动作' : '动作变形'}, 相似度得分: ${currentScore}`);
+      console.log(`触发智能抽帧! 原因: ${isFirstRep ? '首个动作' : '动作变形'}, 相似度得分: ${currentScore}`);
 
       analyzeWithVisionModel(); 
     }
@@ -586,7 +586,7 @@ export function usePoseDetection() {
               plankStartTime = null;
               standardStreak.value = 0;
               lastPlankStreakSecond = 0;
-              feedback.value = '⚠️ 请保持身体平直';
+              feedback.value = '注意：请保持身体平直';
               if (hipY > shoulderY + 0.1) {
                 markError('骨盆下沉');
               }

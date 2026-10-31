@@ -64,7 +64,7 @@
         
         <div class="relation-section">
           <div class="rel-group" v-if="currentNode.preds && currentNode.preds.length">
-            <div class="rel-header">🔙 前置基础</div>
+            <div class="rel-header">前置基础</div>
             <div class="rel-list">
               <el-tag v-for="p in currentNode.preds" :key="p.id" size="small" type="info" class="rel-tag" @click="handleNodeJump(p.id)">
                 {{ p.name }}
@@ -73,7 +73,7 @@
           </div>
           
           <div class="rel-group" v-if="currentNode.succs && currentNode.succs.length">
-            <div class="rel-header">🔜 后续进阶</div>
+            <div class="rel-header">后续进阶</div>
             <div class="rel-list">
               <el-tag v-for="s in currentNode.succs" :key="s.id" size="small" type="success" class="rel-tag" @click="handleNodeJump(s.id)">
                 {{ s.name }}
@@ -277,7 +277,7 @@ const initChart = (data: any) => {
           return `
             <div style="font-size:12px;">关系: <b>${params.data.relation_label || '关联'}</b></div>
             <div style="font-size:12px;margin-top:4px;">
-              ${params.data.source_name} ➔ ${params.data.target_name}
+              ${params.data.source_name} → ${params.data.target_name}
             </div>
           `
         }

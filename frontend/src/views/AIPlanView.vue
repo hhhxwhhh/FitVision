@@ -5,7 +5,7 @@
       <div class="ai-header-card">
         <div class="ai-avatar">
           <div class="pulse-ring" v-if="loading"></div>
-          🧠
+          <el-icon :size="48"><MagicStick /></el-icon>
         </div>
         <div class="ai-greeting">
           <h2 v-if="!planData">准备好开始了吗？</h2>
@@ -32,7 +32,7 @@
         
         <div class="left-panel">
           <div class="panel-header">
-            <div class="panel-title">📅 本周训练安排</div>
+            <div class="panel-title">本周训练安排</div>
             <el-tag type="success" effect="dark" round>AI 已根据库存匹配动作</el-tag>
           </div>
           
@@ -80,7 +80,7 @@
                       fit="cover" 
                       loading="lazy"
                     />
-                    <div v-else class="ex-thumb-placeholder">🏋️</div>
+                    <div v-else class="ex-thumb-placeholder"><el-icon><Picture /></el-icon></div>
                     
                     <div class="ex-info">
                       <div class="ex-name">{{ ex.name }}</div>
@@ -163,7 +163,7 @@
       <template #footer>
         <el-button @click="configDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="generatePlan" :loading="loading">
-          🚀 开始生成 (预计20秒)
+          开始生成 (预计20秒)
         </el-button>
       </template>
     </el-dialog>
@@ -206,7 +206,7 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
-import { MagicStick, Edit, Delete, Plus } from '@element-plus/icons-vue'
+import { MagicStick, Edit, Delete, Plus, Picture } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import apiClient from '../api'
 
@@ -301,7 +301,7 @@ const generatePlan = async () => {
   }
 
   try {
-    // 🔥 调用新的智能接口
+    // 调用智能接口
     const res = await apiClient.post('/training/plan/create_smart/', payload, { timeout: 60000 })
     if (res.data) {
       planData.value = res.data
@@ -407,7 +407,7 @@ const showExerciseDetail = (ex: Exercise) => {
 }
 
 .ai-avatar {
-  font-size: 56px;
+  color: var(--fv-primary);
   position: relative;
   width: 100px; height: 100px;
   background: var(--milan-bg-soft-contrast);

@@ -38,9 +38,9 @@ def check_cuda():
             x = torch.rand(1000, 1000).cuda()
             y = torch.rand(1000, 1000).cuda()
             z = torch.matmul(x, y)
-            print("✅ 显卡矩阵运算测试成功！")
+            print("显卡矩阵运算测试成功！")
         except Exception as e:
-            print(f"❌ 显卡运算失败: {e}")
+            print(f"显卡运算失败: {e}")
 
     print("-" * 50)
 

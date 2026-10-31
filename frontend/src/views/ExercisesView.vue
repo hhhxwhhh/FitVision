@@ -72,7 +72,7 @@
                         </div>
                         
                         <div class="tags-row">
-                            <el-tag size="small" type="info" effect="plain" round>🎯 {{ ex.target_muscle_display }}</el-tag>
+                            <el-tag size="small" type="info" effect="plain" round>{{ ex.target_muscle_display }}</el-tag>
                             <el-tag size="small" type="info" effect="plain" round v-for="tag in ex.tags" :key="tag"># {{ tag }}</el-tag>
                         </div>
                         
@@ -114,7 +114,7 @@
                         </div>
                         
                         <div class="user-progress-box" v-if="currentEx.user_best_score !== null">
-                            <div class="progress-title">📈 历史表现</div>
+                            <div class="progress-title">历史表现</div>
                             <div class="progress-stats">
                                 <div class="p-item">
                                     <span class="p-label">最高准确率</span>
@@ -131,17 +131,17 @@
                     <div class="dialog-right-pane">
                         <div class="dialog-body">
                             <div class="dialog-section">
-                                <h4>💡 动作要领</h4>
+                                <h4>动作要领</h4>
                                 <p class="instructions-text">{{ currentEx.instructions }}</p>
                             </div>
                             
                             <div class="dialog-section">
-                                <h4>⚠️ 注意事项</h4>
+                                <h4>注意事项</h4>
                                 <el-alert :title="currentEx.tips || '保持核心收紧，注意呼吸节奏'" type="warning" :closable="false" show-icon />
                             </div>
 
                             <div class="dialog-section" v-if="currentEx.correction_tips">
-                                <h4>🤖 AI 纠错建议</h4>
+                                <h4>AI 纠错建议</h4>
                                 <ul class="ai-tips">
                                     <li v-for="(tip, key) in currentEx.correction_tips" :key="key">
                                         {{ tip }}
@@ -150,7 +150,7 @@
                             </div>
 
                             <div class="dialog-section" v-if="currentEx.prerequisite_list && currentEx.prerequisite_list.length">
-                                <h4>📚 前置基础</h4>
+                                <h4>前置基础</h4>
                                 <div class="relation-tags">
                                     <el-tag v-for="rel in currentEx.prerequisite_list" :key="rel.id" type="info" size="small" class="mr-1 clickable-tag" @click="navigateToExercise(rel.id)">
                                         {{ rel.name }}
@@ -159,7 +159,7 @@
                             </div>
 
                             <div class="dialog-section" v-if="currentEx.unlocks && currentEx.unlocks.length">
-                                <h4>🔓 后后续解锁</h4>
+                                <h4>后续解锁</h4>
                                 <div class="relation-tags">
                                     <el-tag v-for="rel in currentEx.unlocks" :key="rel.id" type="success" size="small" class="mr-1 clickable-tag" @click="navigateToExercise(rel.id)">
                                         {{ rel.name }}

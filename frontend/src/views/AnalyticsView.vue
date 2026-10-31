@@ -5,7 +5,7 @@
                 <el-card class="summary-card">
                     <template #header>
                         <div class="card-header">
-                            <span>📊 训练统计概览</span>
+                            <span>训练统计概览</span>
                             <div class="header-actions">
                                 <el-radio-group v-model="timerange" size="small" @change="fetchData">
                                     <el-radio-button :label="7">最近一周</el-radio-button>

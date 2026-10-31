@@ -83,7 +83,7 @@ class SmartRecommendationService:
         if not prerequisites.exists():
             return exercise 
             
-        print(f"🛡️ 触发风控: {exercise.name}(Lv.{exercise.level}) -> 降级...")
+        print(f"触发风控: {exercise.name}(Lv.{exercise.level}) -> 降级...")
         return SmartRecommendationService.get_safe_exercise(prerequisites.first(), user_level)
 
     @staticmethod

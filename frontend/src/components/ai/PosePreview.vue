@@ -75,7 +75,7 @@
               </el-progress>
         </div>
 
-        <div class="feedback-box" :class="{ 'warning': feedback.includes('⚠️') }">
+        <div class="feedback-box" :class="{ 'warning': feedback.startsWith('注意：') }">
           {{ feedback }}
         </div>
 
@@ -175,7 +175,7 @@
     <div v-if="vlmAdvice || isAnalyzingVlm" class="vlm-advice-box" :class="{ 'is-analyzing': isAnalyzingVlm }">
       <div class="vlm-advice-title">
         <el-icon v-if="isAnalyzingVlm" class="is-loading" style="margin-right: 4px;"><Loading /></el-icon>
-        <span v-else>💡</span> 国产视觉大模型私教
+        <el-icon v-else style="margin-right: 4px;"><MagicStick /></el-icon> 国产视觉大模型私教
       </div>
       
       <div v-if="isAnalyzingVlm" class="vlm-advice-content analyzing-text">
@@ -189,7 +189,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { usePoseDetection } from '../../composables/usePoseDetection';
-import { VideoCamera, CaretRight, VideoPlay, Loading } from '@element-plus/icons-vue'; // 🔥 修改点 3：引入 Loading 图标
+import { VideoCamera, CaretRight, VideoPlay, Loading, MagicStick } from '@element-plus/icons-vue';
 
 const videoRef = ref<HTMLVideoElement | null>(null);
 const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -683,7 +683,7 @@ defineExpose({
   transition: all 0.3s ease;
 }
 
-/* 🔥 修改点 4：新增分析中的警示动画样式 */
+/* 分析中的警示动画样式 */
 .vlm-advice-box.is-analyzing {
   border-color: #f59e0b;
   background: rgba(245, 158, 11, 0.1);

@@ -2,7 +2,7 @@
 
 本文档详细描述了 FitVision 系统中关键业务场景的数据流动过程。
 
-## 🔐 用户认证流程 (Authentication Flow)
+## 用户认证流程 (Authentication Flow)
 
 用户登录和获取 Token 的过程。
 
@@ -18,7 +18,7 @@
     *   设置 `isAuthenticated = true`。
     *   后续所有 API 请求都会在 Header 中携带 `Authorization: Bearer <access_token>`。
 
-## 🤖 AI 姿态诊断流程 (AI Diagnosis Flow)
+## AI 姿态诊断流程 (AI Diagnosis Flow)
 
 从摄像头采集到生成诊断报告的全过程。
 
@@ -40,7 +40,7 @@
 5.  **结果返回**: 后端将 VLM 分析结果 + 推荐动作列表打包返回给前端。
 6.  **展示报告 (前端)**: `PostureDiagnosisView` 渲染诊断报告和推荐动作。
 
-## 🏋️ 训练与记录流程 (Training & Logging Flow)
+## 训练与记录流程 (Training & Logging Flow)
 
 用户进行锻炼并记录数据的过程。
 
@@ -58,7 +58,7 @@
     *   后端触发信号 (Signal)，更新用户的 `UserStats` (总训练时长、总消耗)。
     *   更新推荐系统的用户状态 (如：今日已练腿，明日推荐练胸)。
 
-## 🎯 个性化推荐流程 (Recommendation Flow)
+## 个性化推荐流程 (Recommendation Flow)
 
 1.  **请求推荐 (前端)**:
     *   用户进入首页或 `AIPlanView`。

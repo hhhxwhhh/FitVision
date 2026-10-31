@@ -145,11 +145,11 @@ def complete_training_session(request, session_id):
     if session.end_time and session.start_time:
         duration_seconds = (session.end_time - session.start_time).total_seconds()
 
-    # 2. 🔥 呼叫 AI 判官
+    # 2. 呼叫 AI 判官
     # 注意：这里调用的是下面定义的辅助函数，不需要 self
     ai_result = call_deepseek_ai(session, duration_seconds, user_self_rating, user_feedback)
     
-    # 3. 🔥 应用 AI 的裁决
+    # 3. 应用 AI 的裁决
     # 如果 AI 返回了分数，就用 AI 的；否则用用户的兜底
     final_score = ai_result.get('score', user_self_rating)
     
@@ -353,7 +353,7 @@ def call_deepseek_ai(session, duration_seconds, user_rating, user_feedback):
     client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
     duration_minutes = round(duration_seconds / 60, 1)
 
-    # 🔥 修改 Prompt：让 AI 当判官
+    # 修改 Prompt：让 AI 当判官
     # 注意：这里用了 session.calories_burned 而不是 session.calories
     prompt = f"""
     你是一位严格但幽默的健身教练。用户完成了一次训练，数据如下：
@@ -407,7 +407,7 @@ def generate_smart_plan(request):
     config = {
         "goal": request.data.get('goal', '增肌'),
         "level_str": request.data.get('level', '初学者'),
-        "days": int(request.data.get('days', 3)), # 🔥 确保转为 int
+        "days": int(request.data.get('days', 3)),
         "focus": request.data.get('focus', '全身'), 
         "equipment": request.data.get('equipment', '哑铃')
     }
@@ -432,7 +432,7 @@ def generate_smart_plan(request):
     # ==========================================
     # 只有训练记录极少时才触发
     if UserTrainingSession.objects.filter(user=user).count() < 3:
-        print("🔍 触发冷启动推荐...")
+        print("触发冷启动推荐...")
         cold_start_result = UserSimilarityService.recommend_for_cold_start(user)
         
         if cold_start_result:
@@ -475,11 +475,11 @@ def generate_smart_plan(request):
     # ==========================================
     # 策略 B: 智能生成 (M3E + Graph + SkillTree)
     # ==========================================
-    print(f"🧠 智能生成启动: {config['focus']} (Lv.{user_level}) - {config['days']}天")
+    print(f"智能生成启动: {config['focus']} (Lv.{user_level}) - {config['days']}天")
     
     weekly_schedule = []
 
-    # 🔥 定义分化训练逻辑 (如果选全身，自动每天换部位)
+    # 定义分化训练逻辑 (如果选全身，自动每天换部位)
     split_routine = [
         {'query': '胸肌训练', 'muscle': 'chest', 'title': '推力强化 (胸部)'},
         {'query': '背部训练', 'muscle': 'back',  'title': '背部刻画 (拉力)'},
@@ -489,7 +489,7 @@ def generate_smart_plan(request):
         {'query': '腹肌训练', 'muscle': 'abs',   'title': '核心强化'},
     ]
 
-    # 🔥 循环生成每一天的计划
+    # 循环生成每一天的计划
     for day_i in range(config['days']):
         
         # 1. 决定今天的训练重点

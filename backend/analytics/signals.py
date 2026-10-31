@@ -56,7 +56,7 @@ def update_exercise_progress(sender, instance, **kwargs):
         date=date
     )
 
-    # ✅ 优化点2：查出当天“所有”有效的记录（Source of Truth）
+    # 查出当天所有有效的记录（Source of Truth）
     # 不管你是改了还是删了，我只信数据库里现在还存在的记录
     all_records = UserTrainingExerciseRecord.objects.filter(
         session__user=user,
@@ -96,11 +96,11 @@ def update_exercise_progress(sender, instance, **kwargs):
         if record.form_score > best_score:
             best_score = record.form_score
 
-    # ✅ 优化点3：直接覆盖赋值 (=)，而不是累加 (+=)
+    # 直接覆盖赋值 (=)，而不是累加 (+=)
     progress.max_weight = max_w
     progress.max_reps = max_r
     progress.total_volume = total_vol 
     progress.best_form_score = best_score
     
     progress.save()
-    print(f"✅ 动作 {exercise.name} 统计已更新，当前总容量: {total_vol}")
+    print(f"动作 {exercise.name} 统计已更新，当前总容量: {total_vol}")

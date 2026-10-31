@@ -36,7 +36,7 @@
           <div class="section-header">
             <div class="ai-icon">
               <div class="pulse"></div>
-              🧠
+              <el-icon><MagicStick /></el-icon>
             </div>
             <h3>AI 教练深度复盘</h3>
           </div>
@@ -54,28 +54,28 @@
 
         <div class="stats-grid">
           <div class="stat-card">
-            <div class="icon-wrapper time-icon">⏱️</div>
+            <div class="icon-wrapper time-icon"><el-icon><Timer /></el-icon></div>
             <div class="stat-info">
               <span class="label">训练时长</span>
               <span class="val">{{ reportData.duration }}<small>分</small></span>
             </div>
           </div>
           <div class="stat-card">
-            <div class="icon-wrapper cal-icon">🔥</div>
+            <div class="icon-wrapper cal-icon"><el-icon><HotWater /></el-icon></div>
             <div class="stat-info">
               <span class="label">消耗热量</span>
               <span class="val">{{ reportData.calories }}<small>kcal</small></span>
             </div>
           </div>
           <div class="stat-card">
-            <div class="icon-wrapper count-icon">✅</div>
+            <div class="icon-wrapper count-icon"><el-icon><Check /></el-icon></div>
             <div class="stat-info">
               <span class="label">完成动作</span>
               <span class="val">{{ reportData.completedCount }}<small>个</small></span>
             </div>
           </div>
           <div class="stat-card">
-            <div class="icon-wrapper volume-icon">⚖️</div>
+            <div class="icon-wrapper volume-icon"><el-icon><Odometer /></el-icon></div>
             <div class="stat-info">
               <span class="label">训练容量</span>
               <span class="val">{{ reportData.totalReps }}<small>次</small></span>
@@ -99,7 +99,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { DataLine, Share } from '@element-plus/icons-vue'
+import { DataLine, Share, MagicStick, Timer, HotWater, Check, Odometer } from '@element-plus/icons-vue'
 
 const router = useRouter()
 
@@ -140,11 +140,11 @@ const getScoreClass = (score: number) => {
 }
 
 const getScoreTitle = (score: number) => {
-  if (score >= 4.8) return '🔥 健身战神'
-  if (score >= 4.0) return '👑 王者表现'
-  if (score >= 3.0) return '🌟 表现出色'
-  if (score >= 2.0) return '💪 完成训练'
-  return '🏃 继续加油'
+  if (score >= 4.8) return '健身战神'
+  if (score >= 4.0) return '王者表现'
+  if (score >= 3.0) return '表现出色'
+  if (score >= 2.0) return '完成训练'
+  return '继续加油'
 }
 
 const goHome = () => {
@@ -401,7 +401,7 @@ const shareReport = async () => {
 
 .mobile-only { display: none; }
 
-/* 📱 响应式适配 */
+/* 响应式适配 */
 @media (max-width: 1200px) {
   .report-container {
     grid-template-columns: 1fr;

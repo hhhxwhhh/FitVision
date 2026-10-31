@@ -27,7 +27,7 @@ class Command(BaseCommand):
         # 2. 训练图神经网络 (GNN)
         self._train_gnn_model(data_dir, weights_dir)
 
-        self.stdout.write(self.style.SUCCESS('✅ 所有模型训练完成并行持久化！'))
+        self.stdout.write(self.style.SUCCESS('所有模型训练完成并行持久化！'))
 
     def _train_sequence_model(self, data_dir, weights_dir):
         self.stdout.write('1. 正在训练序列预测模型 (Sequence Engine)...')

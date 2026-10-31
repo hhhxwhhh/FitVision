@@ -2,7 +2,7 @@
 
 本文档详细介绍了 FitVision 前端项目的目录结构、关键文件及其作用。该项目基于 **Vue 3** + **TypeScript** + **Vite** 构建，并集成了 **MediaPipe** 进行实时姿态检测。
 
-## 📁 目录结构概览
+## 目录结构概览
 
 ```
 frontend/
@@ -27,7 +27,7 @@ frontend/
 └── vite.config.ts       # Vite 构建配置
 ```
 
-## 📄 关键文件详解
+## 关键文件详解
 
 ### 1. 核心逻辑 (Composables)
 
@@ -83,7 +83,7 @@ frontend/
     *   **作用**: 姿态匹配算法。
     *   **功能**: 计算关节角度、使用 OneEuroFilter 进行平滑处理、计算动作相似度。
 
-## 🎨 UI 组件
+## UI 组件
 
 项目使用了 **Element Plus** 作为 UI 组件库，并在 `components/` 下封装了自定义组件，如：
 *   `PosePreview.vue`: 封装摄像头的视频流展示和骨架绘制。

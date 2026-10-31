@@ -73,4 +73,4 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.ERROR(f'   - 向量索引同步失败: {e}'))
 
-        self.stdout.write(self.style.SUCCESS('✅ 数据预处理全部完成！'))
+        self.stdout.write(self.style.SUCCESS('数据预处理全部完成！'))

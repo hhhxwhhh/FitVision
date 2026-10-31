@@ -70,7 +70,7 @@
     <el-card class="heatmap-card mb-6" shadow="never">
        <div class="card-title-bar">
           <div class="title-with-extra">
-             <h3>📊 训练热力图</h3>
+             <h3>训练热力图</h3>
              <div class="heatmap-legend">
                 <span>较少</span>
                 <div class="legend-scale">
@@ -95,7 +95,7 @@
         <el-card class="profile-card">
           <!-- Form Header -->
           <div class="card-title-bar">
-             <h3>📝 资料设置</h3>
+             <h3>资料设置</h3>
              <small>完善资料库，AI 将为您推荐更准确的运动负荷</small>
           </div>
 
@@ -204,7 +204,7 @@
         <!-- AI 能力分析雷达图 -->
         <el-card class="radar-card mb-4" shadow="never">
           <div class="card-title-bar slim">
-             <h3>🧠 能力评估</h3>
+             <h3>能力评估</h3>
              <small>AI 根据历史表现分析你的体能偏向</small>
           </div>
           <div class="radar-container">
@@ -247,7 +247,7 @@
              <div class="metric-value-row">
                 <div class="metric-value colored">{{ Math.round(computedTDEE) }} <span class="unit">kcal</span></div>
                 <div class="trend-indicator up">
-                    <span v-if="form.activity_level !== 'sedentary'">🔥 燃脂效率高</span>
+                    <span v-if="form.activity_level !== 'sedentary'">燃脂效率高</span>
                 </div>
              </div>
              <p class="metric-desc">根据您的活动量算出的全天总支出。如果您想减重，摄入量应略低于此数值。</p>
@@ -258,11 +258,11 @@
           <div class="info-section">
              <div class="data-badge-list">
                  <div class="data-badge">
-                     <span class="badge-icon">🎯</span>
+                     <el-icon class="badge-icon"><TrendCharts /></el-icon>
                      <span class="badge-text">体重差: {{ (form.weight - form.target_weight).toFixed(1) }}kg</span>
                  </div>
                  <div class="data-badge">
-                     <span class="badge-icon">⚡</span>
+                     <el-icon class="badge-icon"><Timer /></el-icon>
                      <span class="badge-text">活跃系数: {{ activityLevelMap[form.activity_level as keyof typeof activityLevelMap]?.factor }}</span>
                  </div>
              </div>

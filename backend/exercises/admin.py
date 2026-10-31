@@ -16,13 +16,13 @@ class ExerciseAdmin(admin.ModelAdmin):
     search_fields = ('name', 'english_name', 'description')
     ordering = ('order', 'name')
 
-    # 👇 新增：使用 fieldsets 对字段进行漂亮的分组
+    # 使用 fieldsets 对字段进行分组
     fieldsets = (
         ('基本信息', {
             'fields': ('name', 'english_name', 'category', 'description')
         }),
         ('演示教学 (GIF)', {
-            'fields': ('demo_gif',),  # 👈 哪怕你之前的名字写错了，只要这里写对，就能显示！
+            'fields': ('demo_gif',),
         }),
         ('训练参数', {
             'fields': ('difficulty', 'target_muscle', 'equipment')
@@ -31,7 +31,7 @@ class ExerciseAdmin(admin.ModelAdmin):
             'fields': ('is_active', 'order'),
             'classes': ('collapse',),  #这一行可以让这个区域默认折叠
         }),
-        # ⚠️ 重要提示：
+        # 重要提示：
         # 如果你的模型里还有 "steps"(动作要领) 或 "notes"(注意事项) 等字段
         # 请务必把它们也加进来，否则保存时会消失！例如：
         # ('详细指导', {

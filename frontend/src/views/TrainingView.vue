@@ -68,7 +68,7 @@
 
                 <el-card class="plan-card" v-if="currentDayExercises.length">
                     <div class="card-header-styled">
-                        <h3>📋 今日课表</h3>
+                        <h3>今日课表</h3>
                     </div>
                     <el-table :data="currentDayExercises" style="width: 100%"
                         :header-cell-style="{ background: MILAN_COLORS.pageBase, color: MILAN_COLORS.textSecondary }"
@@ -96,12 +96,12 @@
                                 <template v-else>
                                     <el-tag v-if="completedExerciseIds.has(String(scope.row.exercise))" type="success"
                                         effect="light">
-                                        ✅ 已完成
+                                        已完成
                                     </el-tag>
 
                                     <el-button v-else-if="String(scope.row.exercise) === recordForm.exercise"
                                         size="small" type="primary" loading>
-                                        🔥 进行中
+                                        进行中
                                     </el-button>
 
                                     <el-button v-else size="small" type="warning" bg text :icon="Sort"
@@ -171,7 +171,7 @@
                                         </div>
                                         <el-button type="primary" size="large" class="action-btn glow-effect"
                                             @click="handleStartSession" :loading="loading.start" block>
-                                            🚀 开始训练
+                                            开始训练
                                         </el-button>
                                     </div>
                                     <div v-else class="active-state">
@@ -243,7 +243,7 @@
                                         <el-button type="primary" @click="handleRecordExercise"
                                             :loading="loading.record" :disabled="!sessionId || !recordForm.exercise"
                                             block class="action-btn">
-                                            ✅ 提交记录
+                                            提交记录
                                         </el-button>
                                     </el-form>
 
@@ -265,7 +265,7 @@
                                 <div class="step-content finish-panel">
 
                                     <div class="completion-header">
-                                        <div class="trophy-icon">🏆</div>
+                                        <el-icon class="trophy-icon"><Trophy /></el-icon>
                                         <h2>训练完成！</h2>
                                         <p class="sub-text">深呼吸，告诉 AI 教练你现在的真实感受</p>
                                     </div>
@@ -387,7 +387,7 @@
 
         <div v-if="showRestOverlay" class="rest-overlay">
             <div class="rest-content">
-                <h3>🎉 这一组很棒！休息一下</h3>
+                <h3>这一组很棒，休息一下</h3>
 
                 <div class="timer-circle">
                     <svg viewBox="0 0 100 100">
@@ -550,11 +550,11 @@ const availableBodyTags = [
 ]
 
 const getRPEDesc = (val: number) => {
-    if (val <= 2) return "热身般的轻松，毫无压力 🌱";
-    if (val <= 4) return "轻微出汗，感觉很舒适 💧";
-    if (val <= 6) return "呼吸加快，稍显吃力，刚刚好 🔥";
-    if (val <= 8) return "肌肉酸痛，非常有挑战性 💪";
-    return "完全力竭，感觉灵魂出窍 💀";
+    if (val <= 2) return "热身般的轻松，毫无压力";
+    if (val <= 4) return "轻微出汗，感觉很舒适";
+    if (val <= 6) return "呼吸加快，稍显吃力，刚刚好";
+    if (val <= 8) return "肌肉酸痛，非常有挑战性";
+    return "完全力竭，感觉灵魂出窍";
 }
 
 // --- 辅助函数：切换标签选中状态 ---
@@ -704,7 +704,7 @@ const startRestProcess = () => {
         }, 1000);
 
     } else {
-        ElMessage.success("太棒了！今日所有训练动作已清空！🎉");
+        ElMessage.success("太棒了！今日所有训练动作已清空！");
         activeSteps.value = ['finish'];
     }
 }
@@ -833,11 +833,11 @@ const fillRecordFromPlanExercise = (item: any) => {
 
     currentGifUrl.value = resolveMediaUrl(item.demo_gif)
 
-    // 2. 表单初始化 (🔥 修改核心)
+    // 2. 表单初始化
     // 记录 ID 方便后端处理，但界面上不显示了
     recordForm.exercise = String(item.exercise);
 
-    // 🔥 全部归零！等待 AI 填入或用户手动记录真实数据
+    // 全部归零，等待 AI 填入或用户手动记录真实数据
     recordForm.sets_completed = 0;
     recordForm.reps_completed = ''; // 次数留空
     recordForm.weights_used = '';   // 重量留空
