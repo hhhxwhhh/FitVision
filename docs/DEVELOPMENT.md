@@ -70,6 +70,7 @@ npm run test:coverage   # 覆盖率报告
   python -m unittest utils.test_demo_data         # 演示数据生成器
   python -m unittest utils.test_readiness         # 训练准备度 / 负荷模型
   python -m unittest utils.test_recovery          # 分肌群恢复模型
+  python -m unittest utils.test_strength         # 力量评估 / e1RM / 处方
   ```
 
 - 前端：与被测代码同目录的 `*.test.ts`（工具与 composable）或 `*.spec.ts`
@@ -158,6 +159,27 @@ cd backend && python -m unittest utils.test_recovery
 → `muscle_recovery_snapshot`（返回引擎对象）→ `/api/growth/muscle-recovery/`。
 推荐链路通过 `recommendations.services.resolve_muscle_recovery` 拿快照，取数失败时返回
 `None`，重排直接跳过。前端展示层在 `src/utils/muscleRecovery.ts`。
+
+## 力量评估引擎
+
+`backend/utils/strength.py` 回答"我到底能推多重、下一组上多少重量"：
+
+```bash
+cd backend && python -m unittest utils.test_strength
+```
+
+| 组成 | 做法 | 作用 |
+| --- | --- | --- |
+| 次数公式 | Epley / Brzycki / Lombardi / Wathan，取**最保守**值 | 主力估计，>12 次不再估 |
+| 速度推次 | `0.30 m/s ≈ 1 次`，每 0.1 m/s 多约 2 次 | 用杠铃轨迹反推次数上限 |
+| RPE / RIR | `次数百分比表`（5 次 @RIR2 ≈ 83%） | 用"还能再做几次"倒推 1RM |
+| 双进阶处方 | 做满次数 → +2.5% 重量；否则加次数 | 下一次训练该上多少 |
+| 减量判断 | e1RM 下降 / 连续停滞 / 疲劳 ≥ 0.7 | 是否安排减量周 |
+
+取数与接口：`growth.services.strength_history`（按动作聚合 e1RM 序列）→
+`GET /api/growth/strength/`；`growth.services.strength_prescription` 产出下一次训练建议。
+e1RM 同时作为 `PersonalRecord` 的 `e1rm` 类型入库（迁移 `growth/0005`）。
+前端展示层在 `src/utils/strength.ts`。
 
 ## 代码质量
 

@@ -19,6 +19,12 @@ from training.models import UserTrainingExerciseRecord, UserTrainingSession
 from users.models import UserStats
 from utils.readiness import HISTORY_DAYS, DailyLoad, load_curve, readiness_report, session_load
 from utils.recovery import MUSCLE_ORDER, MuscleWork, RecoverySnapshot, muscle_recovery
+from utils.strength import (
+    build_sets,
+    estimate_session_e1rm,
+    next_prescription,
+    strength_summary,
+)
 
 from .models import (
     Achievement,
@@ -358,11 +364,14 @@ def update_personal_records(session: UserTrainingSession) -> list[PersonalRecord
     for record in session.exercise_records.select_related("exercise"):
         weights = _numeric(record.weights_used)
         reps = _numeric(record.reps_completed)
+        sets = build_sets(record.weights_used, record.reps_completed)
+        estimate = estimate_session_e1rm(sets)
         candidates = {
             "max_weight": max(weights) if weights else 0,
             "max_reps": max(reps) if reps else 0,
             "max_volume": _record_volume(record),
             "best_form": float(record.form_score or 0),
+            "e1rm": estimate.e1rm if estimate else 0,
         }
         for record_type, value in candidates.items():
             if value <= 0:
@@ -985,6 +994,106 @@ def muscle_recovery_snapshot(user, days: int = 30) -> RecoverySnapshot:
     API 层再调 `as_dict()` 序列化。
     """
     return muscle_recovery(muscle_works(user, days=days), timezone.now(), muscles=MUSCLE_ORDER)
+
+
+def strength_history(user, days: int = 120) -> list[dict]:
+    """每个动作的 e1RM 序列，供前端画力量曲线。
+
+    每条点对应一次训练里该动作的估计 e1RM；估算不出来（例如自重动作没有重量）
+    的训练会被跳过，避免曲线出现虚假的断点。
+    """
+    since = timezone.now() - timedelta(days=days)
+    records = (
+        UserTrainingExerciseRecord.objects.filter(
+            session__user=user,
+            session__is_completed=True,
+            session__start_time__gte=since,
+        )
+        .select_related("exercise")
+        .order_by("session__start_time")
+    )
+
+    grouped: dict[int, dict] = {}
+    for record in records:
+        sets = build_sets(record.weights_used, record.reps_completed)
+        estimate = estimate_session_e1rm(sets)
+        if estimate is None or estimate.e1rm <= 0:
+            continue
+
+        entry = grouped.setdefault(
+            record.exercise_id,
+            {
+                "exercise_id": record.exercise_id,
+                "name": record.exercise.name,
+                "target_muscle": record.exercise.target_muscle,
+                "points": [],
+            },
+        )
+        heaviest = max(sets, key=lambda item: item.weight) if sets else None
+        entry["points"].append(
+            {
+                "date": timezone.localtime(record.session.start_time).date().isoformat(),
+                "e1rm": round(estimate.e1rm, 1),
+                "weight": round(heaviest.weight, 1) if heaviest else 0,
+                "reps": heaviest.reps if heaviest else 0,
+                "method": estimate.method,
+            }
+        )
+
+    results: list[dict] = []
+    for entry in grouped.values():
+        points = entry["points"]
+        e1rms = [point["e1rm"] for point in points]
+        dates = [point["date"] for point in points]
+        summary = strength_summary(e1rms, dates)
+        entry["points"] = points
+        entry["summary"] = summary
+        entry["e1rm"] = summary["latest"]
+        entry["best"] = summary["best"]
+        entry["trend"] = summary["trend"]
+        results.append(entry)
+
+    results.sort(key=lambda item: item.get("best", 0), reverse=True)
+    return results
+
+
+def strength_prescription(
+    user,
+    exercise_id: int,
+    target_reps: int = 6,
+    target_rir: int = 2,
+) -> dict:
+    """给出某个动作下一次训练的建议重量。
+
+    基准取该动作的历史最好 e1RM，再用双进阶规则给出下一组的重量。
+    """
+    history = [item for item in strength_history(user) if item["exercise_id"] == exercise_id]
+    if not history:
+        return {"available": False, "reason": "还没有这个动作的负重训练记录"}
+
+    entry = history[0]
+    best = float(entry.get("best") or 0)
+    if best <= 0:
+        return {"available": False, "reason": "还没有足够的数据估计 1RM"}
+
+    points = entry["points"]
+    last = points[-1]
+    prescription = next_prescription(
+        best,
+        last.get("weight", 0),
+        last.get("reps", 0),
+        target_reps=target_reps,
+        target_rir=target_rir,
+    )
+    return {
+        "available": True,
+        "exercise_id": exercise_id,
+        "name": entry["name"],
+        "e1rm": round(best, 1),
+        "trend": entry.get("trend", 0),
+        "deload": entry["summary"]["deload"],
+        **prescription.as_dict(),
+    }
 
 
 def load_curve_for(user, days: int = 90, step: int = 1) -> list[dict]:

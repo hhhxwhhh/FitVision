@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Community health files: `CODEOWNERS`, `FUNDING.yml`, issue/PR labeler, stale-issue cleanup, `SUPPORT.md`, and `GOVERNANCE.md`.
 - Documentation system: `docs/ARCHITECTURE.md`, `docs/DEVELOPMENT.md`, `docs/DEPLOYMENT.md`, and an archived folder for historical dev notes.
 - Core algorithm: **per-muscle-group recovery model** (`backend/utils/recovery.py`) — set/rep volume spreads across a synergist matrix and decays with per-muscle exponential half-lives, producing recovery %, hours-to-ready, weekly set volume and a recommendation multiplier; 51 Django-free tests.
+- Core algorithm: **strength & progression engine** (`backend/utils/strength.py`) — e1RM from three independent sources (conservative rep formulas, velocity-based rep capacity, RPE/RIR inversion), double-progression prescriptions, e1RM trend and deload-week detection; 63 Django-free tests.
+- `PersonalRecord.record_type` gained an `e1rm` option (migration `growth/0005`), so estimated one-rep maxes are tracked like any other record.
+- `GET /api/growth/strength/?days=&exercise_id=&reps=&rir=`: per-exercise e1RM curve plus the prescribed load for the next session.
+- Data centre gained a 力量曲线 card: exercise picker, e1RM trend chart, prescription callout and deload warnings.
 - `GET /api/growth/muscle-recovery/`: today's recovery state for every muscle group plus the suggested `focus` / `avoid` lists.
 - `MuscleRecoveryPanel` on the training page and a shared `src/utils/muscleRecovery.ts` presentation layer (25 tests).
 - Core algorithm: velocity-based-training (VBT) metrics — per-rep duration, mean velocity and a tempo bucket — exposed from the pose engine and shown in the training preview.

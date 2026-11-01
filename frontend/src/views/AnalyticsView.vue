@@ -76,6 +76,85 @@
 
         <el-row :gutter="20" style="margin-top: 20px;">
             <el-col :span="24">
+                <el-card class="chart-card">
+                    <template #header>
+                        <div class="card-header">
+                            <span>力量曲线 (等效 1RM)</span>
+                            <span class="card-hint">
+                                由次数 / 速度 / RIR 三路估计，取最保守值
+                            </span>
+                        </div>
+                    </template>
+
+                    <el-empty
+                        v-if="!strengthExercises.length"
+                        description="还没有负重训练记录，完成一次带重量的训练后再来看看"
+                        :image-size="72"
+                    />
+
+                    <template v-else>
+                        <div class="strength-toolbar">
+                            <el-select
+                                v-model="selectedExerciseId"
+                                size="small"
+                                style="width: 220px"
+                                @change="renderStrengthChart"
+                            >
+                                <el-option
+                                    v-for="item in strengthExercises"
+                                    :key="item.exercise_id"
+                                    :label="item.name"
+                                    :value="item.exercise_id"
+                                />
+                            </el-select>
+
+                            <div v-if="selectedStrength" class="strength-stats">
+                                <span class="strength-stat">
+                                    当前 <strong>{{ formatE1rm(selectedStrength.e1rm) }}</strong> kg
+                                </span>
+                                <span class="strength-stat">
+                                    最好 <strong>{{ formatE1rm(selectedStrength.best) }}</strong> kg
+                                </span>
+                                <span class="strength-stat">
+                                    趋势
+                                    <strong :class="`trend-${trendType(selectedStrength.trend)}`">
+                                        {{ trendText(selectedStrength.trend) }}
+                                    </strong>
+                                </span>
+                            </div>
+                        </div>
+
+                        <el-alert
+                            v-if="strengthPrescription"
+                            type="info"
+                            :closable="false"
+                            show-icon
+                            class="strength-alert"
+                        >
+                            {{ prescriptionText(strengthPrescription) }}
+                            <span v-if="strengthPrescription.advice" class="strength-advice">
+                                {{ strengthPrescription.advice }}
+                            </span>
+                        </el-alert>
+
+                        <el-alert
+                            v-if="selectedStrength?.summary.deload.deload"
+                            type="warning"
+                            :closable="false"
+                            show-icon
+                            class="strength-alert"
+                        >
+                            建议安排一个减量周：{{ selectedStrength.summary.deload.advice }}
+                        </el-alert>
+
+                        <v-chart class="chart" :option="strengthOption" autoresize />
+                    </template>
+                </el-card>
+            </el-col>
+        </el-row>
+
+        <el-row :gutter="20" style="margin-top: 20px;">
+            <el-col :span="24">
                 <el-card>
                     <template #header>
                         <div class="card-header">
@@ -108,7 +187,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive, watch } from 'vue'
+import { ref, onMounted, reactive, watch, computed } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { BarChart, PieChart, LineChart } from 'echarts/charts'
@@ -124,6 +203,16 @@ import { ElMessage } from 'element-plus'
 import apiClient from '../api'
 import { useTheme } from '../composables/useTheme'
 import { datedFilename, downloadTextFile, toCsv } from '../utils/csv'
+import {
+    exercisesWithData,
+    formatE1rm,
+    parseStrength,
+    prescriptionText,
+    trendText,
+    trendType,
+    type StrengthExercise,
+    type StrengthPrescription,
+} from '../utils/strength'
 
 use([
     CanvasRenderer,
@@ -173,6 +262,67 @@ interface LoadPoint {
 }
 
 const loadCurve = reactive<{ points: LoadPoint[] }>({ points: [] })
+
+/* ------------------------------------------------------------------ */
+/* 力量曲线（等效 1RM）                                                  */
+/* ------------------------------------------------------------------ */
+
+const strengthExercises = ref<StrengthExercise[]>([])
+const strengthPrescription = ref<StrengthPrescription | null>(null)
+const selectedExerciseId = ref<number | null>(null)
+
+const selectedStrength = computed<StrengthExercise | null>(() => {
+    if (selectedExerciseId.value === null) return null
+    return strengthExercises.value.find((item) => item.exercise_id === selectedExerciseId.value) ?? null
+})
+
+const strengthOption = ref<any>({
+    tooltip: { trigger: 'axis' },
+    grid: { left: 12, right: 18, top: 24, bottom: 8, containLabel: true },
+    xAxis: { type: 'category', data: [], axisLine: { show: false }, axisTick: { show: false } },
+    yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed' } } },
+    series: [
+        {
+            name: '等效 1RM (kg)',
+            type: 'line',
+            smooth: true,
+            showSymbol: true,
+            symbolSize: 6,
+            data: [],
+        },
+    ],
+})
+
+const renderStrengthChart = () => {
+    const current = selectedStrength.value
+    if (!current) {
+        strengthOption.value.xAxis.data = []
+        strengthOption.value.series[0].data = []
+        return
+    }
+    strengthOption.value.xAxis.data = current.points.map((point) => point.date.slice(5))
+    strengthOption.value.series[0].data = current.points.map((point) => point.e1rm)
+    applyChartTheme()
+}
+
+const fetchStrength = async () => {
+    try {
+        const res = await apiClient.get('growth/strength/?days=180')
+        const payload = parseStrength(res.data)
+        if (!payload) {
+            strengthExercises.value = []
+            return
+        }
+        strengthExercises.value = exercisesWithData(payload.exercises)
+        strengthPrescription.value = payload.prescription
+        selectedExerciseId.value = strengthExercises.value[0]?.exercise_id ?? null
+        renderStrengthChart()
+    } catch (err) {
+        // 力量曲线是增强信息，失败时静默降级
+        console.warn('Strength curve unavailable', err)
+        strengthExercises.value = []
+    }
+}
 
 const loadOption = ref<any>({
     tooltip: { trigger: 'axis' },
@@ -254,6 +404,14 @@ const applyChartTheme = () => {
     loadOption.value.series[0].lineStyle = { color: colors.accent, width: 2 }
     loadOption.value.series[1].lineStyle = { color: '#b91c1c', width: 2 }
     loadOption.value.series[2].lineStyle = { color: colors.accentSoft, width: 2, type: 'dashed' }
+
+    strengthOption.value.tooltip = { trigger: 'axis', ...tooltip }
+    strengthOption.value.xAxis.axisLabel = { color: colors.textSecondary }
+    strengthOption.value.yAxis.axisLabel = { color: colors.textSecondary }
+    strengthOption.value.yAxis.splitLine.lineStyle.color = colors.border
+    strengthOption.value.series[0].itemStyle = { color: colors.accent }
+    strengthOption.value.series[0].lineStyle = { color: colors.accent, width: 2 }
+    strengthOption.value.series[0].areaStyle = { color: colors.accentSoft, opacity: 0.12 }
 }
 
 const fetchLoadCurve = async () => {
@@ -336,6 +494,7 @@ onMounted(() => {
     applyChartTheme()
     fetchData()
     fetchLoadCurve()
+    fetchStrength()
 })
 </script>
 
@@ -369,6 +528,54 @@ onMounted(() => {
 
 .chart {
     height: 300px;
+}
+
+.strength-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.strength-stats {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.strength-stat {
+    font-size: 12.5px;
+    color: var(--fv-text-2);
+}
+
+.strength-stat strong {
+    font-size: 14px;
+    color: var(--fv-text-1);
+    font-variant-numeric: tabular-nums;
+}
+
+.trend-up {
+    color: var(--fv-success, #15803d) !important;
+}
+
+.trend-down {
+    color: var(--fv-danger) !important;
+}
+
+.trend-flat {
+    color: var(--fv-text-2) !important;
+}
+
+.strength-alert {
+    margin-bottom: 10px;
+}
+
+.strength-advice {
+    margin-left: 6px;
+    opacity: 0.85;
 }
 
 .chart-tall {

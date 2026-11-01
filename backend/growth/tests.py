@@ -29,6 +29,9 @@ from .services import (
     muscle_works,
     readiness_snapshot,
     refresh_daily_quests,
+    strength_history,
+    strength_prescription,
+    update_personal_records,
     weekly_goal_for,
     weekly_goal_metrics,
     weekly_leaderboard,
@@ -401,6 +404,106 @@ class GrowthApiTests(TestCase):
         snapshot = muscle_recovery_snapshot(self.user)
         self.assertTrue(hasattr(snapshot, 'multiplier_for'))
         self.assertLessEqual(snapshot.multiplier_for('chest'), 1.2)
+
+    def _api_weighted_record(self, exercise, *, days_ago=0, weight=80.0, reps=5, sets=3, form_score=85.0):
+        session = UserTrainingSession.objects.create(
+            user=self.user,
+            start_time=timezone.now() - timedelta(days=days_ago),
+            end_time=timezone.now() - timedelta(days=days_ago) + timedelta(minutes=25),
+            is_completed=True,
+            total_exercises=1,
+            completed_exercises=1,
+            performance_score=4.0,
+        )
+        return UserTrainingExerciseRecord.objects.create(
+            session=session,
+            exercise=exercise,
+            sets_completed=sets,
+            reps_completed=[reps] * sets,
+            weights_used=[weight] * sets,
+            form_score=form_score,
+        )
+
+    def test_strength_endpoint_returns_the_e1rm_curve(self):
+        exercise = Exercise.objects.create(
+            name="杠铃卧推", description="胸部力量动作", target_muscle="chest"
+        )
+        self._api_weighted_record(exercise, days_ago=10, weight=70, reps=5)
+        self._api_weighted_record(exercise, days_ago=2, weight=80, reps=5)
+
+        response = self.client.get('/api/growth/strength/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data['exercises']), 1)
+        entry = response.data['exercises'][0]
+        self.assertEqual(entry['exercise_id'], exercise.id)
+        self.assertEqual(len(entry['points']), 2)
+        self.assertGreater(entry['e1rm'], entry['points'][0]['e1rm'])
+
+    def test_strength_endpoint_filters_by_exercise(self):
+        bench = Exercise.objects.create(
+            name="杠铃卧推", description="胸部力量动作", target_muscle="chest"
+        )
+        squat = Exercise.objects.create(
+            name="杠铃深蹲", description="腿部力量动作", target_muscle="legs"
+        )
+        self._api_weighted_record(bench, weight=80)
+        self._api_weighted_record(squat, weight=120)
+
+        response = self.client.get(f'/api/growth/strength/?exercise_id={squat.id}')
+        self.assertEqual(len(response.data['exercises']), 1)
+        self.assertEqual(response.data['exercises'][0]['exercise_id'], squat.id)
+        self.assertIsNotNone(response.data['prescription'])
+        self.assertTrue(response.data['prescription']['available'])
+
+    def test_strength_prescription_uses_double_progression(self):
+        bench = Exercise.objects.create(
+            name="杠铃卧推", description="胸部力量动作", target_muscle="chest"
+        )
+        self._api_weighted_record(bench, weight=80, reps=6, sets=1)
+
+        response = self.client.get(f'/api/growth/strength/?exercise_id={bench.id}&reps=6')
+        prescription = response.data['prescription']
+        self.assertTrue(prescription['available'])
+        self.assertGreater(prescription['weight'], 80)
+        self.assertEqual(prescription['target_reps'], 6)
+
+    def test_strength_endpoint_without_records(self):
+        response = self.client.get('/api/growth/strength/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['exercises'], [])
+        self.assertIsNone(response.data['prescription'])
+
+    def test_strength_endpoint_clamps_its_query_params(self):
+        response = self.client.get('/api/growth/strength/?days=9999&reps=abc')
+        self.assertEqual(response.data['days'], 365)
+
+    def test_e1rm_is_saved_as_a_personal_record(self):
+        bench = Exercise.objects.create(
+            name="杠铃卧推", description="胸部力量动作", target_muscle="chest"
+        )
+        session = UserTrainingSession.objects.create(
+            user=self.user,
+            start_time=timezone.now(),
+            end_time=timezone.now() + timedelta(minutes=20),
+            is_completed=True,
+            total_exercises=1,
+            completed_exercises=1,
+            performance_score=4.0,
+        )
+        UserTrainingExerciseRecord.objects.create(
+            session=session,
+            exercise=bench,
+            sets_completed=1,
+            reps_completed=[5],
+            weights_used=[100.0],
+            form_score=90,
+        )
+        update_personal_records(session)
+
+        record = PersonalRecord.objects.get(
+            user=self.user, exercise=bench, record_type="e1rm"
+        )
+        self.assertGreater(record.value, 100.0)
 
     def test_load_curve_endpoint(self):
         for offset in range(0, 12, 2):

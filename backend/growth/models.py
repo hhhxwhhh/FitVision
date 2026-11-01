@@ -182,6 +182,7 @@ class PersonalRecord(models.Model):
         ("max_reps", "最高单组次数"),
         ("max_volume", "单次训练容量"),
         ("best_form", "最佳动作评分"),
+        ("e1rm", "等效 1RM"),
     ]
 
     user = models.ForeignKey(

@@ -25,6 +25,8 @@ from .services import (
     muscle_recovery_snapshot,
     readiness_snapshot,
     refresh_daily_quests,
+    strength_history,
+    strength_prescription,
     weekly_goal_for,
     weekly_goal_metrics,
     weekly_leaderboard,
@@ -341,6 +343,42 @@ def muscle_recovery_view(request):
     容量状态，外加今日建议优先练的肌群（`focus`）与应当避开的肌群（`avoid`）。
     """
     return Response(muscle_recovery_snapshot(request.user).as_dict())
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def strength_view(request):
+    """力量曲线：每个动作的 e1RM 序列与下一次训练的建议重量。
+
+    查询参数：`days`（默认 120，上限 365）、`exercise_id`（可选，只看一个动作）。
+    """
+    def positive_int(raw, default, low, high):
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return default
+        return max(low, min(high, value))
+
+    days = positive_int(request.query_params.get("days"), 120, 7, 365)
+    exercises = strength_history(request.user, days=days)
+
+    exercise_id = request.query_params.get("exercise_id")
+    prescription = None
+    if exercise_id:
+        try:
+            target_id = int(exercise_id)
+        except (TypeError, ValueError):
+            target_id = 0
+        if target_id:
+            exercises = [item for item in exercises if item["exercise_id"] == target_id]
+            prescription = strength_prescription(
+                request.user,
+                target_id,
+                target_reps=positive_int(request.query_params.get("reps"), 6, 1, 20),
+                target_rir=positive_int(request.query_params.get("rir"), 2, 0, 5),
+            )
+
+    return Response({"days": days, "exercises": exercises, "prescription": prescription})
 
 
 @api_view(["GET", "PUT"])
