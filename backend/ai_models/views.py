@@ -94,7 +94,7 @@ class AIAnalysisSessionViewSet(viewsets.ModelViewSet):
         return self.queryset.filter(record__session__user=self.request.user)
 
 class AIModelConfigViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = AIModelConfig.objects.filter(is_active=True)
+    queryset = AIModelConfig.objects.filter(is_active=True).select_related('exercise')
     serializer_class = AIModelConfigSerializer
     permission_classes = [permissions.IsAuthenticated]
 

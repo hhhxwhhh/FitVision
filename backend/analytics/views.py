@@ -54,7 +54,8 @@ class ExerciseProgressViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return self.queryset.filter(user=self.request.user)
+        # 预取动作名，避免每行一次 FK 懒加载。
+        return self.queryset.filter(user=self.request.user).select_related('exercise')
 
     @action(detail=False, methods=['get'], url_path='by-exercise/(?P<exercise_id>[^/.]+)')
     def by_exercise(self, request, exercise_id=None):

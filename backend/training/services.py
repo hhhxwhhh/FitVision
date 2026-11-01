@@ -2,8 +2,8 @@ import os
 import requests
 import numpy as np
 import random
-from django.db.models import Q
-from users.models import UserProfile
+from django.db.models import Q, Prefetch
+from users.models import UserProfile, UserGoal
 from training.models import UserTrainingSession
 from exercises.models import Exercise, ExerciseGraph, UserExerciseRecord
 from utils.vector_db import VectorDB  
@@ -39,7 +39,19 @@ class UserSimilarityService:
 
             from sklearn.metrics.pairwise import cosine_similarity
 
-            other_profiles = UserProfile.objects.exclude(user=target_user).order_by('-updated_at')[:50]
+            # 预取 user 与激活目标，避免循环里逐个查库。
+            other_profiles = (
+                UserProfile.objects.exclude(user=target_user)
+                .select_related('user')
+                .prefetch_related(
+                    Prefetch(
+                        'user__goals',
+                        queryset=UserGoal.objects.filter(is_active=True),
+                        to_attr='active_goals',
+                    )
+                )
+                .order_by('-updated_at')[:50]
+            )
             candidates = []
             
             for p in other_profiles:
@@ -52,10 +64,24 @@ class UserSimilarityService:
             
             candidates.sort(key=lambda x: x[1], reverse=True)
 
+            # 一次性取出候选用户的高分会话，避免每个候选查一次。
+            top_users = [user for user, _ in candidates[:3]]
+            best_sessions = {}
+            if top_users:
+                sessions = (
+                    UserTrainingSession.objects.filter(
+                        user__in=top_users,
+                        performance_score__gte=4.0,
+                        plan__isnull=False,
+                    )
+                    .select_related('plan')
+                    .order_by('-performance_score')
+                )
+                for session in sessions:
+                    best_sessions.setdefault(session.user_id, session)
+
             for user, sim in candidates[:3]:
-                best_session = UserTrainingSession.objects.filter(
-                    user=user, performance_score__gte=4.0
-                ).order_by('-performance_score').first()
+                best_session = best_sessions.get(user.id)
                 
                 if best_session and best_session.plan:
                     return {
@@ -142,23 +168,34 @@ class SmartRecommendationService:
     @staticmethod
     def verify_manual_selection(user, exercise_ids, pass_score=80.0):
         """严格校验用户手动选择的动作是否达标"""
-        exercises = Exercise.objects.filter(id__in=exercise_ids)
+        exercises = list(Exercise.objects.filter(id__in=exercise_ids))
         locked_reasons = []
 
-        for ex in exercises:
-            prereqs = ex.prerequisites.all()
-            if not prereqs.exists():
+        # 一次性拿到这批动作的前置关系与用户已通过的前置集合。
+        prereq_pairs = Exercise.objects.filter(id__in=[ex.id for ex in exercises]).values_list(
+            'id', 'prerequisites__id', 'prerequisites__name'
+        )
+        prereq_map: dict[int, list[tuple[int, str]]] = {}
+        for exercise_id, prereq_id, prereq_name in prereq_pairs:
+            if prereq_id is None:
                 continue
-            
-            for req in prereqs:
-                has_passed = UserExerciseRecord.objects.filter(
-                    user=user,
-                    exercise=req,
-                    accuracy_score__gte=pass_score
-                ).exists()
+            prereq_map.setdefault(exercise_id, []).append((prereq_id, prereq_name))
 
-                if not has_passed:
-                    locked_reasons.append(f"【{ex.name}】未解锁：需先以{pass_score}分完成前置【{req.name}】")
+        passed_ids = set(
+            UserExerciseRecord.objects.filter(
+                user=user, accuracy_score__gte=pass_score
+            ).values_list('exercise_id', flat=True)
+        )
+
+        name_map = {ex.id: ex.name for ex in exercises}
+        for exercise_id, prereqs in prereq_map.items():
+            for prereq_id, prereq_name in prereqs:
+                if prereq_id in passed_ids:
+                    continue
+                locked_reasons.append(
+                    f"【{name_map.get(exercise_id, '')}】未解锁："
+                    f"需先以{pass_score}分完成前置【{prereq_name}】"
+                )
 
         return len(locked_reasons) == 0, locked_reasons
     

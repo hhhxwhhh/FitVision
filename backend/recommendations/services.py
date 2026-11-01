@@ -21,6 +21,54 @@ class RecommendationEngine:
         raise NotImplementedError
 
 
+def fetch_exercises(exercise_ids) -> dict:
+    """按 id 批量取动作，返回 {id: Exercise}。
+
+    引擎里常见"拿到一批 id 再逐个 `Exercise.objects.get(id=...)`"的写法，
+    那是典型的 N+1。这里统一改成一次查询。
+    """
+    ids = []
+    for exercise_id in exercise_ids:
+        try:
+            value = int(exercise_id)
+        except (TypeError, ValueError):
+            continue
+        if value not in ids:
+            ids.append(value)
+    if not ids:
+        return {}
+    return {
+        exercise.id: exercise
+        for exercise in Exercise.objects.filter(id__in=ids).select_related('category')
+    }
+
+
+def _load_prerequisite_map(exercises) -> dict:
+    """批量取一批动作的前置动作，返回 {exercise_id: {prerequisite_id, ...}}。"""
+    ids = [exercise.id for exercise in exercises if exercise is not None]
+    if not ids:
+        return {}
+    # 一次拿到这些动作各自的前置关系。
+    pairs = Exercise.objects.filter(id__in=ids).values_list('id', 'prerequisites__id')
+    mapping: dict[int, set[int]] = {}
+    for exercise_id, prereq_id in pairs:
+        if prereq_id is None:
+            continue
+        mapping.setdefault(exercise_id, set()).add(prereq_id)
+    return mapping
+
+
+def _passed_prerequisite_ids(user) -> set:
+    """用户在哪些前置动作上已经拿到 80 分以上的成绩。"""
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return set()
+    return set(
+        UserExerciseRecord.objects.filter(
+            user=user, accuracy_score__gte=80.0
+        ).values_list('exercise_id', flat=True)
+    )
+
+
 #: 局部恢复度对推荐排序的影响权重（0 = 不生效，1 = 完全按恢复度排序）。
 RECOVERY_INFLUENCE = 0.6
 
@@ -171,19 +219,24 @@ class ContentBasedEngine(RecommendationEngine):
                     where={"target_muscle": ex.target_muscle} # 同部位推荐
                 )
                 
-                # 处理结果
-                if results and 'ids' in results and results['ids']:
-                    for i, res_id in enumerate(results['ids'][0]):
-                        if res_id == str(ex.id): continue # 排除自身
-                        # 距离越小分值越高
-                        dist = results['distances'][0][i] if 'distances' in results else 0.5
-                        score = max(0.1, 1.0 - dist) 
-                        try:
-                            target_ex = Exercise.objects.get(id=res_id)
-                            recommendations.append((target_ex, score))
-                        except Exercise.DoesNotExist:
-                            continue
-            
+            # 处理结果
+            if results and 'ids' in results and results['ids']:
+                candidate_ids = []
+                for i, res_id in enumerate(results['ids'][0]):
+                    if res_id == str(ex.id):
+                        continue  # 排除自身
+                    candidate_ids.append((res_id, i))
+                # 一次性把候选动作读出来，避免逐条查库。
+                exercise_map = fetch_exercises([res_id for res_id, _ in candidate_ids])
+                for res_id, i in candidate_ids:
+                    target_ex = exercise_map.get(int(res_id))
+                    if target_ex is None:
+                        continue
+                    # 距离越小分值越高
+                    dist = results['distances'][0][i] if 'distances' in results else 0.5
+                    score = max(0.1, 1.0 - dist)
+                    recommendations.append((target_ex, score))
+
             # 去重并排序
             unique_recs = {}
             for ex, score in recommendations:
@@ -300,13 +353,13 @@ class DLSequenceEngine(RecommendationEngine):
             predictions = model_manager.predict(exercise_ids, limit=limit)
             
             # 3. 结果组装
+            exercise_map = fetch_exercises([ex_id for ex_id, _ in predictions])
             recommendations = []
             for ex_id, score in predictions:
-                try:
-                    ex = Exercise.objects.get(id=ex_id)
-                    recommendations.append((ex, score))
-                except Exercise.DoesNotExist:
+                ex = exercise_map.get(int(ex_id))
+                if ex is None:
                     continue
+                recommendations.append((ex, score))
                     
             return recommendations
         except Exception as e:
@@ -388,13 +441,15 @@ class ColdStartEngine(RecommendationEngine):
         # 1. 获取全局高分热门动作
         # 统计最近 30 天内被用户完成或收藏的动作，按完成次数降序排列
         thirty_days_ago = timezone.now() - timedelta(days=30)
-        popular_query = UserInteraction.objects.filter(
-            timestamp__gte=thirty_days_ago,
-            interaction_type__in=['finish', 'like']
-        ).values('exercise').annotate(
-            score=Count('id')
-        ).order_by('-score')
-        
+        popular_query = list(
+            UserInteraction.objects.filter(
+                timestamp__gte=thirty_days_ago,
+                interaction_type__in=['finish', 'like']
+            ).values('exercise').annotate(
+                score=Count('id')
+            ).order_by('-score')[:limit * 10]
+        )
+
         # 2. 过滤掉不适合用户等级的动作
         # 初级用户仅可见初级动作，以此类推
         available_exercises = Exercise.objects.all()
@@ -402,17 +457,23 @@ class ColdStartEngine(RecommendationEngine):
             available_exercises = available_exercises.filter(difficulty='beginner')
         elif user_level == 'intermediate':
             available_exercises = available_exercises.exclude(difficulty='advanced')
-            
-        available_ids = set(available_exercises.values_list('id', flat=True))
-        
+
+        available_ids = set(
+            available_exercises.values_list('id', flat=True)
+        )
+
         # 3. 组合结果，应用多样性约束
         recs = []
         muscle_counts = {}
-        
+
+        # 一次性把热门动作读出来，避免逐条 get。
+        popular_map = fetch_exercises([item['exercise'] for item in popular_query])
         for item in popular_query:
             ex_id = item['exercise']
             if ex_id in available_ids:
-                ex = Exercise.objects.get(id=ex_id)
+                ex = popular_map.get(ex_id)
+                if ex is None:
+                    continue
                 # 尽量保证多样化：每个部位最多推荐 2 个，防止内容过于单调
                 count = muscle_counts.get(ex.target_muscle, 0)
                 if count < 2:
@@ -480,17 +541,17 @@ class TimeTravelCFEngine(RecommendationEngine):
         # 4. 组装结果并打分
         recs = []
         seen_ids = set()
+        # 一次性把候选动作读出来，避免逐条 get。
+        cf_map = fetch_exercises([item['exercise_id'] for item in cf_recommendations])
         for item in cf_recommendations:
             ex_id = item['exercise_id']
             if ex_id not in seen_ids:
-                try:
-                    ex = Exercise.objects.get(id=ex_id)
+                ex = cf_map.get(ex_id)
+                if ex is not None:
                     # 分数计算：基础高分 0.8 + 流行度加成
                     score = min(0.8 + (item['popularity'] / 100.0), 0.98) 
                     recs.append((ex, float(score)))
                     seen_ids.add(ex_id)
-                except Exercise.DoesNotExist:
-                    continue
             if len(recs) >= limit:
                 break
                 
@@ -783,43 +844,35 @@ class HybridRecommender:
                 seen_ids.add(ex.id)
 
         final_recs = []
+        # 前置动作校验原本是"每条推荐 × 每个前置动作"各查一次库，
+        # 这里改成：一次性拿到候选动作的前置关系，再一次性拿到用户已通过的前置集合。
+        prereq_map = _load_prerequisite_map([item['ex'] for item in raw_final_recs])
+        passed_prereqs = _passed_prerequisite_ids(user)
+
         for item in raw_final_recs:
-            ex = item['ex']
-            prereqs = ex.prerequisites.all()
-            
-            if not prereqs.exists():
+            prereq_ids = prereq_map.get(item['ex'].id, set())
+
+            if not prereq_ids:
                 final_recs.append(item) 
                 continue
-                
+
             # 校验前置条件是否全部达到 80 分以上
-            is_unlocked = True
-            for req in prereqs:
-                has_passed = UserExerciseRecord.objects.filter(
-                    user=user,
-                    exercise=req,
-                    accuracy_score__gte=80.0
-                ).exists()
-                
-                if not has_passed:
-                    is_unlocked = False
-                    break 
-                    
-            if is_unlocked:
+            if prereq_ids.issubset(passed_prereqs):
                 final_recs.append(item)
 
         # 4. 兜底策略：如果过滤后召回不足，使用热门冷启动补全
         if len(final_recs) < limit:
             remaining = limit - len(final_recs)
             backups = ColdStartEngine().recommend(user, limit=remaining * 2) 
-            
+
+            backup_prereq_map = _load_prerequisite_map([ex for ex, _ in backups])
             for ex, score in backups:
                 if len(final_recs) >= limit:
                     break
                 if ex.id not in seen_ids and ex.id not in blocked_ids:
-                    prereqs = ex.prerequisites.all()
-                    if prereqs.exists():
-                        if not all(UserExerciseRecord.objects.filter(user=user, exercise=req, accuracy_score__gte=80.0).exists() for req in prereqs):
-                            continue
+                    prereq_ids = backup_prereq_map.get(ex.id, set())
+                    if prereq_ids and not prereq_ids.issubset(passed_prereqs):
+                        continue
 
                     final_recs.append({
                         'ex': ex,

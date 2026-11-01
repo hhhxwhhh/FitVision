@@ -57,6 +57,10 @@ class UserProfile(models.Model):
     @property
     def goal(self):
         """获取当前激活的训练目标"""
+        # 预取到 user.active_goals 时直接读缓存，避免在循环里逐个查库。
+        cached = getattr(self.user, 'active_goals', None)
+        if cached is not None:
+            return cached[0].goal_type if cached else None
         active_goal = self.user.goals.filter(is_active=True).first()
         return active_goal.goal_type if active_goal else None
 

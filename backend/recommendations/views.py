@@ -29,12 +29,47 @@ def _parse_brief(value, default=True):
     return str(value).strip().lower() in ("1", "true", "yes", "y", "on")
 
 
+def _attach_categories(recommendations):
+    """一次性把动作的分类补到内存对象上，避免逐条推荐查一次分类。
+
+    完整（brief=0）结构里带 `category.name`，而推荐结果是引擎在内存里
+    组装出来的，分类字段仍是懒加载。这里用一次查询把分类读出来再挂上。
+    """
+    exercises = []
+    seen = set()
+    for rec in recommendations:
+        exercise = getattr(rec, "exercise", None)
+        if exercise is None or exercise.id in seen:
+            continue
+        seen.add(exercise.id)
+        exercises.append(exercise)
+    if not exercises:
+        return
+
+    from exercises.models import ExerciseCategory
+
+    categories = {
+        category.id: category
+        for category in ExerciseCategory.objects.filter(
+            id__in=[e.category_id for e in exercises if e.category_id]
+        )
+    }
+    for exercise in exercises:
+        category = categories.get(exercise.category_id)
+        if category is not None:
+            exercise.category = category
+
+
 class RecommendationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = RecommendedExerciseSerializer
 
     def get_queryset(self):
-        return RecommendedExercise.objects.filter(user=self.request.user)
+        # 预取动作与分类，避免列表里每行一次 FK 懒加载。
+        return (
+            RecommendedExercise.objects.filter(user=self.request.user)
+            .select_related('exercise', 'exercise__category')
+        )
 
     @action(detail=False, methods=["get"])
     def user_status(self, request):
@@ -59,6 +94,8 @@ class RecommendationViewSet(viewsets.ModelViewSet):
         recommendations = HybridRecommender.get_recommendations(
             request.user, scenario=scenario, limit=limit
         )
+        if not brief:
+            _attach_categories(recommendations)
         serializer = self.get_serializer(
             recommendations,
             many=True,

@@ -6,7 +6,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from .services import SmartRecommendationService 
 from django.shortcuts import get_object_or_404
-from django.db.models import Sum
+from django.db.models import Sum, Count, Prefetch
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from datetime import timedelta
@@ -43,6 +43,15 @@ class TrainingPlanListView(generics.ListAPIView):
     ordering_fields = ['name', 'difficulty', 'duration_weeks', 'created_at']
     ordering = ['-created_at']
 
+    def get_queryset(self):
+        # Count 注解一次性统计天数，select_related 预取创建者。
+        return (
+            TrainingPlan.objects.filter(is_active=True, is_public=True)
+            .select_related('created_by', 'category')
+            .annotate(days_count=Count('trainingplanday'))
+            .order_by('-created_at')
+        )
+
 
 class TrainingPlanDetailView(generics.RetrieveAPIView):
     """获取训练计划详情"""
@@ -50,6 +59,26 @@ class TrainingPlanDetailView(generics.RetrieveAPIView):
     serializer_class = TrainingPlanDetailSerializer
     permission_classes = [IsAuthenticated]
     lookup_field = 'id'
+
+    def get_queryset(self):
+        # 预取"天 → 动作 → 动作详情"，避免嵌套序列化时逐层查库。
+        return (
+            TrainingPlan.objects.filter(is_active=True)
+            .select_related('created_by', 'category')
+            .prefetch_related(
+                Prefetch(
+                    'trainingplanday_set',
+                    queryset=TrainingPlanDay.objects.order_by('day_number').prefetch_related(
+                        Prefetch(
+                            'exercises',
+                            queryset=TrainingPlanExercise.objects.select_related(
+                                'exercise', 'exercise__category'
+                            ).order_by('order'),
+                        )
+                    ),
+                )
+            )
+        )
 
 
 @api_view(['POST'])
@@ -86,7 +115,9 @@ def start_training_session(request):
 
         # 场景 A: 走传统的静态模板路线
         if plan_day:
-            plan_exercises = TrainingPlanExercise.objects.filter(training_day=plan_day).order_by('order')
+            plan_exercises = TrainingPlanExercise.objects.filter(
+                training_day=plan_day
+            ).select_related('exercise').order_by('order')
             for pe in plan_exercises:
                 records_to_create.append(
                     UserTrainingExerciseRecord(
@@ -193,26 +224,37 @@ def complete_training_session(request, session_id):
     
     try:
         # 假设 session 关联了 exercise_records
-        records = session.exercise_records.order_by('created_at') # 确保按时间排序
+        # 预取动作，避免逐条 FK 懒加载；边也一次性建好，避免逐条 get_or_create。
+        records = session.exercise_records.select_related('exercise').order_by('created_at')
         exercises = [r.exercise for r in records]
         
-        # 更新 A -> B 的权重
-        for i in range(len(exercises) - 1):
-            curr = exercises[i]
-            next_ex = exercises[i+1]
-            
-            # 找到或创建边
-            edge, _ = ExerciseGraph.objects.get_or_create(
-                from_exercise=curr, 
-                to_exercise=next_ex
-            )
-            
+        if len(exercises) >= 2:
             # 加权逻辑：完成度越高权重越大
             weight_add = 1
             if session.performance_score >= 4: weight_add = 2
-            
-            edge.weight += weight_add
-            edge.save()
+
+            pairs = list(zip(exercises, exercises[1:]))
+            existing = {
+                (item.from_exercise_id, item.to_exercise_id): item
+                for item in ExerciseGraph.objects.filter(
+                    from_exercise__in=[a for a, _ in pairs],
+                    to_exercise__in=[b for _, b in pairs],
+                )
+            }
+            new_edges = []
+            for curr, next_ex in pairs:
+                edge = existing.get((curr.id, next_ex.id))
+                if edge is None:
+                    edge = ExerciseGraph(
+                        from_exercise=curr, to_exercise=next_ex, weight=weight_add
+                    )
+                    new_edges.append(edge)
+                    existing[(curr.id, next_ex.id)] = edge
+                else:
+                    edge.weight += weight_add
+                    edge.save(update_fields=['weight'])
+            if new_edges:
+                ExerciseGraph.objects.bulk_create(new_edges)
             
             # (可选) 重新计算概率: probability = weight / sum(all_weights)
             # 建议放到 Celery 异步任务里，或者每隔一段时间批量算
@@ -229,7 +271,12 @@ class UserTrainingSessionListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        return UserTrainingSession.objects.filter(user=self.request.user).order_by('-start_time')
+        return (
+            UserTrainingSession.objects.filter(user=self.request.user)
+            .select_related('plan')
+            .annotate(exercise_records_count=Count('exercise_records'))
+            .order_by('-start_time')
+        )
 
 
 class UserTrainingSessionDetailView(generics.RetrieveAPIView):
@@ -238,7 +285,16 @@ class UserTrainingSessionDetailView(generics.RetrieveAPIView):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        return UserTrainingSession.objects.filter(user=self.request.user)
+        return (
+            UserTrainingSession.objects.filter(user=self.request.user)
+            .select_related('plan')
+            .prefetch_related(
+                Prefetch(
+                    'exercise_records',
+                    queryset=UserTrainingExerciseRecord.objects.select_related('exercise'),
+                )
+            )
+        )
 
 
 @api_view(['POST'])
@@ -450,7 +506,9 @@ def generate_smart_plan(request):
             
             # 获取大神的历史记录
             from .models import UserTrainingExerciseRecord
-            records = UserTrainingExerciseRecord.objects.filter(session=ref_session).order_by('created_at')
+            records = UserTrainingExerciseRecord.objects.filter(
+                session=ref_session
+            ).select_related('exercise').order_by('created_at')
             
             for rec in records:
                 ex = rec.exercise

@@ -15,10 +15,14 @@ def handle_training_session_saved(sender, instance, **kwargs):
 
 @receiver(post_save, sender=UserTrainingExerciseRecord)
 def handle_exercise_record_saved(sender, instance, **kwargs):
-    """已结束会话中的动作记录变化时，同步刷新个人纪录。"""
+    """已结束会话中的动作记录变化时，同步刷新个人纪录。
+
+    只重算刚变动的那个动作 —— 逐条上报 N 个动作时，
+    不必每次都把整个会话的记录重新翻一遍（否则是 O(N²)）。
+    """
     try:
         session = instance.session
     except UserTrainingSession.DoesNotExist:
         return
     if session.is_completed:
-        update_personal_records(session)
+        update_personal_records(session, exercise_ids=[instance.exercise_id])

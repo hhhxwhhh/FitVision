@@ -35,6 +35,10 @@ class TrainingPlanSerializer(serializers.ModelSerializer):
         read_only_fields = ('created_by', 'created_at', 'updated_at')
         
     def get_days_count(self, obj):
+        # 视图层用 Count 注解时直接取值，避免每个计划再查一次。
+        annotated = getattr(obj, 'days_count', None)
+        if annotated is not None:
+            return annotated
         return obj.trainingplanday_set.count()
 
 
@@ -77,6 +81,10 @@ class UserTrainingSessionSerializer(serializers.ModelSerializer):
         read_only_fields = ('user', 'start_time', 'end_time')
         
     def get_exercise_records_count(self, obj):
+        # 视图层用 Count 注解时直接取值，避免每个会话再查一次。
+        annotated = getattr(obj, 'exercise_records_count', None)
+        if annotated is not None:
+            return annotated
         return obj.exercise_records.count()
 
 

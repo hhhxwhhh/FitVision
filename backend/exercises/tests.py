@@ -9,7 +9,7 @@ from rest_framework.test import APITestCase
 
 from training.models import TrainingPlan
 
-from .models import Exercise, ExerciseCategory
+from .models import Exercise, ExerciseCategory, UserExerciseRecord
 
 
 class ExerciseAPITests(APITestCase):
@@ -78,3 +78,56 @@ class SeedDemoCommandTests(TestCase):
         self.assertEqual(Exercise.objects.count(), 60)
         self.assertEqual(TrainingPlan.objects.count(), 1)
         self.assertEqual(User.objects.count(), user_count)
+
+
+class ExerciseQueryCountTests(TestCase):
+    """动作列表的查询次数回归测试。
+
+    列表接口曾经是"每个动作 5 次查询"（分类、前置、解锁、最好成绩、最近记录），
+    现在靠 select_related / prefetch_related 收敛成常数次查询。
+    """
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        self.client = APIClient()
+        self.user = User.objects.create_user(username="queryfan", password="s3cret-pass")
+        self.client.force_authenticate(self.user)
+        self.category = ExerciseCategory.objects.create(name="力量")
+
+    def _seed(self, count):
+        offset = Exercise.objects.count()
+        for index in range(offset, offset + count):
+            exercise = Exercise.objects.create(
+                name=f"动作 {index}",
+                description="性能测试用",
+                category=self.category,
+                target_muscle="chest" if index % 2 == 0 else "back",
+                instructions="标准姿势",
+            )
+            UserExerciseRecord.objects.create(
+                user=self.user,
+                exercise=exercise,
+                count=10,
+                duration=60,
+                accuracy_score=80 + index,
+            )
+
+    def _count_list_queries(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        self.client.get(reverse("exercises"))
+        with CaptureQueriesContext(connection) as captured:
+            self.client.get(reverse("exercises"))
+        return len(captured.captured_queries)
+
+    def test_list_query_count_does_not_grow_with_the_page_size(self):
+        self._seed(3)
+        small_count = self._count_list_queries()
+
+        self._seed(12)
+        large_count = self._count_list_queries()
+
+        # 动作数量翻了几倍，查询次数不应该跟着涨。
+        self.assertLessEqual(large_count, small_count + 2)

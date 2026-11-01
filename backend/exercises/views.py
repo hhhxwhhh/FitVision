@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from django.shortcuts import get_object_or_404
-from django.db.models import Sum
+from django.db.models import Sum, Count, Q, Prefetch
 from django.utils import timezone
 
 from .models import ExerciseCategory, Exercise, UserExerciseRecord, ExerciseGraph
@@ -29,6 +29,16 @@ class ExerciseCategoryList(generics.ListAPIView):
     serializer_class=ExerciseCategorySerializer
     permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        # 用 Count 注解一次性统计每个分类下的有效动作数，避免逐个分类 count()。
+        return (
+            ExerciseCategory.objects.filter(is_active=True)
+            .annotate(
+                exercises_count=Count('exercise', filter=Q(exercise__is_active=True))
+            )
+            .order_by('order', 'id')
+        )
+
 class ExerciseList(generics.ListAPIView):
     """获取所有动作列表，支持过滤、搜索和排序"""
     queryset = Exercise.objects.filter(is_active=True).order_by('order', 'id')
@@ -41,6 +51,26 @@ class ExerciseList(generics.ListAPIView):
     ordering_fields = ['name', 'difficulty', 'order', 'id', 'level']
     ordering = ['order', 'id']
 
+    def get_queryset(self):
+        user = self.request.user
+        queryset = (
+            Exercise.objects.filter(is_active=True)
+            .select_related('category')
+            .prefetch_related('prerequisites', 'unlocks')
+            .order_by('order', 'id')
+        )
+        if user.is_authenticated:
+            # 当前用户的动作记录一次性预取，避免序列化时逐个动作查库。
+            queryset = queryset.prefetch_related(
+                Prefetch(
+                    'userexerciserecord_set',
+                    queryset=UserExerciseRecord.objects.filter(
+                        user=user
+                    ).order_by('-created_at'),
+                )
+            )
+        return queryset
+
     def get_serializer_context(self):
         context=super().get_serializer_context()
         context['request']=self.request
@@ -48,10 +78,26 @@ class ExerciseList(generics.ListAPIView):
     
 class ExerciseDetail(generics.RetrieveAPIView):
     """获取动作详情，包括用户进度"""
-    queryset = Exercise.objects.filter(is_active=True)
+    queryset = Exercise.objects.filter(is_active=True).select_related('category')
     serializer_class = ExerciseDetailSerializer
     permission_classes = [IsAuthenticated]
     lookup_field = 'id'
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Exercise.objects.filter(is_active=True).select_related('category')
+        if user.is_authenticated:
+            queryset = queryset.prefetch_related(
+                Prefetch(
+                    'userexerciserecord_set',
+                    queryset=UserExerciseRecord.objects.filter(
+                        user=user
+                    ).order_by('-created_at'),
+                ),
+                'prerequisites',
+                'unlocks',
+            )
+        return queryset
 
     def get_serializer_context(self):
         context = super().get_serializer_context()

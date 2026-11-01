@@ -408,17 +408,26 @@ def refresh_user_stats(user) -> UserStats:
     return stats
 
 
-def update_personal_records(session: UserTrainingSession) -> list[PersonalRecord]:
+def update_personal_records(
+    session: UserTrainingSession, exercise_ids: Iterable[int] | None = None
+) -> list[PersonalRecord]:
     """从一次完成的训练中提取并更新个人纪录。
 
     一次性把该用户在这几个动作上的既有纪录读出来，避免"每个动作 × 每个类型"
     各查一次数据库的 N+1 写法。
+
+    `exercise_ids` 限定只处理指定动作 —— 逐条上报动作记录时，
+    只有刚变动的那个动作需要重算，不必每次把整个会话翻一遍。
     """
     updated: list[PersonalRecord] = []
     if not session.is_completed:
         return updated
 
-    records = list(session.exercise_records.select_related("exercise"))
+    records_qs = session.exercise_records.select_related("exercise")
+    if exercise_ids is not None:
+        wanted = {int(item) for item in exercise_ids}
+        records_qs = records_qs.filter(exercise_id__in=wanted)
+    records = list(records_qs)
     if not records:
         return updated
 
@@ -1117,7 +1126,7 @@ def strength_history(user, days: int = 120) -> list[dict]:
             session__is_completed=True,
             session__start_time__gte=since,
         )
-        .select_related("exercise")
+        .select_related("exercise", "session")
         .order_by("session__start_time")
     )
 

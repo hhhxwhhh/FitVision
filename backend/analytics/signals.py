@@ -19,22 +19,30 @@ def update_daily_stats(sender, instance, **kwargs):
         )
         
         # 计算当天所有完成会话的数据
-        sessions = UserTrainingSession.objects.filter(
-            user=instance.user, 
-            start_time__date=today,
-            is_completed=True
+        # 一次遍历算出全部四项指标，避免 count + 两次 aggregate + 一次全表取数。
+        sessions = list(
+            UserTrainingSession.objects.filter(
+                user=instance.user,
+                start_time__date=today,
+                is_completed=True
+            ).only('start_time', 'end_time', 'calories_burned', 'performance_score')
         )
-        
-        stats.completed_sessions = sessions.count()
-        stats.total_calories_burned = sessions.aggregate(models.Sum('calories_burned'))['calories_burned__sum'] or 0
-        stats.average_form_score = sessions.aggregate(models.Avg('performance_score'))['performance_score__avg'] or 0
-        
-        # 计算总时长
-        total_minutes = 0
-        for s in sessions:
-            if s.end_time:
-                total_minutes += (s.end_time - s.start_time).total_seconds() / 60
-        
+
+        total_calories = 0.0
+        form_total = 0.0
+        form_count = 0
+        total_minutes = 0.0
+        for session in sessions:
+            total_calories += session.calories_burned or 0
+            if session.performance_score:
+                form_total += session.performance_score
+                form_count += 1
+            if session.end_time:
+                total_minutes += (session.end_time - session.start_time).total_seconds() / 60
+
+        stats.completed_sessions = len(sessions)
+        stats.total_calories_burned = total_calories
+        stats.average_form_score = (form_total / form_count) if form_count else 0
         stats.total_duration_minutes = int(total_minutes)
         stats.save()
 
@@ -46,7 +54,15 @@ def update_exercise_progress(sender, instance, **kwargs):
     # 获取关联信息（加个 try 是为了防止删除时找不到关联对象）
     try:
         date = instance.created_at.date()
-        user = instance.session.user
+        # 一次查询取出会话与动作，避免两次 FK 懒加载。
+        session = (
+            UserTrainingSession.objects.filter(pk=instance.session_id)
+            .select_related('user')
+            .first()
+        )
+        if session is None:
+            return
+        user = session.user
         exercise = instance.exercise
     except AttributeError:
         # 如果是删除操作且关联对象已丢失，无法统计，直接返回
