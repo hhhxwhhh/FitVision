@@ -30,6 +30,7 @@ urlpatterns = [
     path("strength/", views.strength_view, name="growth-strength"),
     path("mesocycle/", views.mesocycle_view, name="growth-mesocycle"),
     path("intensity/", views.intensity_view, name="growth-intensity"),
+    path("volume/", views.volume_view, name="growth-volume"),
     path("leaderboard/", views.leaderboard, name="growth-leaderboard"),
     path("settings/", views.growth_settings, name="growth-settings"),
 ]

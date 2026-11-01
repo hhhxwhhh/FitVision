@@ -309,7 +309,8 @@ python manage.py seed_population --users 12 --weeks 6    # 或 make seed-populat
 /api/recommendations/ 个性化推荐与反馈
 /api/analytics/       训练数据分析
 /api/growth/          等级、每日任务、限时挑战、周目标、成就、个人纪录、排行榜、
-                      负荷曲线、分肌群恢复、力量曲线、训练周期化（中周期）、强度分布（TRIMP）
+                      负荷曲线、分肌群恢复、力量曲线、训练周期化（中周期）、
+                      强度分布（TRIMP）、训练容量（Volume）
 /api/ai/              姿态诊断 / VLM 分析
 ```
 
@@ -338,13 +339,15 @@ CI 会在每次 Push / PR 时执行以上检查（含前后端测试覆盖率与
 Docker Compose 镜像构建。另有 CodeQL 安全扫描与依赖自动更新（Dependabot）。本地可用
 `pre-commit` 钩子在提交前自动格式化与校验，详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-前端目前 **278 个测试 / 24 个测试文件**，覆盖姿态识别引擎、按键与滚动助手、
-训练周期统计、CSV 导出、HTML 消毒、主题、负荷模型 / 分肌群恢复 / 力量曲线 / 周期化计划 / 强度分布的解析层、用户状态，
-以及 8 个组件级用例（训练日历、回到顶部、主题切换、AI 智能接力、肌群恢复面板、周期化面板、今日处方面板、强度分布面板）。
+前端目前 **316 个测试 / 26 个测试文件**，覆盖姿态识别引擎、按键与滚动助手、
+训练周期统计、CSV 导出、HTML 消毒、主题、负荷模型 / 分肌群恢复 / 力量曲线 / 周期化计划 /
+强度分布 / 训练容量的解析层、用户状态，
+以及 9 个组件级用例（训练日历、回到顶部、主题切换、AI 智能接力、肌群恢复面板、周期化面板、今日处方面板、强度分布面板、容量结构面板）。
 
-后端 **386 个用例**，其中负荷模型 `utils/readiness` 有 53 个、分肌群恢复模型
+后端 **470 个用例**，其中负荷模型 `utils/readiness` 有 53 个、分肌群恢复模型
 `utils/recovery` 有 51 个、力量评估引擎 `utils/strength` 有 63 个、训练周期化引擎
-`utils/periodization` 有 40 个、强度分布引擎 `utils/trimp` 有 38 个、MMR 重排与演示数据生成器各有 10+ 个，
+`utils/periodization` 有 40 个、强度分布引擎 `utils/trimp` 有 38 个、训练容量引擎
+`utils/volume` 有 77 个、MMR 重排与演示数据生成器各有 10+ 个，
 都可以脱离 Django 直接运行；
 成长体系与动作库另有 4 个**查询次数回归测试**，用 `CaptureQueriesContext` 断言接口的查询数
 不随数据量线性增长，防止 N+1 悄悄回来：
@@ -356,6 +359,7 @@ python -m unittest utils.test_recovery    # 分肌群恢复模型
 python -m unittest utils.test_strength   # 力量评估 / e1RM / 处方
 python -m unittest utils.test_periodization # 训练周期化（中周期）模型
 python -m unittest utils.test_trimp      # 训练强度分布（TRIMP）模型
+python -m unittest utils.test_volume     # 训练容量（Volume）模型
 python -m unittest utils.test_demo_data   # 演示数据生成器
 python -m unittest recommendations.test_rerank
 ```
@@ -457,6 +461,17 @@ JS chunk 设上限，超限即让 CI 失败，防止体积悄悄回退。
   高强度组数超限提醒，以及高强度训练日间隔不足的提示。
 - **强度分布接到分析页**：分析页新增「强度分布 (TRIMP)」卡片 —— 四个区间的实际占比条、
   建议占比参考线、逐次训练的均衡情况，以及后端给出的调整建议。
+- **训练容量引擎（Volume）**：`backend/utils/volume.py` 替换掉"训练量 = Σ(重量 × 次数)"这个
+  会被极端组主导的口径，改用三个更稳健的量：
+  - **强度加权容量**：每组按 `吨位 × %1RM` 折算，与 TRIMP 引擎共用同一套强度口径；
+  - **幂平均有效容量**：用 **幂平均（generalized mean）p = 0.5** 聚合组贡献 —— 一次 1RM 试举
+    的边际贡献不会超过它自己的原始值，因此不会把整周容量带跑；
+  - **容量集中度**：把容量摊到肌群上算 **Gini 系数**（按组数归一化），量化"容量是不是
+    全压在一个部位"这种代偿风险。
+  周趋势用**对数空间的 Theil–Sen 稳健斜率**（所有点对斜率的中位数）代替最小二乘 ——
+  一次异常周不会翻转整段结论。
+- **容量结构接到分析页**：分析页新增「训练容量 (Volume)」卡片 —— 有效容量总量、
+  结构集中度、趋势标签、逐肌群占比条与每周容量柱状图。
 - **VBT（基于速度的训练）指标**：每次动作输出用时、平均速度与节奏分类，直接呈现在训练画面。
 - **MMR 多样性重排**：推荐候选以最大边际相关重排，在相关性与冗余度之间做 λ 权衡，取代原先固定的肌群扣分。
 - **六动作姿态引擎**：深蹲、俯卧撑、开合跳、平板支撑、弓步蹲、卷腹；每个模式都有自己的测量函数、评分权重与可提示纠错项。

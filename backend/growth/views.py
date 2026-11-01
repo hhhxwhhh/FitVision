@@ -29,6 +29,7 @@ from .services import (
     refresh_daily_quests,
     strength_history,
     strength_prescription,
+    volume_profile,
     weekly_goal_for,
     weekly_goal_metrics,
     weekly_leaderboard,
@@ -421,6 +422,28 @@ def intensity_view(request):
     days = bounded_int(request.query_params.get("days"), 28, 7, 180)
     weeks = bounded_int(request.query_params.get("weeks"), 4, 1, 12)
     payload = intensity_distribution(request.user, days=days, weeks=weeks)
+    payload["days"] = days
+    payload["weeks"] = weeks
+    return Response(payload)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def volume_view(request):
+    """训练容量（Volume）报告。
+
+    查询参数：`days`（默认 56，上限 365）、`weeks`（默认 8，上限 26）。
+    """
+    def bounded_int(raw, default, low, high):
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return default
+        return max(low, min(high, value))
+
+    days = bounded_int(request.query_params.get("days"), 56, 14, 365)
+    weeks = bounded_int(request.query_params.get("weeks"), 8, 1, 26)
+    payload = volume_profile(request.user, days=days, weeks=weeks)
     payload["days"] = days
     payload["weeks"] = weeks
     return Response(payload)

@@ -283,6 +283,19 @@ def _set_percent(item: SetLoad) -> float | None:
     return percent_from_load(item.weight, item.reps, item.e1rm)
 
 
+def resolve_percent(item: SetLoad) -> float | None:
+    """公开的强度百分比解析入口。
+
+    容量引擎（`utils/volume`）需要同一套强度口径，避免两处各算一遍。
+    """
+    return _set_percent(item)
+
+
+def resolve_rpe(item: SetLoad, percent: float | None = None) -> float | None:
+    """公开的 RPE 解析入口，语义同 `resolve_percent`。"""
+    return _set_rpe(item, percent)
+
+
 def _set_rpe(item: SetLoad, percent: float | None) -> float | None:
     """确定一组的 RPE：有就用，没有就用强度百分比反查。"""
     if item.rpe is not None:

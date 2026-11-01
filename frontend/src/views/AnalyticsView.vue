@@ -201,6 +201,29 @@
 
         <el-row :gutter="20" style="margin-top: 20px;">
             <el-col :span="24">
+                <el-card class="chart-card">
+                    <template #header>
+                        <div class="card-header">
+                            <span>训练容量 (Volume)</span>
+                            <span class="card-hint">
+                                容量够不够、分布均不均衡
+                            </span>
+                        </div>
+                    </template>
+
+                    <el-empty
+                        v-if="!volumeReport"
+                        description="还没有带重量的训练记录，先记几组再来看看"
+                        :image-size="72"
+                    />
+
+                    <VolumePanel v-else :report="volumeReport" />
+                </el-card>
+            </el-col>
+        </el-row>
+
+        <el-row :gutter="20" style="margin-top: 20px;">
+            <el-col :span="24">
                 <el-card>
                     <template #header>
                         <div class="card-header">
@@ -253,6 +276,8 @@ import MesocyclePanel from '../components/MesocyclePanel.vue'
 import { parseMesocycle, type MesocyclePayload } from '../utils/periodization'
 import IntensityPanel from '../components/IntensityPanel.vue'
 import { parseIntensity, type IntensityPayload } from '../utils/intensity'
+import VolumePanel from '../components/VolumePanel.vue'
+import { parseVolume, type VolumePayload } from '../utils/volume'
 import {
     exercisesWithData,
     formatE1rm,
@@ -404,6 +429,22 @@ const fetchIntensity = async () => {
     } catch (err) {
         console.warn('Intensity distribution unavailable', err)
         intensityReport.value = null
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* 训练容量（Volume）                                                  */
+/* ------------------------------------------------------------------ */
+
+const volumeReport = ref<VolumePayload | null>(null)
+
+const fetchVolume = async () => {
+    try {
+        const res = await apiClient.get('growth/volume/?days=56&weeks=8')
+        volumeReport.value = parseVolume(res.data)
+    } catch (err) {
+        console.warn('Volume structure unavailable', err)
+        volumeReport.value = null
     }
 }
 
@@ -580,6 +621,7 @@ onMounted(() => {
     fetchStrength()
     fetchMesocycle()
     fetchIntensity()
+    fetchVolume()
 })
 </script>
 

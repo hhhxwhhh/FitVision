@@ -68,6 +68,7 @@ declare module 'vue' {
     ThemeToggle: typeof import('./components/ThemeToggle.vue')['default']
     TodayPlanPanel: typeof import('./components/TodayPlanPanel.vue')['default']
     TrainingCalendar: typeof import('./components/TrainingCalendar.vue')['default']
+    VolumePanel: typeof import('./components/VolumePanel.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']

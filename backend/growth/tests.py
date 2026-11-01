@@ -639,6 +639,82 @@ class GrowthApiTests(TestCase):
         self.assertTrue(sessions)
         self.assertFalse(sessions[0]['balanced'])
 
+    # ------------------------------------------------------------------ #
+    # 训练容量（Volume）
+    # ------------------------------------------------------------------ #
+
+    def test_volume_endpoint_returns_a_structure(self):
+        self._api_record("chest", hours_ago=20, sets=4, reps=8, weight=60.0)
+
+        response = self.client.get('/api/growth/volume/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['available'])
+        self.assertTrue(response.data['sessions'])
+        self.assertTrue(response.data['muscles'])
+        self.assertGreater(response.data['total_effective_volume'], 0)
+
+    def test_volume_endpoint_without_data_says_so(self):
+        response = self.client.get('/api/growth/volume/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['available'])
+        self.assertEqual(response.data['verdict'], '数据不足')
+
+    def test_volume_endpoint_clamps_its_query_params(self):
+        response = self.client.get('/api/growth/volume/?days=9999&weeks=9999')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(response.data['days'], 365)
+        self.assertLessEqual(response.data['weeks'], 26)
+
+    def test_volume_service_is_callable_directly(self):
+        from .services import volume_profile
+
+        self._api_record("legs", hours_ago=20, sets=4, reps=8, weight=80.0)
+        payload = volume_profile(self.user, days=56, weeks=8)
+
+        self.assertIn('verdict', payload)
+        self.assertIn('concentration', payload)
+        self.assertIn('muscles', payload)
+
+    def test_volume_flags_a_single_muscle_as_concentrated(self):
+        # 只练一个部位 → 集中度应该是最大值（完全失衡）。
+        self._api_record("chest", hours_ago=20, sets=4, reps=8, weight=60.0)
+
+        response = self.client.get('/api/growth/volume/')
+
+        self.assertEqual(response.data['concentration'], 1.0)
+        self.assertEqual(response.data['verdict'], '容量结构失衡')
+
+    def test_volume_splits_capacity_across_muscles(self):
+        self._api_record("chest", hours_ago=20, sets=4, reps=8, weight=60.0)
+        self._api_record("back", hours_ago=30, sets=4, reps=8, weight=60.0)
+        self._api_record("legs", hours_ago=40, sets=4, reps=8, weight=60.0)
+
+        response = self.client.get('/api/growth/volume/')
+
+        muscles = {item['muscle'] for item in response.data['muscles']}
+        self.assertEqual(muscles, {'chest', 'back', 'legs'})
+        # 三个肌群都练了 → 不该判成极端失衡
+        self.assertLess(response.data['concentration'], 0.55)
+
+    def test_volume_effective_is_not_dominated_by_one_extreme_set(self):
+        """极端组不应主导有效容量。"""
+        from utils.volume import SetVolume, session_volume
+
+        normal = [SetVolume(reps=10, weight=50.0, percent=60.0) for _ in range(5)]
+        extreme = SetVolume(reps=1, weight=1000.0, percent=100.0)
+
+        base = session_volume(normal)
+        spiked = session_volume(normal + [extreme])
+
+        self.assertLessEqual(
+            spiked.effective_volume - base.effective_volume,
+            extreme.intensity_volume,
+        )
+        self.assertGreater(spiked.tonnage - base.tonnage, extreme.tonnage - 1)
+
     def test_e1rm_is_saved_as_a_personal_record(self):
         bench = Exercise.objects.create(
             name="杠铃卧推", description="胸部力量动作", target_muscle="chest"

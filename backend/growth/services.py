@@ -1300,6 +1300,106 @@ def intensity_distribution(user, days: int = 28, weeks: int = 4) -> dict:
     return payload
 
 
+def _load_volume_sets(user, days: int) -> list:
+    """读取训练记录并转成容量引擎用的组数据。
+
+    与 `_load_trimp_sets` 是同一批查询，但额外带上目标肌群 ——
+    容量引擎要做肌群维度的结构分析。
+
+    返回 (日期, SetVolume) 的列表。
+    """
+    from utils.volume import SetVolume
+
+    since = timezone.now() - timedelta(days=days)
+    records = (
+        UserTrainingExerciseRecord.objects.filter(
+            session__user=user,
+            session__is_completed=True,
+            session__start_time__gte=since,
+        )
+        .select_related("exercise", "session")
+        .order_by("session__start_time")
+    )
+
+    # 先按动作算出各自的 e1RM，才能把重量换算成强度百分比。
+    e1rm_by_exercise: dict[int, float] = {}
+    for record in records:
+        estimate = estimate_session_e1rm(
+            build_sets(record.weights_used, record.reps_completed, record.rir)
+        )
+        if estimate is None or estimate.e1rm <= 0:
+            continue
+        current = e1rm_by_exercise.get(record.exercise_id, 0.0)
+        if estimate.e1rm > current:
+            e1rm_by_exercise[record.exercise_id] = estimate.e1rm
+
+    output: list[tuple] = []
+    for record in records:
+        weights = _numeric(record.weights_used)
+        reps = _numeric(record.reps_completed)
+        count = min(len(weights), len(reps))
+        if count == 0:
+            continue
+        day = timezone.localtime(record.session.start_time).date()
+        e1rm = e1rm_by_exercise.get(record.exercise_id, 0.0)
+        muscle = record.exercise.target_muscle or "full_body"
+        for index in range(count):
+            output.append(
+                (
+                    day,
+                    SetVolume(
+                        reps=int(reps[index]),
+                        weight=float(weights[index]),
+                        rpe=float(record.rpe) if record.rpe else None,
+                        e1rm=e1rm,
+                        muscle=muscle,
+                    ),
+                )
+            )
+    return output
+
+
+def volume_profile(user, days: int = 56, weeks: int = 8) -> dict:
+    """训练容量（Volume）报告。
+
+    把最近的训练拆到"量"和"结构"两个维度：
+    - **量**：强度加权后的有效容量，比算术吨位更抗极端组主导；
+    - **结构**：容量在肌群间的分布是否均衡，趋势是在涨还是在跌。
+    """
+    from utils.volume import SessionSets, volume_report
+
+    rows = _load_volume_sets(user, days)
+    if not rows:
+        return {
+            "available": False,
+            "reason": "还没有带重量或 RPE 的训练记录，补上重量后就能看到容量结构",
+            "sessions": [],
+            "weekly": [],
+            "muscles": [],
+            "total_tonnage": 0.0,
+            "total_intensity_volume": 0.0,
+            "total_effective_volume": 0.0,
+            "concentration": 0.0,
+            "trend": "unknown",
+            "trend_slope": 0.0,
+            "verdict": "数据不足",
+            "advice": [],
+        }
+
+    grouped: dict = {}
+    for day, item in rows:
+        grouped.setdefault(day, []).append(item)
+
+    sessions = [
+        SessionSets(date=day, sets=tuple(items))
+        for day, items in sorted(grouped.items())
+    ]
+    report = volume_report(sessions, weeks=weeks)
+    payload = report.as_dict()
+    payload["available"] = True
+    return payload
+
+
 def exercise_catalog(limit_per_muscle: int = 4) -> dict[str, list[dict]]:
     """动作库索引："肌群 → 可用动作列表"，供周期化计划落到具体动作。
 
