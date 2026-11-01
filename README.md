@@ -309,7 +309,7 @@ python manage.py seed_population --users 12 --weeks 6    # 或 make seed-populat
 /api/recommendations/ 个性化推荐与反馈
 /api/analytics/       训练数据分析
 /api/growth/          等级、每日任务、限时挑战、周目标、成就、个人纪录、排行榜、
-                      负荷曲线、分肌群恢复、力量曲线、训练周期化（中周期）
+                      负荷曲线、分肌群恢复、力量曲线、训练周期化（中周期）、强度分布（TRIMP）
 /api/ai/              姿态诊断 / VLM 分析
 ```
 
@@ -338,13 +338,14 @@ CI 会在每次 Push / PR 时执行以上检查（含前后端测试覆盖率与
 Docker Compose 镜像构建。另有 CodeQL 安全扫描与依赖自动更新（Dependabot）。本地可用
 `pre-commit` 钩子在提交前自动格式化与校验，详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-前端目前 **248 个测试 / 22 个测试文件**，覆盖姿态识别引擎、按键与滚动助手、
-训练周期统计、CSV 导出、HTML 消毒、主题、负荷模型 / 分肌群恢复 / 力量曲线 / 周期化计划的解析层、用户状态，
-以及 7 个组件级用例（训练日历、回到顶部、主题切换、AI 智能接力、肌群恢复面板、周期化面板、今日处方面板）。
+前端目前 **278 个测试 / 24 个测试文件**，覆盖姿态识别引擎、按键与滚动助手、
+训练周期统计、CSV 导出、HTML 消毒、主题、负荷模型 / 分肌群恢复 / 力量曲线 / 周期化计划 / 强度分布的解析层、用户状态，
+以及 8 个组件级用例（训练日历、回到顶部、主题切换、AI 智能接力、肌群恢复面板、周期化面板、今日处方面板、强度分布面板）。
 
-后端 **343 个用例**，其中负荷模型 `utils/readiness` 有 53 个、分肌群恢复模型
+后端 **386 个用例**，其中负荷模型 `utils/readiness` 有 53 个、分肌群恢复模型
 `utils/recovery` 有 51 个、力量评估引擎 `utils/strength` 有 63 个、训练周期化引擎
-`utils/periodization` 有 40 个、MMR 重排与演示数据生成器各有 10+ 个，都可以脱离 Django 直接运行；
+`utils/periodization` 有 40 个、强度分布引擎 `utils/trimp` 有 38 个、MMR 重排与演示数据生成器各有 10+ 个，
+都可以脱离 Django 直接运行；
 成长体系与动作库另有 4 个**查询次数回归测试**，用 `CaptureQueriesContext` 断言接口的查询数
 不随数据量线性增长，防止 N+1 悄悄回来：
 
@@ -354,6 +355,7 @@ python -m unittest utils.test_readiness   # 训练负荷 / 准备度模型
 python -m unittest utils.test_recovery    # 分肌群恢复模型
 python -m unittest utils.test_strength   # 力量评估 / e1RM / 处方
 python -m unittest utils.test_periodization # 训练周期化（中周期）模型
+python -m unittest utils.test_trimp      # 训练强度分布（TRIMP）模型
 python -m unittest utils.test_demo_data   # 演示数据生成器
 python -m unittest recommendations.test_rerank
 ```
@@ -447,6 +449,14 @@ JS chunk 设上限，超限即让 CI 失败，防止体积悄悄回退。
   组数在动作之间按"前面的动作多拿一组"的方式拆分 —— 计划因此是可以直接照着做的。
 - **周期化计划接到训练页**：训练页新增「今日处方」卡片 —— 显示当前阶段（积累 / 强化 / 实现 / 减量）、
   今天这一训练日该做的**具体动作与重量**，没安排动作的日子会提示这是恢复日。
+- **训练强度分布引擎（TRIMP）**：`backend/utils/trimp.py` 把训练拆到四个强度区间上（恢复 <60% 1RM、
+  基础 60–75%、发展 75–85%、强度 85–100%），回答"我的高强度组是不是练太多了"。负荷同时按
+  **sRPE-TRIMP**（次数 × RPE）与**强度 TRIMP**（次数 × %1RM）两种口径计算；强度百分比由
+  Epley 反推（`w × (1 + reps/30) ÷ e1RM`），所以同样 80kg 做 3 次和 12 次会被区分开。
+  引擎给出**平衡分**（与"80% 训练量在中低强度"的目标分布之间的总变差距离）、
+  高强度组数超限提醒，以及高强度训练日间隔不足的提示。
+- **强度分布接到分析页**：分析页新增「强度分布 (TRIMP)」卡片 —— 四个区间的实际占比条、
+  建议占比参考线、逐次训练的均衡情况，以及后端给出的调整建议。
 - **VBT（基于速度的训练）指标**：每次动作输出用时、平均速度与节奏分类，直接呈现在训练画面。
 - **MMR 多样性重排**：推荐候选以最大边际相关重排，在相关性与冗余度之间做 λ 权衡，取代原先固定的肌群扣分。
 - **六动作姿态引擎**：深蹲、俯卧撑、开合跳、平板支撑、弓步蹲、卷腹；每个模式都有自己的测量函数、评分权重与可提示纠错项。

@@ -178,6 +178,29 @@
 
         <el-row :gutter="20" style="margin-top: 20px;">
             <el-col :span="24">
+                <el-card class="chart-card">
+                    <template #header>
+                        <div class="card-header">
+                            <span>强度分布 (TRIMP)</span>
+                            <span class="card-hint">
+                                高强度组是不是练太多了
+                            </span>
+                        </div>
+                    </template>
+
+                    <el-empty
+                        v-if="!intensityReport"
+                        description="还没有带重量或 RPE 的训练记录，先记几组再来看看"
+                        :image-size="72"
+                    />
+
+                    <IntensityPanel v-else :report="intensityReport" />
+                </el-card>
+            </el-col>
+        </el-row>
+
+        <el-row :gutter="20" style="margin-top: 20px;">
+            <el-col :span="24">
                 <el-card>
                     <template #header>
                         <div class="card-header">
@@ -228,6 +251,8 @@ import { useTheme } from '../composables/useTheme'
 import { datedFilename, downloadTextFile, toCsv } from '../utils/csv'
 import MesocyclePanel from '../components/MesocyclePanel.vue'
 import { parseMesocycle, type MesocyclePayload } from '../utils/periodization'
+import IntensityPanel from '../components/IntensityPanel.vue'
+import { parseIntensity, type IntensityPayload } from '../utils/intensity'
 import {
     exercisesWithData,
     formatE1rm,
@@ -363,6 +388,22 @@ const fetchMesocycle = async () => {
         // 周期化是增强信息，失败时静默降级
         console.warn('Mesocycle plan unavailable', err)
         mesocyclePlan.value = null
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* 强度分布（TRIMP）                                                   */
+/* ------------------------------------------------------------------ */
+
+const intensityReport = ref<IntensityPayload | null>(null)
+
+const fetchIntensity = async () => {
+    try {
+        const res = await apiClient.get('growth/intensity/?days=28&weeks=4')
+        intensityReport.value = parseIntensity(res.data)
+    } catch (err) {
+        console.warn('Intensity distribution unavailable', err)
+        intensityReport.value = null
     }
 }
 
@@ -538,6 +579,7 @@ onMounted(() => {
     fetchLoadCurve()
     fetchStrength()
     fetchMesocycle()
+    fetchIntensity()
 })
 </script>
 

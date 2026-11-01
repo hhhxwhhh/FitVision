@@ -19,6 +19,7 @@ from .services import (
     claim_daily_quest,
     claim_weekly_goal,
     evaluate_achievements,
+    intensity_distribution,
     join_challenge,
     level_progress,
     load_curve_for,
@@ -401,6 +402,28 @@ def mesocycle_view(request):
     weeks = bounded_int(request.query_params.get("weeks"), 4, 1, 8)
     days = bounded_int(request.query_params.get("days_per_week"), 4, 1, 5)
     return Response(mesocycle_plan(request.user, weeks=weeks, days_per_week=days))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def intensity_view(request):
+    """训练强度分布（TRIMP）报告。
+
+    查询参数：`days`（默认 28，上限 180）、`weeks`（默认 4，上限 12）。
+    """
+    def bounded_int(raw, default, low, high):
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return default
+        return max(low, min(high, value))
+
+    days = bounded_int(request.query_params.get("days"), 28, 7, 180)
+    weeks = bounded_int(request.query_params.get("weeks"), 4, 1, 12)
+    payload = intensity_distribution(request.user, days=days, weeks=weeks)
+    payload["days"] = days
+    payload["weeks"] = weeks
+    return Response(payload)
 
 
 @api_view(["GET", "PUT"])

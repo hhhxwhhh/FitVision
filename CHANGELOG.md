@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Core algorithm: **training intensity distribution engine** (`backend/utils/trimp.py`) — splits the training history into four intensity zones (recovery <60% 1RM, base 60–75%, development 75–85%, strength 85–100%) and scores the balance against the "80% of volume at low-to-moderate intensity" rule. Load is computed with two parallel metrics (sRPE-TRIMP = reps × RPE, and intensity-TRIMP = reps × %1RM); the intensity percentage comes from Epley inverted (`w × (1 + reps/30) ÷ e1RM`), so the same 80kg for 3 reps and for 12 reps are told apart. 38 Django-free tests.
+- `GET /api/growth/intensity/?days=&weeks=`: the intensity distribution report — zone shares, a balance score, high-intensity-set cap checks, spacing advice between heavy days, and the per-session detail.
+- Data centre gained a 强度分布 (TRIMP) card backed by `IntensityPanel` and a shared `src/utils/intensity.ts` presentation layer (21 tests).
 - Query-count regression tests for the exercise list endpoint, asserting its query count does not grow with the page size.
 - Frontend test suite: Vitest configuration, test setup with browser-API shims, and unit tests for pose utilities and the user store.
 - Frontend test coverage reporting (`npm run test:coverage`, `@vitest/coverage-v8`).

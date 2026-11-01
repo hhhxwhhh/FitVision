@@ -29,6 +29,7 @@ urlpatterns = [
     path("muscle-recovery/", views.muscle_recovery_view, name="growth-muscle-recovery"),
     path("strength/", views.strength_view, name="growth-strength"),
     path("mesocycle/", views.mesocycle_view, name="growth-mesocycle"),
+    path("intensity/", views.intensity_view, name="growth-intensity"),
     path("leaderboard/", views.leaderboard, name="growth-leaderboard"),
     path("settings/", views.growth_settings, name="growth-settings"),
 ]

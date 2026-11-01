@@ -348,7 +348,18 @@ class GrowthApiTests(TestCase):
             performance_score=score,
         )
 
-    def _api_record(self, muscle, *, hours_ago=0, sets=4, reps=12, seconds=0, form_score=80.0):
+    def _api_record(
+        self,
+        muscle,
+        *,
+        hours_ago=0,
+        sets=4,
+        reps=12,
+        seconds=0,
+        form_score=80.0,
+        weight=None,
+        rir=None,
+    ):
         exercise, _ = Exercise.objects.get_or_create(
             name=f"动作-{muscle}",
             defaults={"description": "测试", "target_muscle": muscle, "difficulty": "beginner"},
@@ -367,6 +378,8 @@ class GrowthApiTests(TestCase):
             exercise=exercise,
             sets_completed=sets,
             reps_completed=[reps] * sets,
+            weights_used=[weight] * sets if weight else [],
+            rir=rir,
             duration_seconds_actual=seconds,
             form_score=form_score,
         )
@@ -584,6 +597,47 @@ class GrowthApiTests(TestCase):
         self.assertIn('legs', catalog)
         self.assertEqual(catalog['legs'][0]['name'], '杠铃深蹲')
         self.assertIn('exercise_id', catalog['legs'][0])
+
+    def test_intensity_endpoint_returns_a_distribution(self):
+        self._api_record("chest", hours_ago=20, sets=4, reps=8, weight=60.0)
+
+        response = self.client.get('/api/growth/intensity/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['available'])
+        self.assertTrue(response.data['sessions'])
+        self.assertEqual(len(response.data['sessions'][0]['zones']), 4)
+
+    def test_intensity_endpoint_without_data_says_so(self):
+        response = self.client.get('/api/growth/intensity/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['available'])
+        self.assertEqual(response.data['verdict'], '数据不足')
+
+    def test_intensity_endpoint_clamps_its_query_params(self):
+        response = self.client.get('/api/growth/intensity/?days=9999&weeks=9999')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(response.data['days'], 180)
+        self.assertLessEqual(response.data['weeks'], 12)
+
+    def test_intensity_service_is_callable_directly(self):
+        from .services import intensity_distribution
+
+        payload = intensity_distribution(self.user, days=30, weeks=4)
+        self.assertIn('verdict', payload)
+        self.assertIn('balance_score', payload)
+
+    def test_intensity_flags_a_heavy_distribution(self):
+        # 全是接近极限的重量 → 强度分布应当被判定为失衡。
+        self._api_record("chest", hours_ago=20, sets=6, reps=3, weight=95.0)
+
+        response = self.client.get('/api/growth/intensity/')
+
+        sessions = response.data['sessions']
+        self.assertTrue(sessions)
+        self.assertFalse(sessions[0]['balanced'])
 
     def test_e1rm_is_saved_as_a_personal_record(self):
         bench = Exercise.objects.create(

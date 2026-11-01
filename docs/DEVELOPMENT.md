@@ -207,6 +207,47 @@ cd backend && python -m unittest utils.test_periodization
 取数与接口：`growth.services.mesocycle_plan` → `GET /api/growth/mesocycle/?weeks=&days_per_week=`。
 前端展示层在 `src/utils/periodization.ts`，组件为 `src/components/MesocyclePanel.vue`。
 
+## 训练强度分布引擎（TRIMP）
+
+`backend/utils/trimp.py` 负责把「练了多少」翻译成「练得够不够、分布均不均衡」。
+
+### 两种负荷口径
+
+| 口径 | 公式 | 适用 |
+| --- | --- | --- |
+| sRPE-TRIMP | `次数 × RPE` | 有主观感受但没有绝对重量（自重、徒手训练） |
+| intensity-TRIMP | `次数 × %1RM` | 有重量且有 e1RM（器械、杠铃） |
+
+强度百分比优先用重量反推，缺失时再用 RPE 近似换算（`RPE_TO_PERCENT` 表 + 线性插值，
+RPE 10 = 100%，RPE 8 ≈ 79%）。
+
+**Epley 反推**：`组 e1RM = 重量 × (1 + 次数 / 30)`，`%1RM = 组 e1RM / e1RM × 100`。
+同重量下次数越多越接近力竭，强度百分比越高 —— 与教练直觉一致。
+
+### 强度区间
+
+| 区间 | 范围（%1RM） | 目标占比 | 作用 |
+| --- | --- | --- | --- |
+| zone_1 恢复 | < 60% | 15% | 血流、神经激活、疲劳回收 |
+| zone_2 基础 | 60% – 75% | 40% | 容量与动作模式打磨 |
+| zone_3 发展 | 75% – 85% | 30% | 力量增长主力区 |
+| zone_4 强度 | 85% – 100% | 15% | 峰值力量、专项适应 |
+
+**平衡分**：总变差距离 `0.5 × Σ|实际占比 − 目标占比|`，`balance_score = clamp(1 − 距离, 0, 1)`。
+距离越大越失衡，0 分表示完全踩在另一端。
+
+### 高强度间隔保护
+
+- 单次训练高强度组（zone_4）≥ 4 组即记为「高强度日」。
+- 单周高强度组上限 12 组，相邻高强度日间隔不得少于 2 天。
+- 违规时在报告的 `verdict` 与 `advice` 中给出提示，不做硬性拦截。
+
+命令：`cd backend && python -m unittest utils.test_trimp`
+
+取数与接口：`growth.services.intensity_distribution` → `GET /api/growth/intensity/?days=&weeks=`
+（`days` 默认 28 上限 180，`weeks` 默认 4 上限 12；无可计量记录时返回 `available: false` 并说明原因）。
+前端展示层在 `src/utils/intensity.ts`，组件为 `src/components/IntensityPanel.vue`。
+
 ## 代码质量
 
 - Python：Black（行宽 100）+ isort + flake8。

@@ -1213,6 +1213,93 @@ def strength_prescription(
     }
 
 
+def _load_trimp_sets(user, days: int) -> list[tuple]:
+    """读取训练记录并转成 TRIMP 引擎用的组数据。
+
+    返回 (日期, SetLoad) 的列表。强度百分比优先用 e1RM 反推，
+    拿不到 e1RM 但有 RPE 时用 RPE 换算。
+    """
+    from utils.trimp import SetLoad
+
+    since = timezone.now() - timedelta(days=days)
+    records = (
+        UserTrainingExerciseRecord.objects.filter(
+            session__user=user,
+            session__is_completed=True,
+            session__start_time__gte=since,
+        )
+        .select_related("exercise", "session")
+        .order_by("session__start_time")
+    )
+
+    # 先按动作算出各自的 e1RM，才能把重量换算成强度百分比。
+    e1rm_by_exercise: dict[int, float] = {}
+    for record in records:
+        estimate = estimate_session_e1rm(
+            build_sets(record.weights_used, record.reps_completed, record.rir)
+        )
+        if estimate is None or estimate.e1rm <= 0:
+            continue
+        current = e1rm_by_exercise.get(record.exercise_id, 0.0)
+        if estimate.e1rm > current:
+            e1rm_by_exercise[record.exercise_id] = estimate.e1rm
+
+    output: list[tuple] = []
+    for record in records:
+        weights = _numeric(record.weights_used)
+        reps = _numeric(record.reps_completed)
+        count = min(len(weights), len(reps))
+        if count == 0:
+            continue
+        day = timezone.localtime(record.session.start_time).date()
+        e1rm = e1rm_by_exercise.get(record.exercise_id, 0.0)
+        for index in range(count):
+            output.append(
+                (
+                    day,
+                    SetLoad(
+                        reps=int(reps[index]),
+                        weight=float(weights[index]),
+                        rpe=float(record.rpe) if record.rpe else None,
+                        e1rm=e1rm,
+                    ),
+                )
+            )
+    return output
+
+
+def intensity_distribution(user, days: int = 28, weeks: int = 4) -> dict:
+    """训练强度分布（TRIMP）报告。
+
+    把最近的训练拆到四个强度区间上，看"高强度组是不是练太多"。
+    """
+    from utils.trimp import distribution_report, session_profile
+
+    rows = _load_trimp_sets(user, days)
+    if not rows:
+        return {
+            "available": False,
+            "reason": "还没有带重量或 RPE 的训练记录，补上就能看到强度分布",
+            "sessions": [],
+            "weekly": [],
+            "balance_score": 0.0,
+            "verdict": "数据不足",
+            "advice": [],
+        }
+
+    grouped: dict = {}
+    for day, item in rows:
+        grouped.setdefault(day, []).append(item)
+
+    sessions = [
+        session_profile(items, day=day) for day, items in sorted(grouped.items())
+    ]
+    report = distribution_report(sessions, weeks=weeks)
+    payload = report.as_dict()
+    payload["available"] = True
+    return payload
+
+
 def exercise_catalog(limit_per_muscle: int = 4) -> dict[str, list[dict]]:
     """动作库索引："肌群 → 可用动作列表"，供周期化计划落到具体动作。
 
