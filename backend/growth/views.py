@@ -22,6 +22,7 @@ from .services import (
     join_challenge,
     level_progress,
     load_curve_for,
+    mesocycle_plan,
     muscle_recovery_snapshot,
     readiness_snapshot,
     refresh_daily_quests,
@@ -379,6 +380,25 @@ def strength_view(request):
             )
 
     return Response({"days": days, "exercises": exercises, "prescription": prescription})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def mesocycle_view(request):
+    """训练中周期计划：把恢复、准备度与力量三个引擎合成为一份周计划。
+
+    查询参数：`weeks`（默认 4，上限 8）、`days_per_week`（默认 4，上限 5）。
+    """
+    def bounded_int(raw, default, low, high):
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return default
+        return max(low, min(high, value))
+
+    weeks = bounded_int(request.query_params.get("weeks"), 4, 1, 8)
+    days = bounded_int(request.query_params.get("days_per_week"), 4, 1, 5)
+    return Response(mesocycle_plan(request.user, weeks=weeks, days_per_week=days))
 
 
 @api_view(["GET", "PUT"])

@@ -27,8 +27,7 @@ from .services import (
     level_from_xp,
     muscle_recovery_snapshot,
     muscle_works,
-    readiness_snapshot,
-    refresh_daily_quests,
+    readiness_snapshot,    refresh_daily_quests,
     strength_history,
     strength_prescription,
     update_personal_records,
@@ -476,6 +475,62 @@ class GrowthApiTests(TestCase):
     def test_strength_endpoint_clamps_its_query_params(self):
         response = self.client.get('/api/growth/strength/?days=9999&reps=abc')
         self.assertEqual(response.data['days'], 365)
+
+    def test_mesocycle_endpoint_returns_a_multi_week_plan(self):
+        response = self.client.get('/api/growth/mesocycle/?weeks=4&days_per_week=3')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['total_weeks'], 4)
+        self.assertEqual(response.data['days_per_week'], 3)
+        self.assertIn('weeks', response.data)
+        self.assertIn('readiness', response.data)
+        week = response.data['weeks'][0]
+        self.assertIn('phase', week)
+        self.assertIn('sessions', week)
+
+    def test_mesocycle_clamps_its_query_params(self):
+        response = self.client.get('/api/growth/mesocycle/?weeks=99&days_per_week=99')
+        self.assertEqual(response.data['total_weeks'], 8)
+        self.assertLessEqual(response.data['days_per_week'], 5)
+
+    def test_mesocycle_uses_e1rm_to_prescribe_load(self):
+        bench = Exercise.objects.create(
+            name="杠铃卧推", description="胸部力量动作", target_muscle="chest"
+        )
+        # 记录放在几天前，让胸部回到"可用"状态（当天练过的肌群会被降权）。
+        self._api_weighted_record(bench, days_ago=4, weight=80, reps=5, sets=3)
+
+        response = self.client.get('/api/growth/mesocycle/?weeks=3&days_per_week=2')
+        slots = [
+            slot
+            for week in response.data['weeks']
+            for session in week['sessions']
+            for slot in session['slots']
+        ]
+        self.assertTrue(slots)
+        self.assertTrue(any(slot['based_on_e1rm'] for slot in slots))
+        self.assertTrue(any(slot['weight'] > 0 for slot in slots))
+
+    def test_mesocycle_without_data_still_returns_a_shape(self):
+        response = self.client.get('/api/growth/mesocycle/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data['weeks']), 4)
+        self.assertIn('muscle_recovery', response.data)
+
+    def test_mesocycle_autoregulation_tracks_the_readiness_score(self):
+        from utils.periodization import autoregulation_factor
+
+        response = self.client.get('/api/growth/mesocycle/')
+        expected = autoregulation_factor(response.data['readiness'])
+        self.assertAlmostEqual(response.data['autoregulation'], expected, places=3)
+        self.assertLessEqual(response.data['autoregulation'], 1.0)
+        self.assertGreaterEqual(response.data['autoregulation'], 0.6)
+
+    def test_mesocycle_service_is_callable_directly(self):
+        from .services import mesocycle_plan
+
+        payload = mesocycle_plan(self.user, weeks=2, days_per_week=2)
+        self.assertEqual(payload['total_weeks'], 2)
+        self.assertIn('muscle_recovery', payload)
 
     def test_e1rm_is_saved_as_a_personal_record(self):
         bench = Exercise.objects.create(

@@ -181,6 +181,30 @@ cd backend && python -m unittest utils.test_strength
 e1RM 同时作为 `PersonalRecord` 的 `e1rm` 类型入库（迁移 `growth/0005`）。
 前端展示层在 `src/utils/strength.ts`。
 
+## 训练周期化引擎
+
+`backend/utils/periodization.py` 把准备度、分肌群恢复与 e1RM 三个引擎合成一条**时间轴**上的
+中周期计划（3–6 周）：
+
+```bash
+cd backend && python -m unittest utils.test_periodization
+```
+
+| 阶段 | 容量系数 | 强度系数 | 次数区间 | 作用 |
+| --- | --- | --- | --- | --- |
+| 积累 accumulation | 1.00 | 0.72 | 8–12 | 打基础、打磨动作模式 |
+| 强化 intensification | 0.85 | 0.82 | 6–8 | 容量降、强度升 |
+| 实现 realization | 0.70 | 0.92 | 3–5 | 峰值，验证最大力量 |
+| 减量 deload | 0.50 | 0.60 | 6–10 | 容量砍半，让身体吸收适应 |
+
+- **容量**来自恢复模型：每周每肌群 10–20 组的目标区间减去本周已完成组数，
+  再乘以阶段容量系数与准备度折扣（准备度 < 70 分时整体容量最低保留 60%）。
+- **强度**来自力量模型：`次数百分比表(reps, rir)` 与阶段强度上限取小，再向下取整到 2.5 kg。
+- **分配**按推 / 拉 / 腿 / 核心的动作模式落到训练日，避免连续两天刺激同一肌群。
+
+取数与接口：`growth.services.mesocycle_plan` → `GET /api/growth/mesocycle/?weeks=&days_per_week=`。
+前端展示层在 `src/utils/periodization.ts`，组件为 `src/components/MesocyclePanel.vue`。
+
 ## 代码质量
 
 - Python：Black（行宽 100）+ isort + flake8。

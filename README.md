@@ -308,7 +308,8 @@ python manage.py seed_population --users 12 --weeks 6    # 或 make seed-populat
 /api/training/        训练会话、计划、报告、AI 分析
 /api/recommendations/ 个性化推荐与反馈
 /api/analytics/       训练数据分析
-/api/growth/          等级、每日任务、限时挑战、周目标、成就、个人纪录、排行榜
+/api/growth/          等级、每日任务、限时挑战、周目标、成就、个人纪录、排行榜、
+                      负荷曲线、分肌群恢复、力量曲线、训练周期化（中周期）
 /api/ai/              姿态诊断 / VLM 分析
 ```
 
@@ -337,18 +338,20 @@ CI 会在每次 Push / PR 时执行以上检查（含前后端测试覆盖率与
 Docker Compose 镜像构建。另有 CodeQL 安全扫描与依赖自动更新（Dependabot）。本地可用
 `pre-commit` 钩子在提交前自动格式化与校验，详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-前端目前 **187 个测试 / 19 个测试文件**，覆盖姿态识别引擎、按键与滚动助手、
-训练周期统计、CSV 导出、HTML 消毒、主题、负荷模型 / 分肌群恢复 / 力量曲线的解析层、用户状态，
-以及 5 个组件级用例（训练日历、回到顶部、主题切换、AI 智能接力、肌群恢复面板）。
+前端目前 **222 个测试 / 21 个测试文件**，覆盖姿态识别引擎、按键与滚动助手、
+训练周期统计、CSV 导出、HTML 消毒、主题、负荷模型 / 分肌群恢复 / 力量曲线 / 周期化计划的解析层、用户状态，
+以及 6 个组件级用例（训练日历、回到顶部、主题切换、AI 智能接力、肌群恢复面板、周期化面板）。
 
-后端 **290 个用例**，其中负荷模型 `utils/readiness` 有 53 个、分肌群恢复模型
-`utils/recovery` 有 51 个、力量评估引擎 `utils/strength` 有 63 个、MMR 重排与演示数据生成器各有 10+ 个，都可以脱离 Django 直接运行：
+后端 **329 个用例**，其中负荷模型 `utils/readiness` 有 53 个、分肌群恢复模型
+`utils/recovery` 有 51 个、力量评估引擎 `utils/strength` 有 63 个、训练周期化引擎
+`utils/periodization` 有 33 个、MMR 重排与演示数据生成器各有 10+ 个，都可以脱离 Django 直接运行：
 
 ```bash
 cd backend
 python -m unittest utils.test_readiness   # 训练负荷 / 准备度模型
 python -m unittest utils.test_recovery    # 分肌群恢复模型
 python -m unittest utils.test_strength   # 力量评估 / e1RM / 处方
+python -m unittest utils.test_periodization # 训练周期化（中周期）模型
 python -m unittest utils.test_demo_data   # 演示数据生成器
 python -m unittest recommendations.test_rerank
 ```
@@ -433,6 +436,11 @@ JS chunk 设上限，超限即让 CI 失败，防止体积悄悄回退。
   这一重量还能做几次再折算 1RM）、**RPE / RIR 反推**（用百分比表从"还能再做几次"倒推）；三条来源可以互相校验，
   差异过大说明数据录错了。在此之上给出**双进阶处方**（做满次数就加 2.5% 重量，否则加次数）、e1RM 趋势与
   **减量周建议**（e1RM 下降 / 连续停滞 / 疲劳过高三个触发条件）。个人纪录新增 `e1rm` 类型。
+- **训练周期化引擎（Periodization）**：`backend/utils/periodization.py` 把前三个引擎合成一条**时间轴**上的中周期计划 ——
+  按经典周期化把 3–6 周拆成**积累 / 强化 / 实现 / 减量**四个阶段（容量系数 1.0 → 0.5，强度系数 0.72 → 0.92），
+  容量由分肌群恢复模型给出的"本周剩余组数"决定（每周每肌群 10–20 组的目标区间），强度由 e1RM 决定
+  （次数百分比表 × 阶段强度上限，再向下取整到配重片间隔）。准备度不足时整体容量自动打折（最低保留 60%），
+  训练量再按推 / 拉 / 腿 / 核心的动作模式分配到各训练日，避免连续两天刺激同一肌群。
 - **VBT（基于速度的训练）指标**：每次动作输出用时、平均速度与节奏分类，直接呈现在训练画面。
 - **MMR 多样性重排**：推荐候选以最大边际相关重排，在相关性与冗余度之间做 λ 权衡，取代原先固定的肌群扣分。
 - **六动作姿态引擎**：深蹲、俯卧撑、开合跳、平板支撑、弓步蹲、卷腹；每个模式都有自己的测量函数、评分权重与可提示纠错项。

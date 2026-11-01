@@ -17,6 +17,7 @@ from django.utils import timezone
 
 from training.models import UserTrainingExerciseRecord, UserTrainingSession
 from users.models import UserStats
+from utils.periodization import build_mesocycle
 from utils.readiness import HISTORY_DAYS, DailyLoad, load_curve, readiness_report, session_load
 from utils.recovery import MUSCLE_ORDER, MuscleWork, RecoverySnapshot, muscle_recovery
 from utils.strength import (
@@ -1094,6 +1095,45 @@ def strength_prescription(
         "deload": entry["summary"]["deload"],
         **prescription.as_dict(),
     }
+
+
+def mesocycle_plan(
+    user,
+    weeks: int = 4,
+    days_per_week: int = 4,
+    readiness: float | None = None,
+) -> dict:
+    """生成一个训练中周期（mesocycle）计划。
+
+    把三个引擎的结论合到一起：
+
+    - `utils.recovery` 决定本周该练哪些肌群、还剩多少容量；
+    - `utils.readiness` 决定整体容量要不要打折；
+    - `utils.strength` 决定每个动作具体上多少重量。
+
+    返回 `utils.periodization.Mesocycle.as_dict()` 的结构。
+    """
+    snapshot = muscle_recovery_snapshot(user)
+    states = snapshot.as_dict()
+
+    score = readiness
+    if score is None:
+        try:
+            score = float(readiness_snapshot(user).get("score") or 100.0)
+        except Exception:  # pragma: no cover - 准备度计算异常时按满状态处理
+            score = 100.0
+
+    cycle = build_mesocycle(
+        muscle_states=states["muscles"],
+        strength_entries=strength_history(user),
+        weeks=weeks,
+        days_per_week=days_per_week,
+        readiness=score,
+    )
+    payload = cycle.as_dict()
+    payload["readiness"] = round(float(score), 1)
+    payload["muscle_recovery"] = states
+    return payload
 
 
 def load_curve_for(user, days: int = 90, step: int = 1) -> list[dict]:

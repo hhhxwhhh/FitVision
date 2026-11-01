@@ -155,6 +155,29 @@
 
         <el-row :gutter="20" style="margin-top: 20px;">
             <el-col :span="24">
+                <el-card class="chart-card">
+                    <template #header>
+                        <div class="card-header">
+                            <span>训练周期化 (中周期)</span>
+                            <span class="card-hint">
+                                恢复 · 准备度 · e1RM 三方合成的周计划
+                            </span>
+                        </div>
+                    </template>
+
+                    <el-empty
+                        v-if="!mesocyclePlan"
+                        description="还没有足够的训练数据来生成周期计划，先完成几次训练吧"
+                        :image-size="72"
+                    />
+
+                    <MesocyclePanel v-else :plan="mesocyclePlan" />
+                </el-card>
+            </el-col>
+        </el-row>
+
+        <el-row :gutter="20" style="margin-top: 20px;">
+            <el-col :span="24">
                 <el-card>
                     <template #header>
                         <div class="card-header">
@@ -203,6 +226,8 @@ import { ElMessage } from 'element-plus'
 import apiClient from '../api'
 import { useTheme } from '../composables/useTheme'
 import { datedFilename, downloadTextFile, toCsv } from '../utils/csv'
+import MesocyclePanel from '../components/MesocyclePanel.vue'
+import { parseMesocycle, type MesocyclePayload } from '../utils/periodization'
 import {
     exercisesWithData,
     formatE1rm,
@@ -321,6 +346,23 @@ const fetchStrength = async () => {
         // 力量曲线是增强信息，失败时静默降级
         console.warn('Strength curve unavailable', err)
         strengthExercises.value = []
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* 训练周期化（中周期）                                                  */
+/* ------------------------------------------------------------------ */
+
+const mesocyclePlan = ref<MesocyclePayload | null>(null)
+
+const fetchMesocycle = async () => {
+    try {
+        const res = await apiClient.get('growth/mesocycle/?weeks=4&days_per_week=4')
+        mesocyclePlan.value = parseMesocycle(res.data)
+    } catch (err) {
+        // 周期化是增强信息，失败时静默降级
+        console.warn('Mesocycle plan unavailable', err)
+        mesocyclePlan.value = null
     }
 }
 
@@ -495,6 +537,7 @@ onMounted(() => {
     fetchData()
     fetchLoadCurve()
     fetchStrength()
+    fetchMesocycle()
 })
 </script>
 
