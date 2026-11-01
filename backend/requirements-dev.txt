@@ -3,7 +3,7 @@
 -r requirements.txt
 
 black==25.11.0
-isort==7.0.0
+isort==9.0.2
 flake8==7.3.0
 pylint==4.0.2
 coverage==7.12.0
