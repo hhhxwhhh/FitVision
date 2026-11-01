@@ -131,6 +131,34 @@ AUTOREGULATION_MIN_FACTOR = 0.6
 
 
 @dataclass(frozen=True)
+class ExercisePick:
+    """周期化计划里落到的一个具体动作。"""
+
+    exercise_id: int
+    name: str
+    sets: int
+    reps: int
+    weight: float
+    e1rm: float
+    based_on_e1rm: bool
+    equipment: str
+    note: str
+
+    def as_dict(self) -> dict:
+        return {
+            "exercise_id": self.exercise_id,
+            "name": self.name,
+            "sets": self.sets,
+            "reps": self.reps,
+            "weight": round(self.weight, 1),
+            "e1rm": round(self.e1rm, 1),
+            "based_on_e1rm": self.based_on_e1rm,
+            "equipment": self.equipment,
+            "note": self.note,
+        }
+
+
+@dataclass(frozen=True)
 class MuscleSlot:
     """一个肌群在某个训练日的安排。"""
 
@@ -142,6 +170,7 @@ class MuscleSlot:
     e1rm: float
     based_on_e1rm: bool
     note: str
+    exercises: tuple[ExercisePick, ...] = ()
 
     def as_dict(self) -> dict:
         return {
@@ -153,6 +182,7 @@ class MuscleSlot:
             "e1rm": round(self.e1rm, 1),
             "based_on_e1rm": self.based_on_e1rm,
             "note": self.note,
+            "exercises": [item.as_dict() for item in self.exercises],
         }
 
 
@@ -328,6 +358,134 @@ def _strength_index(strength_entries: Sequence[Mapping] | None) -> dict[str, Map
     return index
 
 
+def _catalog_index(catalog: Mapping[str, Sequence[Mapping]] | None) -> dict[str, list[Mapping]]:
+    """把"肌群 → 可用动作列表"整理成索引，并按动作 id 去重。"""
+    index: dict[str, list[Mapping]] = {}
+    for muscle, items in (catalog or {}).items():
+        key = _normalize_muscle(muscle)
+        seen: set[int] = set()
+        bucket: list[Mapping] = []
+        for item in items or []:
+            if not isinstance(item, Mapping):
+                continue
+            exercise_id = item.get("exercise_id")
+            if exercise_id is None:
+                continue
+            try:
+                numeric_id = int(exercise_id)
+            except (TypeError, ValueError):
+                continue
+            if numeric_id in seen:
+                continue
+            seen.add(numeric_id)
+            bucket.append(item)
+        if bucket:
+            index[key] = bucket
+    return index
+
+
+def _split_sets(total_sets: int, count: int) -> list[int]:
+    """把总组数分给 `count` 个动作：前面的动作多拿一组。"""
+    if count <= 0:
+        return []
+    base = total_sets // count
+    remainder = total_sets - base * count
+    return [base + (1 if index < remainder else 0) for index in range(count)]
+
+
+def _pick_exercises(
+    muscle: str,
+    strength_entry: Mapping | None,
+    catalog: Mapping[str, list[Mapping]],
+    sets: int,
+    reps: int,
+    rir: int,
+    intensity: float,
+    max_exercises: int = 2,
+) -> tuple[ExercisePick, ...]:
+    """为一个肌群挑具体动作并分配组数。
+
+    优先用用户练过、且有 e1RM 数据的动作（能直接给出重量）；不够时用动作库补齐，
+    这样计划始终落到"可以直接做的动作"而不是停在肌群层面。
+    """
+    candidates: list[Mapping] = []
+    seen: set[int] = set()
+
+    if strength_entry:
+        exercise_id = strength_entry.get("exercise_id")
+        try:
+            numeric_id = int(exercise_id)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            numeric_id = None
+        if numeric_id is not None:
+            seen.add(numeric_id)
+            candidates.append(
+                {
+                    "exercise_id": numeric_id,
+                    "name": strength_entry.get("name") or f"动作 #{numeric_id}",
+                    "equipment": strength_entry.get("equipment") or "",
+                    "best": strength_entry.get("best") or 0,
+                    "points": strength_entry.get("points") or [],
+                }
+            )
+
+    for item in catalog.get(muscle, []):
+        try:
+            numeric_id = int(item.get("exercise_id"))
+        except (TypeError, ValueError):
+            continue
+        if numeric_id in seen:
+            continue
+        seen.add(numeric_id)
+        candidates.append(item)
+
+    if not candidates:
+        return ()
+
+    chosen = candidates[:max(1, max_exercises)]
+    allocations = _split_sets(sets, len(chosen))
+
+    picks: list[ExercisePick] = []
+    for item, item_sets in zip(chosen, allocations):
+        if item_sets <= 0:
+            continue
+        e1rm = float(item.get("best") or 0)
+        weight = 0.0
+        based = False
+        note = ""
+        if e1rm > 0:
+            from utils.strength import rep_percentage, round_to_increment  # 局部导入避免循环依赖
+
+            percentage = _clamp(min(rep_percentage(reps, rir), intensity), 0.3, 1.0)
+            weight = round_to_increment(e1rm * percentage)
+            based = True
+            points = item.get("points") or []
+            last = points[-1] if points else {}
+            last_weight = float(last.get("weight") or 0)
+            last_reps = int(last.get("reps") or 0)
+            if last_weight > 0:
+                note = f"上次 {last_weight:g} kg × {last_reps} 次，按阶段强度折算"
+            else:
+                note = f"按 e1RM {e1rm:g} kg 的 {percentage * 100:.0f}% 折算"
+        else:
+            note = "还没有负重数据，先用自重或轻重量熟悉动作"
+
+        picks.append(
+            ExercisePick(
+                exercise_id=int(item["exercise_id"]),
+                name=str(item.get("name") or f"动作 #{item['exercise_id']}"),
+                sets=int(item_sets),
+                reps=int(reps),
+                weight=weight,
+                e1rm=e1rm,
+                based_on_e1rm=based,
+                equipment=str(item.get("equipment") or ""),
+                note=note,
+            )
+        )
+    return tuple(picks)
+
+
 def _slot_for(
     muscle: str,
     sets: int,
@@ -335,8 +493,9 @@ def _slot_for(
     rir: int,
     strength_entry: Mapping | None,
     intensity: float,
+    catalog: Mapping[str, list[Mapping]] | None = None,
 ) -> MuscleSlot:
-    """为一个肌群生成具体安排（含重量处方）。"""
+    """为一个肌群生成具体安排（含重量处方与具体动作）。"""
     label = _muscle_label(muscle)
     e1rm = 0.0
     weight = 0.0
@@ -362,6 +521,16 @@ def _slot_for(
             else:
                 note = f"按 e1RM {e1rm:g} kg 的 {percentage * 100:.0f}% 折算"
 
+    exercises = _pick_exercises(
+        muscle,
+        strength_entry,
+        catalog or {},
+        sets,
+        reps,
+        rir,
+        intensity,
+    )
+
     return MuscleSlot(
         muscle=muscle,
         label=label,
@@ -371,6 +540,7 @@ def _slot_for(
         e1rm=e1rm,
         based_on_e1rm=based,
         note=note,
+        exercises=exercises,
     )
 
 
@@ -380,6 +550,7 @@ def build_mesocycle(
     weeks: int = 4,
     days_per_week: int = 4,
     readiness: float = 100.0,
+    exercise_catalog: Mapping[str, Sequence[Mapping]] | None = None,
 ) -> Mesocycle:
     """构建一个中周期计划。
 
@@ -388,9 +559,11 @@ def build_mesocycle(
     - `strength_entries`：`growth.services.strength_history` 的结果，
       每个条目含 `target_muscle` / `best` / `points`。
     - `readiness`：整体准备度（0–100），用于容量自动调节。
+    - `exercise_catalog`："肌群 → 可用动作列表"，用于把肌群安排落到具体动作。
     """
     states = _normalize_states(muscle_states)
     strength = _strength_index(strength_entries)
+    catalog = _catalog_index(exercise_catalog)
     phases = phase_sequence(weeks)
     days = max(1, min(MAX_DAYS_PER_WEEK, int(days_per_week or 1)))
     factor = autoregulation_factor(readiness)
@@ -424,7 +597,9 @@ def build_mesocycle(
             target = remaining * volume * max(0.4, decay)
             per_muscle_sets[muscle] = int(round(target))
 
-        sessions = _build_days(per_muscle_sets, strength, days, reps, phase["rir"], intensity)
+        sessions = _build_days(
+            per_muscle_sets, strength, days, reps, phase["rir"], intensity, catalog
+        )
         week_plans.append(
             WeekPlan(
                 index=week_index + 1,
@@ -528,6 +703,7 @@ def _build_days(
     reps: int,
     rir: int,
     intensity: float,
+    catalog: Mapping[str, list[Mapping]] | None = None,
 ) -> list[DayPlan]:
     """把各肌群的组数分配到 `days` 个训练日。
 
@@ -571,6 +747,7 @@ def _build_days(
                     rir,
                     strength.get(muscle),
                     intensity,
+                    catalog,
                 )
             )
         if not slots:

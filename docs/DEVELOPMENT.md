@@ -201,6 +201,8 @@ cd backend && python -m unittest utils.test_periodization
   再乘以阶段容量系数与准备度折扣（准备度 < 70 分时整体容量最低保留 60%）。
 - **强度**来自力量模型：`次数百分比表(reps, rir)` 与阶段强度上限取小，再向下取整到 2.5 kg。
 - **分配**按推 / 拉 / 腿 / 核心的动作模式落到训练日，避免连续两天刺激同一肌群。
+- **动作级**：每个肌群安排会落到具体动作 —— 优先用用户练过且有 e1RM 的动作，
+  不够时由 `growth.services.exercise_catalog`（动作库索引）补齐，组数按"前面的动作多拿一组"拆分。
 
 取数与接口：`growth.services.mesocycle_plan` → `GET /api/growth/mesocycle/?weeks=&days_per_week=`。
 前端展示层在 `src/utils/periodization.ts`，组件为 `src/components/MesocyclePanel.vue`。

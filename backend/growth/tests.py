@@ -532,6 +532,58 @@ class GrowthApiTests(TestCase):
         self.assertEqual(payload['total_weeks'], 2)
         self.assertIn('muscle_recovery', payload)
 
+    def test_mesocycle_resolves_concrete_exercises(self):
+        # 动作库里要有对应肌群的动作，周期化计划才能落到具体动作上。
+        Exercise.objects.create(
+            name="上斜哑铃卧推", description="胸部动作", target_muscle="chest", instructions="收肩胛"
+        )
+        Exercise.objects.create(
+            name="平板支撑", description="核心动作", target_muscle="abs", instructions="塌腰"
+        )
+        self._api_record("chest", hours_ago=40, sets=2, reps=10)
+
+        response = self.client.get('/api/growth/mesocycle/?weeks=2&days_per_week=2')
+        slots = [
+            slot
+            for week in response.data['weeks']
+            for session in week['sessions']
+            for slot in session['slots']
+        ]
+        self.assertTrue(slots)
+        exercises = [item for slot in slots for item in slot['exercises']]
+        self.assertTrue(exercises)
+        self.assertIn('exercise_id', exercises[0])
+        self.assertIn('name', exercises[0])
+
+    def test_mesocycle_exercises_carry_their_own_sets(self):
+        Exercise.objects.create(
+            name="平板支撑", description="核心动作", target_muscle="abs", instructions="塌腰"
+        )
+        self._api_record("chest", hours_ago=40, sets=2, reps=10)
+
+        response = self.client.get('/api/growth/mesocycle/?weeks=2&days_per_week=2')
+        exercises = [
+            exercise
+            for week in response.data['weeks']
+            for session in week['sessions']
+            for slot in session['slots']
+            for exercise in slot['exercises']
+        ]
+        self.assertTrue(exercises)
+        self.assertTrue(all(item['sets'] > 0 for item in exercises))
+        self.assertTrue(all(item['reps'] > 0 for item in exercises))
+
+    def test_mesocycle_exercise_catalog_is_indexed_by_muscle(self):
+        from .services import exercise_catalog
+
+        Exercise.objects.create(
+            name="杠铃深蹲", description="腿部动作", target_muscle="legs", instructions="蹲到大腿平行"
+        )
+        catalog = exercise_catalog()
+        self.assertIn('legs', catalog)
+        self.assertEqual(catalog['legs'][0]['name'], '杠铃深蹲')
+        self.assertIn('exercise_id', catalog['legs'][0])
+
     def test_e1rm_is_saved_as_a_personal_record(self):
         bench = Exercise.objects.create(
             name="杠铃卧推", description="胸部力量动作", target_muscle="chest"

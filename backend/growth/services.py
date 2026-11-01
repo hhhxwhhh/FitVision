@@ -1097,6 +1097,39 @@ def strength_prescription(
     }
 
 
+def exercise_catalog(limit_per_muscle: int = 4) -> dict[str, list[dict]]:
+    """动作库索引："肌群 → 可用动作列表"，供周期化计划落到具体动作。
+
+    每个肌群取前 `limit_per_muscle` 个启用中的动作，顺序按难度与 id 稳定排列，
+    保证同一份计划多次生成结果一致。
+    """
+    from exercises.models import Exercise
+
+    rows = (
+        Exercise.objects.filter(is_active=True)
+        .order_by("difficulty", "order", "id")
+        .values("id", "name", "target_muscle", "equipment", "difficulty")
+    )
+
+    catalog: dict[str, list[dict]] = {}
+    for row in rows:
+        muscle = (row.get("target_muscle") or "").strip().lower()
+        if not muscle:
+            continue
+        bucket = catalog.setdefault(muscle, [])
+        if len(bucket) >= limit_per_muscle:
+            continue
+        bucket.append(
+            {
+                "exercise_id": row["id"],
+                "name": row["name"],
+                "equipment": row.get("equipment") or "",
+                "difficulty": row.get("difficulty") or "",
+            }
+        )
+    return catalog
+
+
 def mesocycle_plan(
     user,
     weeks: int = 4,
@@ -1129,6 +1162,7 @@ def mesocycle_plan(
         weeks=weeks,
         days_per_week=days_per_week,
         readiness=score,
+        exercise_catalog=exercise_catalog(),
     )
     payload = cycle.as_dict()
     payload["readiness"] = round(float(score), 1)

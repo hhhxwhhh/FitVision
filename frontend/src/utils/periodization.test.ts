@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest'
 import {
   autoregulationText,
   deloadWeek,
+  exerciseText,
   heaviestWeek,
   intensityHint,
   parseMesocycle,
+  parseMesocycleExercise,
   parseMesocycleSession,
   parseMesocycleSlot,
   parseMesocycleWeek,
@@ -14,6 +16,21 @@ import {
   slotText,
   volumeHint,
 } from './periodization'
+
+function exercise(overrides: Record<string, unknown> = {}) {
+  return {
+    exercise_id: 7,
+    name: '杠铃卧推',
+    sets: 3,
+    reps: 8,
+    weight: 62.5,
+    e1rm: 90,
+    based_on_e1rm: true,
+    equipment: 'barbell',
+    note: '按 e1RM 折算',
+    ...overrides,
+  }
+}
 
 function slot(overrides: Record<string, unknown> = {}) {
   return {
@@ -25,6 +42,7 @@ function slot(overrides: Record<string, unknown> = {}) {
     e1rm: 90,
     based_on_e1rm: true,
     note: '按 e1RM 折算',
+    exercises: [exercise()],
     ...overrides,
   }
 }
@@ -72,6 +90,24 @@ function payload(overrides: Record<string, unknown> = {}) {
   }
 }
 
+describe('parseMesocycleExercise', () => {
+  it('parses an exercise', () => {
+    const parsed = parseMesocycleExercise(exercise())
+    expect(parsed?.exercise_id).toBe(7)
+    expect(parsed?.name).toBe('杠铃卧推')
+    expect(parsed?.sets).toBe(3)
+  })
+
+  it('rejects entries without an id', () => {
+    expect(parseMesocycleExercise({ name: '卧推' })).toBeNull()
+  })
+
+  it('falls back to a generic name', () => {
+    const parsed = parseMesocycleExercise({ exercise_id: 3 })
+    expect(parsed?.name).toBe('动作 #3')
+  })
+})
+
 describe('parseMesocycleSlot', () => {
   it('parses a full slot', () => {
     const parsed = parseMesocycleSlot(slot())
@@ -79,6 +115,22 @@ describe('parseMesocycleSlot', () => {
     expect(parsed?.sets).toBe(4)
     expect(parsed?.weight).toBe(62.5)
     expect(parsed?.based_on_e1rm).toBe(true)
+  })
+
+  it('parses the nested exercises', () => {
+    const parsed = parseMesocycleSlot(slot())
+    expect(parsed?.exercises).toHaveLength(1)
+    expect(parsed?.exercises[0]?.name).toBe('杠铃卧推')
+  })
+
+  it('defaults to an empty exercise list', () => {
+    const parsed = parseMesocycleSlot({ muscle: 'chest' })
+    expect(parsed?.exercises).toEqual([])
+  })
+
+  it('drops malformed exercises', () => {
+    const parsed = parseMesocycleSlot(slot({ exercises: [exercise(), { name: 'x' }] }))
+    expect(parsed?.exercises).toHaveLength(1)
   })
 
   it('rejects payloads without a muscle', () => {
@@ -177,6 +229,14 @@ describe('text helpers', () => {
 
   it('omits the weight when there is none', () => {
     expect(slotText(parseMesocycleSlot(slot({ weight: 0 }))!)).toBe('4 组 × 8 次')
+  })
+
+  it('formats an exercise with its name', () => {
+    expect(exerciseText(parseMesocycleExercise(exercise())!)).toBe('杠铃卧推 3 组 × 8 次 · 62.5 kg')
+  })
+
+  it('omits the exercise weight when there is none', () => {
+    expect(exerciseText(parseMesocycleExercise(exercise({ weight: 0 }))!)).toBe('杠铃卧推 3 组 × 8 次')
   })
 
   it('describes the volume', () => {

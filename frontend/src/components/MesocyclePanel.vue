@@ -9,6 +9,7 @@ import { computed, ref } from 'vue'
 
 import {
   autoregulationText,
+  exerciseText,
   intensityHint,
   phaseLabel,
   phaseTone,
@@ -124,6 +125,11 @@ function selectWeek(index: number) {
               <span class="slot-muscle">{{ slot.label }}</span>
               <span class="slot-detail">{{ slotText(slot) }}</span>
               <span v-if="slot.based_on_e1rm" class="slot-tag">e1RM 折算</span>
+              <ul v-if="slot.exercises.length > 0" class="slot-exercises">
+                <li v-for="exercise in slot.exercises" :key="exercise.exercise_id">
+                  {{ exerciseText(exercise) }}
+                </li>
+              </ul>
             </li>
           </ul>
         </article>
@@ -363,6 +369,22 @@ function selectWeek(index: number) {
   border-radius: 999px;
   background: var(--fv-accent-soft);
   color: var(--fv-accent);
+}
+
+.slot-exercises {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0 0 0 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.slot-exercises li {
+  font-size: 11px;
+  color: var(--fv-text-3);
+  line-height: 1.45;
 }
 
 .cycle-notes {

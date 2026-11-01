@@ -327,5 +327,99 @@ class ReadmeOrientationTests(unittest.TestCase):
         self.assertIn("chest", cycle.focus)
 
 
+class ExercisePickTests(unittest.TestCase):
+    def test_uses_the_strength_entry_as_the_first_exercise(self):
+        cycle = build_mesocycle(
+            muscle_states=[_state("chest")],
+            strength_entries=[_strength("chest", 100)],
+            weeks=2,
+            days_per_week=1,
+        )
+        slot = cycle.weeks[0].sessions[0].slots[0]
+        self.assertTrue(slot.exercises)
+        self.assertEqual(slot.exercises[0].name, "chest-press")
+        self.assertTrue(slot.exercises[0].based_on_e1rm)
+
+    def test_falls_back_to_the_catalog(self):
+        cycle = build_mesocycle(
+            muscle_states=[_state("chest")],
+            strength_entries=[],
+            exercise_catalog={"chest": [{"exercise_id": 7, "name": "上斜哑铃卧推"}]},
+            weeks=2,
+            days_per_week=1,
+        )
+        slot = cycle.weeks[0].sessions[0].slots[0]
+        self.assertEqual(slot.exercises[0].exercise_id, 7)
+        self.assertEqual(slot.exercises[0].name, "上斜哑铃卧推")
+        self.assertFalse(slot.exercises[0].based_on_e1rm)
+
+    def test_no_catalog_and_no_data_leaves_the_slot_empty(self):
+        cycle = build_mesocycle(
+            muscle_states=[_state("chest")],
+            strength_entries=[],
+            weeks=2,
+            days_per_week=1,
+        )
+        slot = cycle.weeks[0].sessions[0].slots[0]
+        self.assertEqual(slot.exercises, ())
+
+    def test_sets_are_split_across_the_picked_exercises(self):
+        cycle = build_mesocycle(
+            muscle_states=[_state("chest")],
+            strength_entries=[_strength("chest", 100)],
+            exercise_catalog={
+                "chest": [
+                    {"exercise_id": 9, "name": "上斜哑铃卧推"},
+                    {"exercise_id": 10, "name": "飞鸟夹胸"},
+                ]
+            },
+            weeks=2,
+            days_per_week=1,
+        )
+        slot = cycle.weeks[0].sessions[0].slots[0]
+        self.assertEqual(len(slot.exercises), 2)
+        self.assertEqual(sum(item.sets for item in slot.exercises), slot.sets)
+
+    def test_catalog_ignores_malformed_entries(self):
+        cycle = build_mesocycle(
+            muscle_states=[_state("chest")],
+            strength_entries=[],
+            exercise_catalog={"chest": [{"name": "没有 id"}, {"exercise_id": "x"}]},
+            weeks=2,
+            days_per_week=1,
+        )
+        slot = cycle.weeks[0].sessions[0].slots[0]
+        self.assertEqual(slot.exercises, ())
+
+    def test_catalog_deduplicates_the_exercise_ids(self):
+        cycle = build_mesocycle(
+            muscle_states=[_state("chest")],
+            strength_entries=[],
+            exercise_catalog={
+                "chest": [
+                    {"exercise_id": 7, "name": "A"},
+                    {"exercise_id": 7, "name": "B"},
+                ]
+            },
+            weeks=2,
+            days_per_week=1,
+        )
+        slot = cycle.weeks[0].sessions[0].slots[0]
+        self.assertEqual(len(slot.exercises), 1)
+        self.assertEqual(slot.exercises[0].name, "A")
+
+    def test_the_strength_exercise_is_not_duplicated_by_the_catalog(self):
+        cycle = build_mesocycle(
+            muscle_states=[_state("chest")],
+            strength_entries=[_strength("chest", 100)],
+            exercise_catalog={"chest": [{"exercise_id": 1, "name": "chest-press"}]},
+            weeks=2,
+            days_per_week=1,
+        )
+        slot = cycle.weeks[0].sessions[0].slots[0]
+        ids = [item.exercise_id for item in slot.exercises]
+        self.assertEqual(len(ids), len(set(ids)))
+
+
 if __name__ == "__main__":
     unittest.main()

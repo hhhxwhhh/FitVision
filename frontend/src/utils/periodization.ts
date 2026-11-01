@@ -5,6 +5,18 @@
  * 载荷收窄与文案，让"分析"页与"训练"页共用同一套口径。
  */
 
+export interface MesocycleExercise {
+  exercise_id: number
+  name: string
+  sets: number
+  reps: number
+  weight: number
+  e1rm: number
+  based_on_e1rm: boolean
+  equipment: string
+  note: string
+}
+
 export interface MesocycleSlot {
   muscle: string
   label: string
@@ -14,6 +26,7 @@ export interface MesocycleSlot {
   e1rm: number
   based_on_e1rm: boolean
   note: string
+  exercises: MesocycleExercise[]
 }
 
 export interface MesocycleSession {
@@ -77,6 +90,24 @@ export function phaseTone(phase: string | null | undefined): 'build' | 'intense'
   return PHASE_META[key]?.tone ?? 'build'
 }
 
+export function parseMesocycleExercise(raw: unknown): MesocycleExercise | null {
+  if (!raw || typeof raw !== 'object') return null
+  const source = raw as Record<string, unknown>
+  const exerciseId = toNumber(source.exercise_id)
+  if (exerciseId === null) return null
+  return {
+    exercise_id: exerciseId,
+    name: typeof source.name === 'string' && source.name ? source.name : `动作 #${exerciseId}`,
+    sets: toNumber(source.sets) ?? 0,
+    reps: toNumber(source.reps) ?? 0,
+    weight: toNumber(source.weight) ?? 0,
+    e1rm: toNumber(source.e1rm) ?? 0,
+    based_on_e1rm: Boolean(source.based_on_e1rm),
+    equipment: typeof source.equipment === 'string' ? source.equipment : '',
+    note: typeof source.note === 'string' ? source.note : '',
+  }
+}
+
 export function parseMesocycleSlot(raw: unknown): MesocycleSlot | null {
   if (!raw || typeof raw !== 'object') return null
   const source = raw as Record<string, unknown>
@@ -91,6 +122,11 @@ export function parseMesocycleSlot(raw: unknown): MesocycleSlot | null {
     e1rm: toNumber(source.e1rm) ?? 0,
     based_on_e1rm: Boolean(source.based_on_e1rm),
     note: typeof source.note === 'string' ? source.note : '',
+    exercises: Array.isArray(source.exercises)
+      ? source.exercises
+          .map(parseMesocycleExercise)
+          .filter((item): item is MesocycleExercise => item !== null)
+      : [],
   }
 }
 
@@ -168,6 +204,13 @@ export function slotText(slot: MesocycleSlot): string {
   const reps = slot.reps > 0 ? ` × ${slot.reps} 次` : ''
   const weight = slot.weight > 0 ? ` · ${slot.weight} kg` : ''
   return `${slot.sets} 组${reps}${weight}`
+}
+
+/** 单个动作的展示文案：`杠铃卧推 3 组 × 8 次 · 62.5 kg`。 */
+export function exerciseText(exercise: MesocycleExercise): string {
+  const reps = exercise.reps > 0 ? ` × ${exercise.reps} 次` : ''
+  const weight = exercise.weight > 0 ? ` · ${exercise.weight} kg` : ''
+  return `${exercise.name} ${exercise.sets} 组${reps}${weight}`
 }
 
 /** 容量系数 → 一句话说明。 */

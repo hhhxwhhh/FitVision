@@ -5,6 +5,21 @@ import { describe, expect, it } from 'vitest'
 import MesocyclePanel from './MesocyclePanel.vue'
 import { parseMesocycle } from '../utils/periodization'
 
+function exercise(overrides: Record<string, unknown> = {}) {
+  return {
+    exercise_id: 7,
+    name: '杠铃卧推',
+    sets: 3,
+    reps: 8,
+    weight: 62.5,
+    e1rm: 90,
+    based_on_e1rm: true,
+    equipment: 'barbell',
+    note: '按 e1RM 折算',
+    ...overrides,
+  }
+}
+
 function slot(overrides: Record<string, unknown> = {}) {
   return {
     muscle: 'chest',
@@ -15,6 +30,7 @@ function slot(overrides: Record<string, unknown> = {}) {
     e1rm: 90,
     based_on_e1rm: true,
     note: '按 e1RM 折算',
+    exercises: [exercise()],
     ...overrides,
   }
 }
@@ -123,6 +139,21 @@ describe('MesocyclePanel', () => {
   it('tags the slots that come from an e1RM estimate', () => {
     const wrapper = mount(MesocyclePanel, { props: { plan: parseMesocycle(payload()) } })
     expect(wrapper.find('.slot-tag').text()).toBe('e1RM 折算')
+  })
+
+  it('lists the concrete exercises of each slot', () => {
+    const wrapper = mount(MesocyclePanel, { props: { plan: parseMesocycle(payload()) } })
+    const items = wrapper.findAll('.slot-exercises li')
+    expect(items).toHaveLength(1)
+    expect(items[0]?.text()).toContain('杠铃卧推')
+    expect(items[0]?.text()).toContain('62.5 kg')
+  })
+
+  it('hides the exercise list when the slot has none', () => {
+    const wrapper = mount(MesocyclePanel, {
+      props: { plan: parseMesocycle(payload({ weeks: undefined })) },
+    })
+    expect(wrapper.find('.slot-exercises').exists()).toBe(false)
   })
 
   it('shows the notes when there are any', () => {
