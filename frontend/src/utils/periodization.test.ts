@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   autoregulationText,
+  currentPhase,
   deloadWeek,
   exerciseText,
   heaviestWeek,
@@ -14,6 +15,7 @@ import {
   phaseLabel,
   phaseTone,
   slotText,
+  todaySession,
   volumeHint,
 } from './periodization'
 
@@ -270,5 +272,54 @@ describe('week helpers', () => {
   it('returns null when there is nothing to find', () => {
     expect(heaviestWeek([])).toBeNull()
     expect(deloadWeek([])).toBeNull()
+  })
+})
+
+describe('todaySession', () => {
+  const plan = parseMesocycle(
+    payload({
+      days_per_week: 2,
+      weeks: [
+        week({
+          sessions: [
+            session({ index: 1, label: '第 1 天' }),
+            session({ index: 2, label: '第 2 天' }),
+          ],
+        }),
+      ],
+    }),
+  )
+
+  it('maps Monday to the first training day', () => {
+    expect(todaySession(plan, 1)?.label).toBe('第 1 天')
+  })
+
+  it('maps Tuesday to the second training day', () => {
+    expect(todaySession(plan, 2)?.label).toBe('第 2 天')
+  })
+
+  it('wraps around when the weekday exceeds the training days', () => {
+    expect(todaySession(plan, 5)?.label).toBe('第 1 天')
+  })
+
+  it('treats an invalid weekday as Monday', () => {
+    expect(todaySession(plan, 0)?.label).toBe('第 1 天')
+    expect(todaySession(plan, -1)?.label).toBe('第 1 天')
+  })
+
+  it('returns null without a plan', () => {
+    expect(todaySession(null, 1)).toBeNull()
+    expect(todaySession(parseMesocycle(payload({ weeks: [] })), 1)).toBeNull()
+  })
+})
+
+describe('currentPhase', () => {
+  it('returns the first week of the cycle', () => {
+    const plan = parseMesocycle(payload())!
+    expect(currentPhase(plan)?.index).toBe(1)
+  })
+
+  it('returns null without a plan', () => {
+    expect(currentPhase(null)).toBeNull()
   })
 })

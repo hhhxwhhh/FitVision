@@ -248,3 +248,28 @@ export function heaviestWeek(weeks: readonly MesocycleWeek[]): MesocycleWeek | n
 export function deloadWeek(weeks: readonly MesocycleWeek[]): MesocycleWeek | null {
   return weeks.find((item) => item.phase === 'deload') ?? null
 }
+
+/**
+ * 今天的训练日。
+ *
+ * 周期化计划里的训练日是「第 1 天 … 第 N 天」，而用户看到的是星期几。
+ * 这里按"一周从周一开始"把星期映射到训练日：周一 → 第 1 天，依此类推，
+ * 超过 `days_per_week` 的星期会循环回第一个训练日。
+ */
+export function todaySession(
+  plan: MesocyclePayload | null,
+  weekday: number,
+): MesocycleSession | null {
+  if (!plan || plan.weeks.length === 0) return null
+  const days = Math.max(1, plan.days_per_week)
+  const normalized = Math.max(1, Math.trunc(weekday) || 1)
+  const index = (normalized - 1) % days
+  const week = plan.weeks[0]
+  if (!week) return null
+  return week.sessions.find((session) => session.index === index + 1) ?? week.sessions[0] ?? null
+}
+
+/** 当前所处的阶段（第一个阶段 = 现在正在进行的中周期阶段）。 */
+export function currentPhase(plan: MesocyclePayload | null): MesocycleWeek | null {
+  return plan?.weeks[0] ?? null
+}

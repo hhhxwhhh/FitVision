@@ -131,6 +131,17 @@
                         :avoid="recovery.avoid"
                     />
                 </el-card>
+
+                <el-card v-if="mesocycle" class="plan-card recovery-card">
+                    <template #header>
+                        <div class="card-header">
+                            <span>今日处方</span>
+                            <span class="card-sub">中周期计划落到今天</span>
+                        </div>
+                    </template>
+
+                    <TodayPlanPanel :plan="mesocycle" :weekday="todayWeekday" />
+                </el-card>
             </el-col>
 
             <el-col :xs="24" :lg="9">
@@ -411,6 +422,7 @@ import apiClient, { resolveMediaUrl } from '../api'
 import PosePreview from '../components/ai/PosePreview.vue'
 import NextExerciseRecommendation from '../components/NextExerciseRecommendation.vue'
 import MuscleRecoveryPanel from '../components/MuscleRecoveryPanel.vue'
+import TodayPlanPanel from '../components/TodayPlanPanel.vue'
 import { ArrowRight, View, Sort } from '@element-plus/icons-vue'
 
 import { useRouter } from 'vue-router'
@@ -420,6 +432,7 @@ import {
     volumeText as loadVolumeTextOf,
 } from '../utils/loadModel'
 import { parseMuscleRecovery } from '../utils/muscleRecovery'
+import { parseMesocycle, type MesocyclePayload } from '../utils/periodization'
 const router = useRouter()
 
 /**
@@ -460,6 +473,27 @@ const fetchMuscleRecovery = async () => {
         recovery.value = null
     }
 }
+
+/**
+ * 中周期计划（周期化引擎）落到今天该做的动作。
+ * 取不到时静默降级 —— 训练页不依赖它也能正常用。
+ */
+const mesocycle = ref<MesocyclePayload | null>(null)
+
+const fetchMesocycle = async () => {
+    try {
+        const res = await apiClient.get('/growth/mesocycle/?weeks=4&days_per_week=4')
+        mesocycle.value = parseMesocycle(res.data)
+    } catch {
+        mesocycle.value = null
+    }
+}
+
+/** 今天是周几（周一 = 1，周日 = 7），用来定位"今天这一训练日"。 */
+const todayWeekday = computed(() => {
+    const day = new Date().getDay()
+    return day === 0 ? 7 : day
+})
 
 const currentGifUrl = ref('')
 const route = useRoute()
@@ -932,6 +966,7 @@ onMounted(async () => {
     await fetchPlans()
     fetchLoadModel()
     fetchMuscleRecovery()
+    fetchMesocycle()
     const exerciseId = route.query.exercise_id
     const exerciseName = route.query.exercise_name
 
