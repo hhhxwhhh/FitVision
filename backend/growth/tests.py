@@ -9,6 +9,7 @@ from exercises.models import Exercise
 from training.models import UserTrainingExerciseRecord, UserTrainingSession
 
 from .models import (
+    Achievement,
     Challenge,
     PersonalRecord,
     UserAchievement,
@@ -713,3 +714,133 @@ class GrowthApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.data["is_public"])
+
+
+
+class QueryCountTests(TestCase):
+    """查询次数回归测试。
+
+    成长体系的总览接口每次都要跑一遍指标聚合与成就判定，
+    这里断言"查询次数不随数据量线性增长"—— 挡住新引入的 N+1。
+    """
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def _make_user(self, username):
+        user = User.objects.create_user(username=username, password="StrongPass123")
+        self.client.force_authenticate(user)
+        return user
+
+    def _seed(self, user, sessions=6, exercises=4):
+        for index in range(exercises):
+            Exercise.objects.create(
+                name=f"动作 {username_seed(index)}",
+                description="性能测试用",
+                target_muscle="chest" if index % 2 == 0 else "back",
+                instructions="标准姿势",
+            )
+        exercise_ids = list(Exercise.objects.values_list("id", flat=True))
+        for index in range(sessions):
+            start = timezone.now() - timedelta(days=index, minutes=5)
+            session = UserTrainingSession.objects.create(
+                user=user,
+                start_time=start,
+                end_time=start + timedelta(minutes=30),
+                is_completed=True,
+                total_exercises=len(exercise_ids),
+                completed_exercises=len(exercise_ids),
+                calories_burned=200,
+                performance_score=4.0,
+            )
+            for exercise_id in exercise_ids:
+                UserTrainingExerciseRecord.objects.create(
+                    session=session,
+                    exercise_id=exercise_id,
+                    sets_completed=3,
+                    reps_completed=[10, 10, 10],
+                    weights_used=[40.0, 40.0, 40.0],
+                    form_score=88,
+                )
+        return exercise_ids
+
+    def _count_overview_queries(self, user):
+        """统计总览接口的查询次数（先跑一次让状态稳定，再计数）。"""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        self.client.force_authenticate(user)
+        self.client.get("/api/growth/overview/")
+        with CaptureQueriesContext(connection) as captured:
+            self.client.get("/api/growth/overview/")
+        return len(captured.captured_queries)
+
+    def test_overview_query_count_does_not_grow_with_the_data(self):
+        small = self._make_user("query_small")
+        self._seed(small, sessions=4, exercises=3)
+        small_count = self._count_overview_queries(small)
+
+        large = self._make_user("query_large")
+        self._seed(large, sessions=12, exercises=8)
+        large_count = self._count_overview_queries(large)
+
+        # 数据量翻了三倍，查询次数不应该跟着涨。
+        self.assertLessEqual(large_count, small_count + 2)
+
+    def test_personal_record_update_reads_the_existing_records_once(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from .services import update_personal_records
+
+        user = self._make_user("query_records")
+        self._seed(user, sessions=1, exercises=5)
+        session = UserTrainingSession.objects.filter(user=user).first()
+        PersonalRecord.objects.filter(user=user).delete()
+
+        with CaptureQueriesContext(connection) as captured:
+            update_personal_records(session)
+
+        selects = [
+            item
+            for item in captured.captured_queries
+            if item["sql"].lstrip().upper().startswith("SELECT")
+        ]
+        # 读取既有纪录只查一次；其余都是写入。
+        self.assertLessEqual(len(selects), 2)
+
+    def test_achievement_evaluation_reads_the_unlocked_set_once(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from .services import evaluate_achievements
+
+        user = self._make_user("query_achievements")
+        self._seed(user, sessions=5, exercises=3)
+        Achievement.objects.filter(is_active=True).delete()
+        for index in range(12):
+            Achievement.objects.create(
+                code=f"perf_{index}",
+                title=f"性能成就 {index}",
+                description="查询次数测试",
+                metric="sessions",
+                threshold=index,
+                xp_reward=10,
+                is_active=True,
+            )
+
+        with CaptureQueriesContext(connection) as captured:
+            evaluate_achievements(user)
+
+        # "是否已解锁"只查一次，而不是每个成就查一次。
+        unlocked_checks = [
+            item
+            for item in captured.captured_queries
+            if "growth_userachievement" in item["sql"] and "achievement_id" in item["sql"]
+        ]
+        self.assertLessEqual(len(unlocked_checks), 2)
+
+
+def username_seed(index: int) -> str:
+    """给动作名加后缀，避免同一测试里重名。"""
+    return f"{index}-{timezone.now().timestamp()}"

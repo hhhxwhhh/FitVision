@@ -342,9 +342,11 @@ Docker Compose 镜像构建。另有 CodeQL 安全扫描与依赖自动更新（
 训练周期统计、CSV 导出、HTML 消毒、主题、负荷模型 / 分肌群恢复 / 力量曲线 / 周期化计划的解析层、用户状态，
 以及 7 个组件级用例（训练日历、回到顶部、主题切换、AI 智能接力、肌群恢复面板、周期化面板、今日处方面板）。
 
-后端 **339 个用例**，其中负荷模型 `utils/readiness` 有 53 个、分肌群恢复模型
+后端 **342 个用例**，其中负荷模型 `utils/readiness` 有 53 个、分肌群恢复模型
 `utils/recovery` 有 51 个、力量评估引擎 `utils/strength` 有 63 个、训练周期化引擎
-`utils/periodization` 有 40 个、MMR 重排与演示数据生成器各有 10+ 个，都可以脱离 Django 直接运行：
+`utils/periodization` 有 40 个、MMR 重排与演示数据生成器各有 10+ 个，都可以脱离 Django 直接运行；
+成长体系另有 3 个**查询次数回归测试**，用 `CaptureQueriesContext` 断言总览接口的查询数
+不随数据量线性增长，防止 N+1 悄悄回来：
 
 ```bash
 cd backend

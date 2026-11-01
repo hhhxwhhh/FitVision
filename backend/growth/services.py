@@ -227,22 +227,39 @@ def week_start_for(day: date | None = None) -> date:
 
 
 def build_metrics(user) -> dict:
-    """汇总成就判定所需的全部指标。"""
+    """汇总成就判定所需的全部指标。
+
+    会话相关的统计全部在一次 `values_list` 里算出来（避免 count / aggregate /
+    filter 各来一次），这是成就系统每次请求都要跑的热点路径。
+    """
     sessions = _completed_sessions(user)
-    session_count = sessions.count()
 
     total_minutes = 0.0
     weekly_dates: set[date] = set()
+    session_count = 0
+    early_sessions = 0
+    night_sessions = 0
+    calories = 0.0
     monday = week_start_for()
-    for start_time, end_time in sessions.values_list("start_time", "end_time"):
+    for start_time, end_time, session_calories, performance in sessions.values_list(
+        "start_time", "end_time", "calories_burned", "performance_score"
+    ):
+        session_count += 1
         if end_time and start_time:
             total_minutes += max(
                 0.0, (end_time - start_time).total_seconds() / 60
             )
         if start_time:
-            local_day = timezone.localtime(start_time).date()
+            local = timezone.localtime(start_time)
+            local_day = local.date()
             if local_day >= monday:
                 weekly_dates.add(local_day)
+            # 与原先数据库层的 `start_time__hour` 保持一致（按当前时区判定）。
+            if local.hour < 7:
+                early_sessions += 1
+            if local.hour >= 22:
+                night_sessions += 1
+        calories += float(session_calories or 0)
 
     dates = _training_dates(user)
     current_streak, longest_streak = streaks_from_dates(dates)
@@ -251,17 +268,14 @@ def build_metrics(user) -> dict:
         session__user=user, session__is_completed=True
     )
     best_form = float(records.aggregate(value=Max("form_score"))["value"] or 0)
-    calories = float(
-        sessions.aggregate(value=Sum("calories_burned"))["value"] or 0
-    )
     distinct_exercises = records.values("exercise_id").distinct().count()
     personal_records = PersonalRecord.objects.filter(user=user).count()
     total_volume = 0.0
-    for record in records.only("weights_used", "reps_completed"):
+    for record in records.only(
+        "weights_used", "reps_completed", "sets_completed"
+    ):
         total_volume += _record_volume(record)
 
-    early_sessions = sessions.filter(start_time__hour__lt=7).count()
-    night_sessions = sessions.filter(start_time__hour__gte=22).count()
     challenges_claimed = UserChallenge.objects.filter(
         user=user, claimed_at__isnull=False
     ).count()
@@ -307,6 +321,44 @@ def award_xp(user, source: str, reference_id: int, amount: int, note: str = ""):
         progress.level = level_from_xp(progress.xp)
         progress.save(update_fields=["xp", "level", "updated_at"])
         return event, True
+
+
+def award_xp_bulk(user, source: str, entries: list[tuple[int, int, str]]) -> int:
+    """批量发放经验：一次写入流水、一次更新进度，返回实际发放的经验总额。
+
+    `entries` 为 (reference_id, amount, note) 列表。同一来源下已发过经验的
+    reference_id 会被跳过（与 :func:`award_xp` 的幂等语义保持一致）。
+    """
+    if not entries:
+        return 0
+    with transaction.atomic():
+        wanted = {int(item[0]) for item in entries}
+        existing = set(
+            XPEvent.objects.filter(
+                user=user, source=source, reference_id__in=wanted
+            ).values_list("reference_id", flat=True)
+        )
+        rows = [
+            XPEvent(
+                user=user,
+                source=source,
+                reference_id=int(reference_id),
+                amount=max(0, int(amount)),
+                note=note,
+            )
+            for reference_id, amount, note in entries
+            if int(reference_id) not in existing
+        ]
+        if not rows:
+            return 0
+        XPEvent.objects.bulk_create(rows)
+        total = sum(row.amount for row in rows)
+
+        progress, _ = UserProgress.objects.select_for_update().get_or_create(user=user)
+        progress.xp += total
+        progress.level = level_from_xp(progress.xp)
+        progress.save(update_fields=["xp", "level", "updated_at"])
+        return total
 
 
 def session_xp(session: UserTrainingSession, current_streak: int) -> int:
@@ -357,12 +409,30 @@ def refresh_user_stats(user) -> UserStats:
 
 
 def update_personal_records(session: UserTrainingSession) -> list[PersonalRecord]:
-    """从一次完成的训练中提取并更新个人纪录。"""
+    """从一次完成的训练中提取并更新个人纪录。
+
+    一次性把该用户在这几个动作上的既有纪录读出来，避免"每个动作 × 每个类型"
+    各查一次数据库的 N+1 写法。
+    """
     updated: list[PersonalRecord] = []
     if not session.is_completed:
         return updated
 
-    for record in session.exercise_records.select_related("exercise"):
+    records = list(session.exercise_records.select_related("exercise"))
+    if not records:
+        return updated
+
+    # 只用 user_id，避免触发 session.user 的懒加载多打一次数据库。
+    user_id = session.user_id
+    exercise_ids = {record.exercise_id for record in records}
+    existing_map = {
+        (item.exercise_id, item.record_type): item
+        for item in PersonalRecord.objects.filter(
+            user_id=user_id, exercise_id__in=exercise_ids
+        )
+    }
+
+    for record in records:
         weights = _numeric(record.weights_used)
         reps = _numeric(record.reps_completed)
         sets = build_sets(record.weights_used, record.reps_completed, record.rir)
@@ -377,11 +447,7 @@ def update_personal_records(session: UserTrainingSession) -> list[PersonalRecord
         for record_type, value in candidates.items():
             if value <= 0:
                 continue
-            existing = PersonalRecord.objects.filter(
-                user=session.user,
-                exercise=record.exercise,
-                record_type=record_type,
-            ).first()
+            existing = existing_map.get((record.exercise_id, record_type))
             if existing and existing.value >= value:
                 continue
             if existing:
@@ -391,54 +457,82 @@ def update_personal_records(session: UserTrainingSession) -> list[PersonalRecord
                 existing.save(update_fields=["value", "achieved_at", "session"])
                 updated.append(existing)
             else:
-                updated.append(
-                    PersonalRecord.objects.create(
-                        user=session.user,
-                        exercise=record.exercise,
-                        record_type=record_type,
-                        value=value,
-                        achieved_at=record.created_at or timezone.now(),
-                        session=session,
-                    )
+                created = PersonalRecord.objects.create(
+                    user_id=user_id,
+                    exercise=record.exercise,
+                    record_type=record_type,
+                    value=value,
+                    achieved_at=record.created_at or timezone.now(),
+                    session=session,
                 )
+                existing_map[(record.exercise_id, record_type)] = created
+                updated.append(created)
     return updated
 
 
-def evaluate_achievements(user) -> list[UserAchievement]:
-    """检查并解锁所有已达成但尚未入库的成就。"""
-    metrics = build_metrics(user)
+def evaluate_achievements(user, metrics: dict | None = None) -> list[UserAchievement]:
+    """检查并解锁所有已达成但尚未入库的成就。
+
+    `metrics` 可以由调用方传入（`build_metrics` 会跑十几次聚合查询），
+    避免同一次请求里重复计算。
+    """
+    metrics = metrics if metrics is not None else build_metrics(user)
     unlocked: list[UserAchievement] = []
-    achievements = Achievement.objects.filter(is_active=True).order_by(
-        "sort_order", "id"
+    pending: list[tuple[Achievement, float]] = []
+    achievements = list(
+        Achievement.objects.filter(is_active=True).order_by("sort_order", "id")
+    )
+    if not achievements:
+        return unlocked
+
+    # 一次性取出已解锁的成就 id，避免每个成就查一次数据库。
+    already = set(
+        UserAchievement.objects.filter(
+            user=user, achievement_id__in=[item.id for item in achievements]
+        ).values_list("achievement_id", flat=True)
     )
 
     for achievement in achievements:
-        if UserAchievement.objects.filter(
-            user=user, achievement=achievement
-        ).exists():
+        if achievement.id in already:
             continue
 
         metric_value = float(metrics.get(achievement.metric, 0) or 0)
         if metric_value < achievement.threshold:
             continue
 
-        user_achievement, created = UserAchievement.objects.get_or_create(
+        pending.append((achievement, metric_value))
+
+    if not pending:
+        return unlocked
+
+    # 批量写入，避免"每个成就一次 SELECT + 一次 INSERT"的往返。
+    created_rows = [
+        UserAchievement(
             user=user,
             achievement=achievement,
-            defaults={"progress_value": metric_value},
+            progress_value=metric_value,
         )
-        if not created:
-            continue
-        unlocked.append(user_achievement)
-        award_xp(
-            user,
-            "achievement",
-            achievement.id,
-            achievement.xp_reward,
-            note=f"解锁成就：{achievement.title}",
-        )
-        # 成就奖励可能让等级达到新阈值，同步刷新等级指标。
-        metrics["level"] = UserProgress.objects.get(user=user).level
+        for achievement, metric_value in pending
+    ]
+    UserAchievement.objects.bulk_create(created_rows)
+    unlocked.extend(created_rows)
+    award_xp_bulk(
+        user,
+        "achievement",
+        [
+            (
+                achievement.id,
+                achievement.xp_reward,
+                f"解锁成就：{achievement.title}",
+            )
+            for achievement, _ in pending
+        ],
+    )
+
+    # 成就奖励可能让等级达到新阈值，同步刷新等级指标。
+    progress = UserProgress.objects.filter(user=user).first()
+    if progress is not None:
+        metrics["level"] = progress.level
 
     return unlocked
 
@@ -495,16 +589,18 @@ def record_session_completed(session: UserTrainingSession) -> dict:
 def daily_metrics(user, day: date | None = None) -> dict:
     day = day or timezone.localdate()
     sessions = _completed_sessions(user).filter(start_time__date=day)
-    session_count = sessions.count()
 
     total_minutes = 0.0
-    for start_time, end_time in sessions.values_list("start_time", "end_time"):
+    calories = 0.0
+    session_count = 0
+    for start_time, end_time, session_calories in sessions.values_list(
+        "start_time", "end_time", "calories_burned"
+    ):
+        session_count += 1
         if start_time and end_time:
             total_minutes += max(0.0, (end_time - start_time).total_seconds() / 60)
+        calories += float(session_calories or 0)
 
-    calories = float(
-        sessions.aggregate(value=Sum("calories_burned"))["value"] or 0
-    )
     records = UserTrainingExerciseRecord.objects.filter(
         session__user=user,
         session__is_completed=True,
@@ -669,19 +765,28 @@ def challenge_window(challenge: Challenge, day: date | None = None) -> tuple[dat
 
 
 def _challenge_metrics(user, start: date, end: date) -> dict:
-    """统计用户在 [start, end) 内的训练指标，供所有同周期挑战复用。"""
+    """统计用户在 [start, end) 内的训练指标，供所有同周期挑战复用。
+
+    会话统计在一次遍历里完成（天数 / 时长 / 卡路里 / 次数），避免多次查询。
+    """
     sessions = _completed_sessions(user).filter(
         start_time__date__gte=start,
         start_time__date__lt=end,
     )
-    training_days = len(set(sessions.values_list("start_time__date", flat=True)))
 
+    training_days: set[date] = set()
     total_minutes = 0.0
-    for start_time, end_time in sessions.values_list("start_time", "end_time"):
+    calories = 0.0
+    session_count = 0
+    for session_day, start_time, end_time, session_calories in sessions.values_list(
+        "start_time__date", "start_time", "end_time", "calories_burned"
+    ):
+        session_count += 1
+        training_days.add(session_day)
         if start_time and end_time:
             total_minutes += max(0.0, (end_time - start_time).total_seconds() / 60)
+        calories += float(session_calories or 0)
 
-    calories = float(sessions.aggregate(value=Sum("calories_burned"))["value"] or 0)
     records = UserTrainingExerciseRecord.objects.filter(
         session__user=user,
         session__is_completed=True,
@@ -696,8 +801,8 @@ def _challenge_metrics(user, start: date, end: date) -> dict:
     )
 
     return {
-        "sessions": sessions.count(),
-        "training_days": training_days,
+        "sessions": session_count,
+        "training_days": len(training_days),
         "minutes": round(total_minutes, 1),
         "calories": round(calories, 1),
         "volume": round(volume, 1),
@@ -847,7 +952,9 @@ def weekly_leaderboard(user, limit: int = 20) -> dict:
         for progress in UserProgress.objects.select_related("user", "user__profile")
         .filter(is_public=True)
     }
-    own_progress, _ = UserProgress.objects.get_or_create(user=user)
+    own_progress, _ = UserProgress.objects.select_related("user", "user__profile").get_or_create(
+        user=user
+    )
     progresses.setdefault(user.id, own_progress)
 
     ranked = []

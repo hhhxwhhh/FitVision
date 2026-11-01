@@ -67,7 +67,9 @@ def _challenge_payload(challenge, states: list[dict]) -> dict:
 def overview(request):
     """成长体系总览：等级、连续天数、每日任务、周目标、成就与个人纪录。"""
     user = request.user
-    evaluate_achievements(user)
+    # 指标只算一次：既用于成就判定，也用于返回体。
+    metrics = build_metrics(user)
+    evaluate_achievements(user, metrics=metrics)
 
     progress, _ = UserProgress.objects.get_or_create(user=user)
     quests = refresh_daily_quests(user)
@@ -79,7 +81,6 @@ def overview(request):
         for item in UserAchievement.objects.filter(user=user)
     }
     achievements = Achievement.objects.filter(is_active=True)
-    metrics = build_metrics(user)
     achievement_context = {"unlocked": unlocked_map, "metrics": metrics}
     preview = AchievementSerializer(
         achievements.order_by("sort_order", "id")[:4],
@@ -137,7 +138,8 @@ def overview(request):
 @permission_classes([IsAuthenticated])
 def achievements_list(request):
     user = request.user
-    evaluate_achievements(user)
+    metrics = build_metrics(user)
+    evaluate_achievements(user, metrics=metrics)
     unlocked_map = {
         item.achievement_id: item
         for item in UserAchievement.objects.filter(user=user)
@@ -146,7 +148,7 @@ def achievements_list(request):
     serializer = AchievementSerializer(
         achievements,
         many=True,
-        context={"unlocked": unlocked_map, "metrics": build_metrics(user)},
+        context={"unlocked": unlocked_map, "metrics": metrics},
     )
     return Response(
         {

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Query-count regression tests for the growth service layer (`CaptureQueriesContext` + `assertNumQueries`): the overview endpoint's query count must not grow with the data volume, personal records are read once instead of per record type, and the unlocked-achievement set is fetched once instead of per achievement.
 - Frontend test suite: Vitest configuration, test setup with browser-API shims, and unit tests for pose utilities and the user store.
 - Frontend test coverage reporting (`npm run test:coverage`, `@vitest/coverage-v8`).
 - CI: frontend test + coverage job, backend coverage report, and a real Docker Compose image build in CI.
@@ -57,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An all-zero load series was misread as "extremely monotonous", penalising brand-new accounts; the readiness engine now short-circuits when there is no training history at all.
 
 ### Changed
+- Performance: the growth service layer no longer issues N+1 queries. The unlocked-achievement set is fetched once and the new rows are written with `bulk_create` (plus a new `award_xp_bulk` helper that settles XP in one insert and one progress update), personal records are read once per session instead of once per record type, session statistics are computed in a single pass, and the overview/achievement endpoints reuse one `build_metrics` result instead of recomputing it.
 - Recommendation diversity re-ranking now uses **Maximal Marginal Relevance (MMR)** instead of a fixed per-muscle penalty, balancing relevance against redundancy with a tested pure-Python implementation.
 - The recommendation engines no longer read the crude `UserState.fatigue_level` accumulator directly; fatigue now comes from the load model via a single resolver with graceful fallback.
 - Recommendation ranking is additionally weighted by **local muscle recovery** (`_rerank_by_muscle_recovery`, 60% influence): exercises targeting a muscle group still inside its soreness window are pushed down, fully recovered groups get a small bonus.
