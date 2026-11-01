@@ -13,6 +13,7 @@ from datetime import timedelta
 import json 
 from openai import OpenAI  
 from utils.readiness import plan_volume
+from utils.strength import prescribe_load
 from utils.vector_db import VectorDB
 import os
 from .services import UserSimilarityService, SmartRecommendationService
@@ -498,6 +499,21 @@ def generate_smart_plan(request):
     base_sets, volume_multiplier, intensity_label = plan_volume(readiness)
     intensity = str(readiness.get("intensity") or "")
 
+    # 每个动作的历史 e1RM → 计划里的具体重量。用户练过的动作给出可执行的
+    # 处方（按 RIR2 折算），没练过的给通用次数区间，避免"看起来很精确但其实
+    # 是拍脑袋"的重量。
+    e1rm_by_exercise: dict[int, float] = {}
+    try:
+        from growth.services import strength_history
+
+        e1rm_by_exercise = {
+            item["exercise_id"]: float(item.get("best") or 0)
+            for item in strength_history(user)
+            if float(item.get("best") or 0) > 0
+        }
+    except Exception as exc:  # pragma: no cover - 计划不应该因为 e1RM 失败而生成不了
+        print(f"e1RM 获取失败，按通用次数生成: {exc}")
+
     weekly_schedule = []
 
     # 定义分化训练逻辑 (如果选全身，自动每天换部位)
@@ -537,16 +553,24 @@ def generate_smart_plan(request):
         # 3. 格式化动作数据
         exercises_data = []
         for ex in exercise_chain:
+            e1rm = e1rm_by_exercise.get(ex.id, 0.0)
+            target_reps = 8 if user_level <= 1 else (6 if user_level <= 3 else 5)
+            suggested_weight = prescribe_load(e1rm, target_reps, target_rir=2) if e1rm > 0 else 0.0
             exercises_data.append({
                 "id": ex.id,
                 "name": ex.name,
                 "search_query": ex.name,
                 "target_muscle": ex.target_muscle,
                 "sets": base_sets,
-                "reps": "8-12次",
+                "reps": target_reps,
+                "reps_text": f"{target_reps}次",
+                "weight": suggested_weight,
+                "based_on_e1rm": e1rm > 0,
+                "e1rm": round(e1rm, 1) if e1rm > 0 else None,
                 "gif": ex.demo_gif.url if ex.demo_gif else "",
                 "img": ex.image_url if hasattr(ex, 'image_url') else "",
                 "ai_desc": f"适合Lv.{user_level}的进阶动作"
+                + (f"（按 e1RM {round(e1rm, 1)}kg 折算）" if e1rm > 0 else "")
             })
         
         # 4. 加入周计划列表

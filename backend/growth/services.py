@@ -364,7 +364,7 @@ def update_personal_records(session: UserTrainingSession) -> list[PersonalRecord
     for record in session.exercise_records.select_related("exercise"):
         weights = _numeric(record.weights_used)
         reps = _numeric(record.reps_completed)
-        sets = build_sets(record.weights_used, record.reps_completed)
+        sets = build_sets(record.weights_used, record.reps_completed, record.rir)
         estimate = estimate_session_e1rm(sets)
         candidates = {
             "max_weight": max(weights) if weights else 0,
@@ -1015,7 +1015,7 @@ def strength_history(user, days: int = 120) -> list[dict]:
 
     grouped: dict[int, dict] = {}
     for record in records:
-        sets = build_sets(record.weights_used, record.reps_completed)
+        sets = build_sets(record.weights_used, record.reps_completed, record.rir)
         estimate = estimate_session_e1rm(sets)
         if estimate is None or estimate.e1rm <= 0:
             continue

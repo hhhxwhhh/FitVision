@@ -166,6 +166,20 @@ class UserTrainingExerciseRecord(models.Model):
     
     # 评分和反馈
     form_score = models.FloatField("动作评分", default=0.0, help_text="AI评估的动作质量(0-100)")
+
+    # 主观用力程度：还能再做几次（RIR, 0-5），用于按 RIR 反推 1RM
+    rir = models.IntegerField(
+        "还能再做几次(RIR)",
+        null=True,
+        blank=True,
+        help_text="完成该动作时还能再做几次，0=力竭，2=常规强度",
+    )
+    rpe = models.FloatField(
+        "主观用力程度(RPE)",
+        null=True,
+        blank=True,
+        help_text="1-10 的 Borg 主观用力程度，与 RIR 互为换算",
+    )
     feedback = models.JSONField("动作反馈", blank=True, null=True,
                               help_text="AI提供的详细动作分析")
     

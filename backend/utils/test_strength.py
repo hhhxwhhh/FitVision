@@ -303,6 +303,19 @@ class BuildSetsTests(unittest.TestCase):
         sets = build_sets([60], [-5])
         self.assertEqual(sets[0].reps, 0)
 
+    def test_rir_lands_on_the_heaviest_set(self):
+        sets = build_sets([60, 100], [10, 5], rir=2)
+        self.assertIsNone(sets[0].rir)
+        self.assertEqual(sets[1].rir, 2)
+
+    def test_rir_of_zero_is_kept(self):
+        sets = build_sets([60], [10], rir=0)
+        self.assertEqual(sets[0].rir, 0)
+
+    def test_without_rir_no_set_carries_it(self):
+        sets = build_sets([60], [10])
+        self.assertIsNone(sets[0].rir)
+
 
 class DeloadTests(unittest.TestCase):
     def test_progress_means_no_deload(self):

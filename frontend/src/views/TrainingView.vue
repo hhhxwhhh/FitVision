@@ -251,6 +251,17 @@
                                             </div>
                                         </el-form-item>
 
+                                        <el-form-item label="还能再做几次 (RIR)">
+                                            <el-select v-model="recordForm.rir" placeholder="不确定可留空"
+                                                style="width: 100%">
+                                                <el-option v-for="n in 6" :key="n - 1" :label="rirLabel(n - 1)"
+                                                    :value="n - 1" />
+                                            </el-select>
+                                            <div class="target-hint">
+                                                用于按 RIR 反推 1RM：0 = 力竭，2 = 常规强度
+                                            </div>
+                                        </el-form-item>
+
                                         <el-form-item label="AI 动作评分">
                                             <div class="score-input-wrapper">
                                                 <el-slider v-model="recordForm.form_score" :min="0" :max="100"
@@ -532,8 +543,15 @@ const recordForm = reactive({
     reps_completed: '',
     weights_used: '',
     duration_seconds_actual: 0,
-    form_score: 0
+    form_score: 0,
+    rir: null as number | null
 })
+
+/** RIR（还能再做几次）的中文说明。 */
+const rirLabel = (value: number) => {
+    const hints = ['力竭', '还能再做 1 次', '还能再做 2 次', '还能再做 3 次', '还能再做 4 次', '还能再做 5 次']
+    return hints[value] ?? `还能再做 ${value} 次`
+}
 
 const completeForm = reactive({
     completed_exercises: 0,
@@ -757,7 +775,8 @@ const handleRecordExercise = async () => {
             reps_completed: parseNumberList(recordForm.reps_completed),
             weights_used: parseNumberList(recordForm.weights_used),
             duration_seconds_actual: recordForm.duration_seconds_actual,
-            form_score: recordForm.form_score
+            form_score: recordForm.form_score,
+            rir: recordForm.rir
         }
 
         await apiClient.post('training/exercise-records/', payload)
@@ -853,6 +872,7 @@ const fillRecordFromPlanExercise = (item: any) => {
     recordForm.weights_used = '';   // 重量留空
     recordForm.duration_seconds_actual = 0;
     recordForm.form_score = 0;
+    recordForm.rir = null;
 
     // 3. 路由逻辑 (保持不变)
     if (sessionId.value) {
@@ -880,6 +900,7 @@ const resetAllState = () => {
     recordForm.reps_completed = '';
     recordForm.duration_seconds_actual = 0;
     recordForm.form_score = 0;
+    recordForm.rir = null;
 
     completeForm.performance_score = 0;
 

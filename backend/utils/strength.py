@@ -548,11 +548,17 @@ def strength_summary(
     }
 
 
-def build_sets(weights: Sequence | None, reps: Sequence | None) -> list[SetResult]:
+def build_sets(
+    weights: Sequence | None,
+    reps: Sequence | None,
+    rir: int | None = None,
+) -> list[SetResult]:
     """把数据库里的两个 JSON 列表拼成一组组训练结果。
 
     `weights_used` 与 `reps_completed` 逐位对应；长度不一致时以较短的为准，
     缺重量的一组按自重（0）处理，不参与重量类估计。
+    `rir`（还能再做几次）作用在**最重的那一组**上 —— 用户填的 RIR 通常描述的
+    就是 hardest set，这样 RIR 反推 1RM 时不会张冠李戴。
     """
     weight_list = list(weights or [])
     rep_list = list(reps or [])
@@ -567,6 +573,17 @@ def build_sets(weights: Sequence | None, reps: Sequence | None) -> list[SetResul
         except (TypeError, ValueError):
             count = 0
         sets.append(SetResult(weight=weight, reps=max(0, count)))
+
+    if rir is not None and sets:
+        heaviest = max(range(len(sets)), key=lambda i: sets[i].weight)
+        current = sets[heaviest]
+        sets[heaviest] = SetResult(
+            weight=current.weight,
+            reps=current.reps,
+            rir=max(0, int(rir)),
+            rpe=current.rpe,
+            mean_velocity=current.mean_velocity,
+        )
     return sets
 
 

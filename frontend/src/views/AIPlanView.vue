@@ -85,6 +85,10 @@
                     <div class="ex-info">
                       <div class="ex-name">{{ ex.name }}</div>
                       <div class="ex-meta">{{ ex.sets }}组 × {{ ex.reps }}</div>
+                      <div v-if="(ex.weight ?? 0) > 0" class="ex-weight">
+                        建议 {{ ex.weight }} kg
+                        <span v-if="ex.e1rm" class="ex-weight-hint">按 e1RM {{ ex.e1rm }} kg 折算</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -220,6 +224,9 @@ interface Exercise {
   sets: number;
   reps: string | number;
   ai_desc?: string;
+  weight?: number;
+  e1rm?: number | null;
+  based_on_e1rm?: boolean;
 }
 
 interface ScheduleItem {
@@ -490,6 +497,20 @@ const showExerciseDetail = (ex: Exercise) => {
 .ex-info { display: flex; flex-direction: column; }
 .ex-name { font-size: 14px; font-weight: 600; color: var(--text-main); line-height: 1.2; }
 .ex-meta { font-size: 12px; color: var(--text-secondary); }
+
+.ex-weight {
+    margin-top: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--fv-primary);
+}
+
+.ex-weight-hint {
+    margin-left: 4px;
+    font-weight: 400;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
 
 .actions { display: flex; align-items: flex-start; }
 

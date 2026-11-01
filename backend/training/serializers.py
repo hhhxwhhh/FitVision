@@ -51,7 +51,15 @@ class TrainingPlanDetailSerializer(serializers.ModelSerializer):
 class UserTrainingExerciseRecordSerializer(serializers.ModelSerializer):
     """用户训练动作记录序列化器"""
     exercise_name = serializers.CharField(source='exercise.name', read_only=True)
-    
+    rir = serializers.IntegerField(
+        required=False, allow_null=True, min_value=0, max_value=5,
+        help_text="完成该组时还能再做几次（0=力竭）",
+    )
+    rpe = serializers.FloatField(
+        required=False, allow_null=True, min_value=1, max_value=10,
+        help_text="主观用力程度（1-10）",
+    )
+
     class Meta:
         model = UserTrainingExerciseRecord
         fields = '__all__'
