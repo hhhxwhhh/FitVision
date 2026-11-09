@@ -17,7 +17,7 @@ whitenoise>=6.6,<7
 sentry-sdk[django]>=2,<3
 
 # --- Database / cache / tasks ----------------------------------------------
-psycopg2-binary==2.9.10
+psycopg2-binary==2.9.13
 django-redis==6.0.0
 redis==7.1.0
 celery==5.5.3
